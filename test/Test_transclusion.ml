@@ -47,7 +47,7 @@ let () =
   in
   let iri = Iri_scheme.user_iri ~host "transcludee" in
   let print_transclusion
-    : T.content T.transclusion -> unit
+    : T.transclusion -> unit
   = fun t ->
     let content = Option.get @@ Forest.get_content_of_transclusion t forest.resources in
     Format.printf

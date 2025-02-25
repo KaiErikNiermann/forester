@@ -62,9 +62,12 @@ let parse_forest_config_string str =
   parse lexbuf "<anonymous>"
 
 let parse_forest_config_file filename =
-  let ch = open_in filename in
-  let@ () = Fun.protect ~finally: (fun _ -> close_in ch) in
-  let lexbuf = Lexing.from_channel ch in
-  let result = parse lexbuf filename in
-  Sys.chdir @@ Filename.dirname filename;
-  result
+  try
+    let ch = open_in filename in
+    let@ () = Fun.protect ~finally: (fun _ -> close_in ch) in
+    let lexbuf = Lexing.from_channel ch in
+    let result = parse lexbuf filename in
+    Sys.chdir @@ Filename.dirname filename;
+    result
+  with
+    | exn -> Reporter.fatalf Configuration_error "%a" Eio.Exn.pp exn

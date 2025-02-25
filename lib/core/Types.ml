@@ -110,7 +110,7 @@ type modifier =
   Sentence_case | Identity
 [@@deriving show, repr]
 
-type 'content transclusion = {
+type transclusion = {
   href: iri;
   target: content_target;
   modifier: modifier
@@ -152,7 +152,7 @@ type 'content content_node =
   | Text of string
   | CDATA of string
   | Xml_elt of 'content xml_elt
-  | Transclude of 'content transclusion
+  | Transclude of transclusion
   | Contextual_number of iri
   | Results_of_query of ('content vertex, Query.dbix) Query.expr
   | Section of 'content section

@@ -6,6 +6,8 @@
 
 (using menhir 3.0)
 
+(using dune_site 0.1)
+
 (name forester)
 
 (authors "Jonathan Sterling")
@@ -32,6 +34,8 @@
 (package
  (name forester)
  (synopsis "A tool for tending mathematical forests")
+ (sites
+  (share theme))
  (depends
   (menhir
    (>= 20240715))
@@ -40,6 +44,7 @@
   (ocaml
    (>= 5.2.0))
   dune
+  dune-site
   ppx_deriving
   (cmdliner
    (>= 1.2.0))
@@ -90,6 +95,10 @@
    (>= 2.8.3))
   (cohttp-eio
    (>= 6.0.0))
+  (routes
+   (>= 2.0.0))
+  (brr
+   (>= 0.0.7))
   (odoc
    (>= 2.4.4 :with-doc))
   (alcotest :with-test)))

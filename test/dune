@@ -15,6 +15,10 @@
  (deps %{bin:server}))
 
 (cram
+ (applies_to Lsp)
+ (deps %{bin:forester} %{bin:nvim}))
+
+(cram
  (applies_to Transclude)
  (deps
   %{bin:transclude}
@@ -27,8 +31,8 @@
   (glob_files_rec ./forest/*)))
 
 (executables
- (names Test_http_server Test_transclusion)
- (public_names server transclude)
+ (names Test_transclusion)
+ (public_names transclude)
  (libraries
   logs
   logs.fmt
@@ -37,6 +41,9 @@
   eio.core
   eio.unix
   eio_main
+  lsp
+  yojson
+  forester.language_server
   forester.frontend
   forester.prelude
   forester.compiler
@@ -69,24 +76,25 @@
   (glob_files_rec ./imports/*))
  (libraries
   alcotest
-  unix
-  fmt
-  forester.frontend
-  forester.prelude
-  forester.compiler
-  forester.core
-  forester.parser
-  pure-html
-  yuujinchou
-  logs
-  logs.fmt
-  iri
+  asai
+  bwd
   eio
   eio.core
   eio.unix
   eio_main
-  asai
-  bwd
+  fmt
+  forester.compiler
+  forester.core
+  forester.frontend
+  forester.language_server
+  forester.parser
+  forester.prelude
+  iri
+  jsonrpc
+  logs
+  logs.fmt
   lsp
+  pure-html
+  unix
   yojson
-  jsonrpc))
+  yuujinchou))

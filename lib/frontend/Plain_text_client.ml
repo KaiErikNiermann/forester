@@ -31,7 +31,7 @@ and pp_content_node
   | Link link -> pp_link ~forest ~router fmt link
   | Results_of_query _ | Results_of_datalog_query _ | Img _ | Artefact _ | Datalog_script _ -> ()
 
-and pp_transclusion ~forest ~router fmt (transclusion : T.content T.transclusion) =
+and pp_transclusion ~forest ~router fmt (transclusion : T.transclusion) =
   match Forest.get_content_of_transclusion transclusion forest with
   | None -> Format.fprintf fmt "<could not resolve transclusion of %a>" pp_iri transclusion.href
   | Some content -> pp_content ~forest ~router fmt content

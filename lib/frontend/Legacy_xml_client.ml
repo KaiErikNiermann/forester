@@ -337,7 +337,7 @@ and render_resource_sources sources =
 and render_resource_source source =
   X.resource_source [X.type_ "%s" source.type_; X.resource_part "%s" source.part] "<![CDATA[%s]]>" source.source
 
-and render_transclusion (forest : State.t) (transclusion : T.content T.transclusion) : P.node list =
+and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.node list =
   match Hashtbl.find_opt transclusion_cache transclusion with
   | Some nodes -> nodes
   | None ->

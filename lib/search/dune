@@ -1,0 +1,4 @@
+(library
+ (name Forester_search)
+ (public_name forester.search)
+ (libraries forester.core forester.compiler str eio.core eio))

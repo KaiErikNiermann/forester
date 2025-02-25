@@ -54,9 +54,7 @@ val get_expanded_title :
   T.content
 
 val get_content_of_transclusion :
-  T.content T.transclusion ->
-  T.content T.resource t ->
-  T.content option
+  T.transclusion -> T.content T.resource t -> T.content option
 
 val get_title_or_content_of_vertex :
   ?not_found: (key -> T.content option) ->

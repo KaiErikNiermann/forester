@@ -1,0 +1,28 @@
+;;; SPDX-FileCopyrightText: 2024 The Forester Project Contributors
+;;;
+;;; SPDX-License-Identifier: GPL-3.0-or-later
+
+(library
+ (name Forester_server)
+ (public_name forester.server)
+ (instrumentation
+  (backend bisect_ppx))
+ (preprocess
+  (pps ppx_deriving.show ppx_repr))
+ (libraries
+  routes
+  forester.prelude
+  forester.core
+  forester.language_server
+  forester.compiler
+  forester.frontend
+  iri
+  pure-html
+  logs
+  eio
+  eio.core
+  eio.unix
+  http
+  cohttp-eio
+  uri
+  fmt))

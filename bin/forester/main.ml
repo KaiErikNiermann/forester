@@ -8,9 +8,12 @@ open Forester_prelude
 open Forester_core
 open Forester_frontend
 open Forester_compiler
+open Forester_server
 open Cmdliner
 
 module EP = Eio.Path
+
+let theme_location : string list = Theme_site.Sites.theme
 
 let setup_logs style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
@@ -372,6 +375,40 @@ let render_cmd ~env =
       $ arg_config
     )
 
+let server ~env _ port config =
+  let config = Config_parser.parse_forest_config_file config in
+  let forest = State_machine.batch_run ~env ~config ~dev: true in
+  Server.run ~env ~port ~forest theme_location
+
+let app_cmd ~env =
+  let open Cmdliner in
+  let man = [
+    `S Manpage.s_description;
+    `P "The $(tname) starts the hypermedia server.";
+  ]
+  in
+  let arg_port =
+    let doc = "the port on which the HTTP server should listen" in
+    Arg.(
+      required @@
+      opt (some int) (Some 8080) @@
+      info ["port"] ~docv: "XXX" ~doc
+    )
+  in
+  let doc
+    =
+    "Serve the forest via HTTP"
+  in
+  let info = Cmd.info "serve" ~version ~doc ~man in
+  Cmd.v
+    info
+    Term.(
+      const (server ~env)
+      $ arg_logs
+      $ arg_port
+      $ arg_config
+    )
+
 let cmd ~env =
   let doc = "a tool for tending mathematical forests" in
   let man = [
@@ -393,6 +430,7 @@ let cmd ~env =
       query_cmd ~env;
       render_cmd ~env;
       lsp_cmd ~env;
+      app_cmd ~env;
     ]
 
 let () =

@@ -9,6 +9,8 @@ open Forester_core
 module T = Types
 type resource = T.content T.resource
 
+module Search_index = Map.Make(String)
+
 type t = {
   env: Eio_unix.Stdenv.base;
   dev: bool;
@@ -21,7 +23,8 @@ type t = {
   resources: resource Forest.t;
   graphs: (module Forest_graphs.S);
   import_graph: Forest_graph.t;
-  resolver: string Iri_tbl.t
+  resolver: string Iri_tbl.t;
+  search_index: iri list Search_index.t;
 }
 
 let documents (t : t) = t.documents

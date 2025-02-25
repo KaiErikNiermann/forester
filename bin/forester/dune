@@ -2,30 +2,61 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(generate_sites_module
+ (module theme_site)
+ (sites forester))
+
+(install
+ (section
+  (site
+   (forester theme)))
+ (files
+  min.js
+  (glob_files_rec theme/*)))
+
 (executable
  (public_name forester)
  (name main)
- (flags (:standard -g))
- (link_flags (:standard -g))
+ (flags
+  (:standard -g))
+ (link_flags
+  (:standard -g))
  (preprocess
   (pps ppx_deriving.show))
-  (libraries
-   forester.prelude
-   forester.core
-   forester.frontend
-   forester.language_server
-   forester.compiler
-   logs
-   logs.fmt
-   logs.cli
-   cmdliner
-   dune-build-info
-   asai
-   eio
-   eio.core
-   eio.unix
-   bwd
-   eio_main
-   fmt
-   fmt.cli
-   fmt.tty))
+ (modules main theme_site)
+ (libraries
+  forester.prelude
+  forester.core
+  forester.frontend
+  forester.language_server
+  forester.server
+  forester.compiler
+  logs
+  logs.fmt
+  logs.cli
+  cmdliner
+  dune-build-info
+  dune-site
+  asai
+  eio
+  eio.core
+  eio.unix
+  bwd
+  eio_main
+  fmt
+  fmt.cli
+  fmt.tty))
+
+;; Javascript
+
+(executable
+ (name app)
+ (modules app)
+ (modes js)
+ (libraries brr))
+
+(rule
+ (targets min.js)
+ (deps app.bc.js)
+ (action
+  (run cp %{deps} %{targets})))

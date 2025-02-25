@@ -78,7 +78,7 @@ let rec analyse_content_node graphs (scope : Iri.t) (node : 'a T.content_node) :
 and analyse_artefact graphs scope artefact =
   analyse_content graphs scope artefact.content
 
-and analyse_transclusion graphs (scope : Iri.t) (transclusion : T.content T.transclusion) : unit =
+and analyse_transclusion graphs (scope : Iri.t) (transclusion : T.transclusion) : unit =
   match transclusion.target with
   | Full _ | Mainmatter ->
     add_edge graphs Builtin_relation.transcludes ~source: (Iri_vertex scope) ~target: (Iri_vertex transclusion.href)
@@ -195,7 +195,7 @@ let rec get_expanded_title ?scope ?(flags = T.{empty_when_untitled = false}) (fr
 
 let section_symbol = "§"
 
-let get_content_of_transclusion (transclusion : T.content T.transclusion) forest =
+let get_content_of_transclusion (transclusion : T.transclusion) forest =
   let@ content =
     Option.map @~
       match transclusion.target with

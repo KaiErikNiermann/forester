@@ -25,6 +25,7 @@ let init ~(env : Eio_unix.Stdenv.base) ~(config : Config.t) ~(dev : bool) : stat
   let resources = Forest.create 1000 in
   let diagnostics = Diagnostic_store.create 100 in
   let units = Expand.Env.empty in
+let search_index = State.Search_index.empty in
   {
     env;
     dev;
@@ -38,6 +39,7 @@ let init ~(env : Eio_unix.Stdenv.base) ~(config : Config.t) ~(dev : bool) : stat
     resolver;
     import_graph;
     graphs;
+    search_index;
   }
 
 let load

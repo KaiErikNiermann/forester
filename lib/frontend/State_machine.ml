@@ -6,6 +6,7 @@
 
 open Forester_core
 open Forester_compiler
+open Forester_search
 
 module T = Types
 
@@ -28,6 +29,7 @@ type 'a action =
   | Get of (('a Render.target [@opaque]) * iri)
   | Query of (string, Vertex.t) Datalog_expr.query
   | Cache_results of (Vertex_set.t [@opaque])
+  | Index
 [@@deriving show]
 
 type ('r, 'e) result =
@@ -133,9 +135,11 @@ let update
   | Parse _
   | Cache_results _
   | Done ->
+    (Done, state, Nothing)
+  | Index ->
     (
       Done,
-      state,
+      {state with search_index = Index.index state.resources},
       Nothing
     )
 
@@ -168,6 +172,7 @@ let batch_run ~env ~(config : Config.t) ~dev =
   |> plant_assets
   |> implant_foreign
   |> run_action Load_all_configured_dirs
+  |> run_action Index
 
 let language_server
   : state -> unit

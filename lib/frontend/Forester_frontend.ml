@@ -13,4 +13,5 @@ module Render = Render
 module DSL = DSL
 
 module State_machine = State_machine
-module Http_server = Http_server
+
+module Htmx_client = Htmx_client

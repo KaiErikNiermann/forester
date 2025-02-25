@@ -251,7 +251,7 @@ and render_content_node
 and _render_resource resource =
   render_content resource.contents
 
-and render_transclusion (forest : State.t) (transclusion : T.content T.transclusion) : P.node list =
+and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.node list =
   List.concat @@
   Option.to_list @@
   Option.map (render_content forest) @@
