@@ -15,7 +15,7 @@ module EP = Eio.Path
 
 type theme = {
   stylesheet: string;
-  index: string;
+  htmx: string;
   js_bundle: string;
   font_dir: string;
   favicon: string;
@@ -26,11 +26,11 @@ let load_theme ~env theme_location =
   let base_dir = List.hd theme_location in
   let theme_dir = EP.(env#fs / base_dir / "theme") in
   let stylesheet = EP.(load (theme_dir / "style.css")) in
-  let index = EP.(load (theme_dir / "index.html")) in
+  let htmx = EP.(load (theme_dir / "htmx.js")) in
   let js_bundle = EP.(load (env#fs / base_dir / "min.js")) in
   let favicon = EP.(load (theme_dir / "favicon.ico")) in
   let font_dir = EP.(native_exn @@ theme_dir / "fonts") in
-  {stylesheet; index; js_bundle; font_dir; favicon;}
+  {stylesheet; htmx; js_bundle; font_dir; favicon;}
 
 let lookup_font ~env theme font =
   Eio.Path.(load (env#fs / theme.font_dir / font))
@@ -38,8 +38,8 @@ let lookup_font ~env theme font =
 let handler
   : env: < fs: [> Eio.Fs.dir_ty] Eio.Path.t; .. > ->
   theme: theme ->
-  forest: _ ->
-  'a ->
+  forest: State.t ->
+  Cohttp_eio.Server.conn ->
   Http.Request.t ->
   Cohttp_eio.Body.t ->
   Cohttp_eio.Server.response
@@ -73,24 +73,66 @@ let handler
         in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body ()
       | Stylesheet ->
-        let headers = Http.Header.of_list ["Content-Type", "text/css"] in
+        let headers = Http.Header.of_list ["Content-Type", "text/css"; "charset", "utf-8"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.stylesheet ()
       | Js_bundle ->
         let headers = Http.Header.of_list ["Content-Type", "application/javascript"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.js_bundle ()
       | Index ->
-        Cohttp_eio.Server.respond_string ~status: `OK ~body: theme.index ()
+        Cohttp_eio.Server.respond_string ~status: `OK ~body: (Pure_html.to_string (Index.v ())) ()
       | Favicon ->
         let headers = Http.Header.of_list ["Content-Type", "image/x-icon"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.favicon ()
       | Tree s ->
-        let iri = Iri_scheme.user_iri ~host: State.(forest.config.host) s in
+        let href = Iri_scheme.user_iri ~host: State.(forest.config.host) s in
+        let request_headers = Http.Request.headers request in
+        let is_htmx = Option.is_some @@ Http.Header.get request_headers "Hx-Request" in
         begin
-          match Forest.get_article iri forest.resources with
-          | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
-          | Some article ->
-            let content = Pure_html.to_string @@ Htmx_client.render_article forest article in
-            Cohttp_eio.Server.respond_string ~status: `OK ~body: content ()
+          if is_htmx then
+            (* If it is an HTMX request, we just send a fragment. *)
+            begin
+              match Headers.parse_content_target request_headers with
+              | None ->
+                begin
+                  match Forest.get_article href forest.resources with
+                  | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
+                  | Some content ->
+                    let response =
+                      Pure_html.(
+                        to_string @@
+                          (Htmx_client.render_article forest content)
+                      )
+                    in
+                    Cohttp_eio.Server.respond_string ~status: `OK ~body: response ()
+                end
+              | Some target ->
+                let modifier = Option.value ~default: T.Identity (Headers.parse_modifier request_headers) in
+                match Forest.get_content_of_transclusion
+                  {target; href; modifier;}
+                  forest.resources with
+                | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
+                | Some content ->
+                  let response =
+                    Pure_html.(
+                      to_string @@
+                        HTML.span [] (Htmx_client.render_content forest content)
+                    )
+                  in
+                  Cohttp_eio.Server.respond_string ~status: `OK ~body: response ()
+            end
+          else
+            (* If it is not an HTMX request, we need to send the whole page. *)
+            match Forest.get_article href forest.resources with
+            | Some article ->
+              let content =
+                Pure_html.to_string @@
+                  Index.v
+                    ~c: (Htmx_client.render_article forest article)
+                    ()
+              in
+              let headers = Http.Header.of_list ["Content-Type", "text/html"] in
+              Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: content ()
+            | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
         end
       | Search ->
         if request.meth = `POST then
@@ -133,7 +175,8 @@ let handler
               Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
             | Some home_tree ->
               let content = Pure_html.to_string @@ Htmx_client.render_article forest home_tree in
-              Cohttp_eio.Server.respond_string ~status: `OK ~body: content ()
+              let headers = Http.Header.of_list ["Content-Type", "text/html"] in
+              Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: content ()
         end
       | Query ->
         let q = Uri.get_query_param resource "query" in
@@ -148,25 +191,53 @@ let handler
               let (_, _, result) = State_machine.update (Query q) forest in
               begin
                 match result with
-                | Vertex_set vs ->
-                  Htmx_client.render_query_result forest vs
+                | Vertex_set vs -> Htmx_client.render_query_result forest vs
                 | Got _
                 | Error _
                 | Nothing ->
-                  [Pure_html.txt "failed to run"]
+                  None
+                (* Pure_html.txt "failed to run" *)
               end
             | Error (`Msg str) ->
-              [Pure_html.txt "failed to parse: %s" str]
+              Logs.app (fun m -> m "failed to parse: %s" str);
+              (* Pure_html.txt "failed to parse: %s" str *)
+              None
         in
-        Cohttp_eio.Server.respond_string
-          ~status: `OK
-          ~body: (
-            Format.asprintf
-              "%a"
-              Pure_html.pp
-              (Pure_html.HTML.ul [] response)
-          )
-          ()
+        begin
+          match response with
+          | Some nodes ->
+            Cohttp_eio.Server.respond_string
+              ~status: `OK
+              ~body: (Format.asprintf "%a" Pure_html.pp nodes)
+              ()
+          | None ->
+            (* If result is empty, use
+               [hx-retarget](https://htmx.org/reference/#response_headers) to
+               hide the entire section. Right now I am just trying to get the
+               backmatter to render correctly, I don't know if this is
+               compatible with the other use cases of queries. I can think of
+               multiple ways to work around this. We could use a separate
+               endpoint to get the backmatter, or we could do some more
+               HTMXing. I guess the question boils down to which approach is
+               more in line with our overarching goal of making forester a
+               genuine hypermedia format
+               *)
+            let headers =
+              Http.Header.of_list
+                [
+                  "Hx-Retarget", "closest section.backmatter-section";
+                  "Hx-Swap", "delete"
+                ]
+            in
+            Cohttp_eio.Server.respond_string
+              ~headers
+              ~status: `OK
+              ~body: ""
+              ()
+        end
+      | Htmx ->
+        let headers = Http.Header.of_list ["Content-Type", "application/javascript"] in
+        Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.htmx ()
     end
   | Routes.NoMatch ->
     Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()

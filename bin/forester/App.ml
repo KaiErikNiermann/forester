@@ -13,6 +13,29 @@ let on_load o = Jv.call o "onLoad"
 
 let katex = Jv.get Jv.global "katex"
 
+type _katex_config = {
+  displayMode: Jv.t;
+  output: Jstr.t;
+  leqno: Jv.t;
+  fleqn: Jv.t;
+  throwOnError: Jv.t;
+  errorColor: Jstr.t;
+  minRuleThickness: Jv.t;
+  colorIsTextColor: Jv.t;
+  maxSize: Jv.t;
+  maxExpand: Jv.t;
+  strict: Jv.t;
+  trust: Jv.t; (* Boolean or function*)
+  globalGroup: Jv.t
+}
+
+let trust_config =
+  Jv.obj
+    [|
+      "trust",
+      Jv.of_bool true
+    |]
+
 let render o = Jv.call o "render"
 
 let () =
@@ -30,6 +53,7 @@ let () =
                   [|
                     Jv.get (El.to_jv elt) "textContent";
                     El.to_jv elt;
+                    trust_config;
                   |]
             )
             (Jstr.v ".math")
@@ -37,6 +61,8 @@ let () =
         in
         Jv.repr f
       |]
+
+(* let () = ignore @@ Jv.call htmx "logAll" [||] *)
 
 let () =
   ignore @@
@@ -47,6 +73,7 @@ let () =
         Ev.(
           if Keyboard.ctrl_key ev && Keyboard.key ev = Jstr.v "k" then
             begin
+              Console.log ["hello"];
               prevent_default e;
               ignore @@
                 ajax

@@ -21,3 +21,9 @@ path = ["*.xsl", "*.png", "*.css", "*.sh", "*.ico", "*.json", "**/**.js", "index
 precedence = "override"
 SPDX-FileCopyrightText = "2024 The Forester Project Contributors"
 SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ["htmx.js"]
+precedence = "override"
+SPDX-FileCopyrightText = "2020, Big Sky Software"
+SPDX-License-Identifier = "0BSD"

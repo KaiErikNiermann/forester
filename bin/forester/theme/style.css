@@ -1,17 +1,58 @@
 /* SPDX-License-Identifier: CC0-1.0 */
 
+#search-results:empty {
+  display: none;
+}
+
+#search-modal-trigger {
+  display: none;
+}
+
+.search-wrapper {
+  display: flex;
+}
+
+.search {
+  padding: 1.25em;
+  font-size: 1.25em;
+  flex-grow: 1;
+}
+
+.modal-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  max-width: 100%;
+  height: 400px;
+  max-height: 100%;
+  border-radius: 0.5em;
+  box-shadow: rgb(0 0 0 / 50%) 0px 16px 70px;
+}
+
+.modal-overlay {
+  z-index: 100;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(10px);
+}
+
 .katex {
- font-size: 1.15em !important;
+  font-size: 1.15em !important;
 }
 
 /* inria-sans-300 - latin_latin-ext */
 @font-face {
   font-display: swap;
   /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
-  font-family: 'Inria Sans';
+  font-family: "Inria Sans";
   font-style: normal;
   font-weight: 300;
-  src: url('fonts/inria-sans-v14-latin_latin-ext-300.woff2') format('woff2');
+  src: url("fonts/inria-sans-v14-latin_latin-ext-300.woff2") format("woff2");
   /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
 }
 
@@ -19,10 +60,11 @@
 @font-face {
   font-display: swap;
   /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
-  font-family: 'Inria Sans';
+  font-family: "Inria Sans";
   font-style: italic;
   font-weight: 300;
-  src: url('fonts/inria-sans-v14-latin_latin-ext-300italic.woff2') format('woff2');
+  src: url("fonts/inria-sans-v14-latin_latin-ext-300italic.woff2")
+    format("woff2");
   /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
 }
 
@@ -30,10 +72,10 @@
 @font-face {
   font-display: swap;
   /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
-  font-family: 'Inria Sans';
+  font-family: "Inria Sans";
   font-style: normal;
   font-weight: 400;
-  src: url('fonts/inria-sans-v14-latin_latin-ext-regular.woff2') format('woff2');
+  src: url("fonts/inria-sans-v14-latin_latin-ext-regular.woff2") format("woff2");
   /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
 }
 
@@ -41,10 +83,10 @@
 @font-face {
   font-display: swap;
   /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
-  font-family: 'Inria Sans';
+  font-family: "Inria Sans";
   font-style: italic;
   font-weight: 400;
-  src: url('fonts/inria-sans-v14-latin_latin-ext-italic.woff2') format('woff2');
+  src: url("fonts/inria-sans-v14-latin_latin-ext-italic.woff2") format("woff2");
   /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
 }
 
@@ -52,10 +94,10 @@
 @font-face {
   font-display: swap;
   /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
-  font-family: 'Inria Sans';
+  font-family: "Inria Sans";
   font-style: normal;
   font-weight: 700;
-  src: url('fonts/inria-sans-v14-latin_latin-ext-700.woff2') format('woff2');
+  src: url("fonts/inria-sans-v14-latin_latin-ext-700.woff2") format("woff2");
   /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
 }
 
@@ -63,10 +105,11 @@
 @font-face {
   font-display: swap;
   /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
-  font-family: 'Inria Sans';
+  font-family: "Inria Sans";
   font-style: italic;
   font-weight: 700;
-  src: url('fonts/inria-sans-v14-latin_latin-ext-700italic.woff2') format('woff2');
+  src: url("fonts/inria-sans-v14-latin_latin-ext-700italic.woff2")
+    format("woff2");
   /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
 }
 
@@ -95,7 +138,7 @@ h1,
 h2,
 h3,
 h4 {
-  margin-top: .5em;
+  margin-top: 0.5em;
 }
 
 pre,
@@ -109,7 +152,7 @@ center {
 pre {
   border-radius: var(--radius);
   background-color: rgba(0, 100, 100, 0.04);
-  padding: .5em;
+  padding: 0.5em;
   font-size: 11pt;
   margin-top: 0em;
   overflow-x: auto;
@@ -134,11 +177,11 @@ body {
 }
 
 math {
- font-size: 1.12em;
+  font-size: 1.12em;
 }
 
 mrow:hover {
- background-color: rgba(0, 100, 255, 0.04);
+  background-color: rgba(0, 100, 255, 0.04);
 }
 
 .logo {
@@ -155,23 +198,35 @@ mrow:hover {
   color: #aaa;
 }
 
-.block.hide-metadata>details>summary>header>.metadata {
+.block.hide-metadata > details > summary > header > .metadata {
   display: none;
 }
 
-article>section>details>summary>header>h1>.taxon {
+article > section > details > summary > header > h1 > .taxon {
   display: block;
-  font-size: .9em;
+  font-size: 0.9em;
   color: #888;
   padding-bottom: 5pt;
 }
 
-section section[data-taxon="Reference"]>details>summary>header>h1>.taxon,
-section section[data-taxon="Person"]>details>summary>header>h1>.taxon {
+section
+  section[data-taxon="Reference"]
+  > details
+  > summary
+  > header
+  > h1
+  > .taxon,
+section
+  section[data-taxon="Person"]
+  > details
+  > summary
+  > header
+  > h1
+  > .taxon {
   display: none;
 }
 
-footer>section {
+footer > section {
   margin-bottom: 1em;
 }
 
@@ -179,21 +234,21 @@ footer h2 {
   font-size: 14pt;
 }
 
-.metadata>address {
+.metadata > address {
   display: inline;
 }
 
 @media only screen and (max-width: 1000px) {
   body {
     margin-top: 1em;
-    margin-left: .5em;
-    margin-right: .5em;
-    transition: ease all .2s;
+    margin-left: 0.5em;
+    margin-right: 0.5em;
+    transition: ease all 0.2s;
   }
 
-  #grid-wrapper>nav {
+  #grid-wrapper > nav {
     display: none;
-    transition: ease all .2s;
+    transition: ease all 0.2s;
   }
 }
 
@@ -201,7 +256,7 @@ footer h2 {
   body {
     margin-top: 2em;
     margin-left: 2em;
-    transition: ease all .2s;
+    transition: ease all 0.2s;
   }
 
   #grid-wrapper {
@@ -210,21 +265,21 @@ footer h2 {
   }
 }
 
-body>header {
+body > header {
   margin-bottom: 0.5em;
 }
 
-#grid-wrapper>article {
+#grid-wrapper > article {
   max-width: 90ex;
   margin-right: auto;
   grid-column: 1;
 }
 
-#grid-wrapper>nav {
+#grid-wrapper > nav {
   grid-column: 2;
 }
 
-details>summary>header {
+details > summary > header {
   display: inline;
 }
 
@@ -237,7 +292,7 @@ details h1 {
   display: inline;
 }
 
-section .block[data-taxon] details>summary>header>h1 {
+section .block[data-taxon] details > summary > header > h1 {
   font-size: 12pt;
 }
 
@@ -246,42 +301,38 @@ span.taxon {
   font-weight: bolder;
 }
 
-
-.link-list>section>details>summary>header h1 {
+.link-list > section > details > summary > header h1 {
   font-size: 12pt;
 }
 
-
-article>section>details>summary>header>h1 {
+article > section > details > summary > header > h1 {
   font-size: 1.5em;
 }
 
-details>summary {
+details > summary {
   list-style-type: none;
 }
 
-details>summary::marker,
-details>summary::-webkit-details-marker {
+details > summary::marker,
+details > summary::-webkit-details-marker {
   display: none;
 }
 
-article>section>details>summary>header {
+article > section > details > summary > header {
   display: block;
-  margin-bottom: .5em;
+  margin-bottom: 0.5em;
 }
 
-section.block>details {
+section.block > details {
   margin-bottom: 0.4em;
 }
 
-
-section.block>details[open] {
+section.block > details[open] {
   margin-bottom: 1em;
 }
 
-
-.link-list>section.block>details {
-  margin-bottom: .25em;
+.link-list > section.block > details {
+  margin-bottom: 0.25em;
 }
 
 nav#toc {
@@ -299,17 +350,17 @@ nav#toc a {
 }
 
 nav#toc .link {
- box-shadow: none;
- text-decoration: none;
+  box-shadow: none;
+  text-decoration: none;
 }
 
 nav#toc a.bullet {
- opacity: 0.7;
- margin-left: 0.4em;
- margin-right: 0.3em;
- padding-left: 0.2em;
- padding-right: 0.2em;
- text-decoration: none;
+  opacity: 0.7;
+  margin-left: 0.4em;
+  margin-right: 0.3em;
+  padding-left: 0.2em;
+  padding-right: 0.2em;
+  text-decoration: none;
 }
 
 nav#toc h2 {
@@ -321,15 +372,15 @@ nav#toc ul {
 }
 
 nav#toc li > ul {
- padding-left: 1em;
+  padding-left: 1em;
 }
 
 nav#toc li {
- list-style-position: inside;
+  list-style-position: inside;
 }
 
 .block {
-  border-radius: var(--radius)
+  border-radius: var(--radius);
 }
 
 .block:hover {
@@ -342,12 +393,12 @@ nav#toc li {
 }
 
 .highlighted {
-  background-color: rgba(255, 255, 140, .3);
+  background-color: rgba(255, 255, 140, 0.3);
   border-color: #ccc;
 }
 
 .highlighted:hover {
-  background-color: rgba(255, 255, 140, .6);
+  background-color: rgba(255, 255, 140, 0.6);
   border-color: #aaa;
 }
 
@@ -380,7 +431,7 @@ a.slug {
   box-shadow: none;
   text-decoration-line: underline;
   text-decoration-style: dotted;
- }
+}
 
 ninja-keys::part(ninja-action) {
   white-space: nowrap;
@@ -422,14 +473,14 @@ td.macro-body {
 }
 
 td.macro-doc {
-  font-size: .9em;
+  font-size: 0.9em;
 }
 
-.enclosing.macro-scope>.enclosing {
+.enclosing.macro-scope > .enclosing {
   border-radius: 2px;
 }
 
-.enclosing.macro-scope>.enclosing:hover {
+.enclosing.macro-scope > .enclosing:hover {
   background-color: rgba(0, 100, 255, 0.1);
 }
 
@@ -448,7 +499,6 @@ td.macro-doc {
 .display.tooltip {
   display: block;
 }
-
 
 /* The tooltip class is applied to the span element that is the tooltip */
 
@@ -480,7 +530,6 @@ td.macro-doc {
   border-width: 5px;
 }
 
-
 /* Show the tooltip */
 
 .tooltip:hover .tooltiptext {
@@ -489,7 +538,7 @@ td.macro-doc {
 }
 
 .tooltiptext a {
-  color: white
+  color: white;
 }
 
 .macro-doc {
@@ -512,11 +561,11 @@ a.slug:hover,
 a.bullet:hover,
 .edit-button:hover,
 .link:hover {
-  background-color: rgba(0, 100, 255, .1);
+  background-color: rgba(0, 100, 255, 0.1);
 }
 
 .link {
- cursor: pointer;
+  cursor: pointer;
 }
 
 a {
@@ -529,19 +578,16 @@ a {
 }
 
 .nocite {
-  display: none
+  display: none;
 }
 
 blockquote {
   font-style: italic;
 }
 
-
-
 address {
   display: inline;
 }
-
 
 .metadata ul {
   padding-left: 0;
@@ -549,7 +595,7 @@ address {
 }
 
 .metadata li::after {
-  content: " · ";
+  content: " \00B7 ";
 }
 
 .metadata li:last-child::after {
@@ -557,7 +603,7 @@ address {
 }
 
 .metadata ul li {
-  display: inline
+  display: inline;
 }
 
 img {
@@ -587,23 +633,25 @@ hr {
   height: 2px;
 }
 
-ul, ol {
- padding-bottom: .5em;
+ul,
+ol {
+  padding-bottom: 0.5em;
 }
 
 ol {
- list-style-type: decimal;
+  list-style-type: decimal;
 }
 
 ol li ol {
- list-style-type: lower-alpha;
+  list-style-type: lower-alpha;
 }
 
 ol li ol li ol {
- list-style-type: lower-roman;
+  list-style-type: lower-roman;
 }
 
-.error, .info {
+.error,
+.info {
   border-radius: 4pt;
   padding-left: 3pt;
   padding-right: 3pt;
@@ -613,12 +661,11 @@ ol li ol li ol {
 }
 
 .error {
- background-color: red;
- color: white;
+  background-color: red;
+  color: white;
 }
 
-
 .info {
- background-color: #bbb;
- color: white;
+  background-color: #bbb;
+  color: white;
 }

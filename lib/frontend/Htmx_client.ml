@@ -10,8 +10,8 @@ open Forester_core
 open Forester_compiler
 
 module T = Types
-module P = Pure_html
-module H = P.HTML
+open Pure_html
+open HTML
 
 type query = {
   query: (string, T.content T.vertex) Forester_core.Datalog_expr.query;
@@ -34,12 +34,71 @@ let get_sorted_articles (forest : State.t) iris =
   |> List.of_seq
   |> List.sort C.compare_article
 
+let home_iri ~(config : Config.t) =
+  (* let config = State.get_config forest in *)
+  let@ root = Option.bind config.home in
+  let base = Iri_scheme.base_iri ~host: config.host in
+  try
+    Option.some @@ Iri.resolve ~base @@ Iri.of_string root
+  with
+    | _ -> None
+
+let iri_is_home ~config iri =
+  match home_iri ~config with
+  | Some home_iri ->
+    (* By this point, any IRI should be in normal form. *)
+    Iri.equal ~normalize: false home_iri iri
+  | None -> false
+
 let route forest addr =
   let config = State.config forest in
   if Some addr = Option.map (Iri_scheme.user_iri ~host: config.host) config.home then
     "index.html"
   else
     Format.asprintf "%s" (Iri.path_string addr)
+
+let title_flags_to_http_header (flags : T.title_flags) =
+  match flags with
+  | {empty_when_untitled} ->
+    `Assoc ([("Empty-When-Untitled", `String (Bool.to_string empty_when_untitled))])
+
+(* I am encoding these headers to JSON because that is what HTMX
+   requires, but it would be more beautiful if we could directly use the
+   header type*)
+let section_flags_to_http_header (flags : T.section_flags) =
+  match flags with
+  | {hidden_when_empty;
+    included_in_toc;
+    header_shown;
+    metadata_shown;
+    numbered;
+    expanded
+  } ->
+    let to_header l t =
+      match t with
+      | Some v -> Some (l, `String (Bool.to_string v))
+      | None -> None
+    in
+    let a = to_header "Hidden-When-Empty" hidden_when_empty in
+    let b = to_header "Included-In-Toc" included_in_toc in
+    let c = to_header "Header-Shown" header_shown in
+    let d = to_header "Metadata-Shown" metadata_shown in
+    let e = to_header "Numbered" numbered in
+    let f = to_header "Expanded" expanded in
+    `Assoc (List.filter_map Fun.id [a; b; c; d; e; f])
+
+let content_target_to_http_header (target : T.content_target) =
+  match target with
+  | T.Full flags ->
+    let `Assoc flags = section_flags_to_http_header flags in
+    `Assoc (("Full", `String "true") :: flags)
+  | T.Mainmatter ->
+    `Assoc ["Mainmatter", `String "true"]
+  | T.Title flags ->
+    let `Assoc flags = title_flags_to_http_header flags in
+    `Assoc (("Title", `String "true") :: flags)
+  | T.Taxon ->
+    `Assoc ["Taxon", `String "true"]
 
 let render_xml_qname = function
   | {prefix = ""; uname; _} -> uname
@@ -48,78 +107,400 @@ let render_xml_qname = function
 let render_xml_attr
   : T.content T.xml_attr -> _
 = fun T.{key; value = _} ->
-  P.string_attr (render_xml_qname key) "todo"
+  string_attr (render_xml_qname key) "todo"
 (* "%a" render_content value *)
 
-let tag_of_prim_node : Prim.t -> P.attr list -> P.node list -> P.node = function
-  | `P -> H.p
-  | `Em -> H.em
-  | `Strong -> H.strong
-  | `Figure -> H.figure
-  | `Figcaption -> H.figcaption
-  | `Ul -> H.ul
-  | `Ol -> H.ol
-  | `Li -> H.li
-  | `Blockquote -> H.blockquote
-  | `Code -> H.code
-  | `Pre -> H.pre
+let tag_of_prim_node : Prim.t -> attr list -> node list -> node = function
+  | `P -> p
+  | `Em -> em
+  | `Strong -> strong
+  | `Figure -> figure
+  | `Figcaption -> figcaption
+  | `Ul -> ul
+  | `Ol -> ol
+  | `Li -> li
+  | `Blockquote -> blockquote
+  | `Code -> code
+  | `Pre -> pre
 
 let render_prim_node p =
   tag_of_prim_node p []
 
 let render_img = function
   | T.Inline {format; base64} ->
-    H.img [H.src "data:image/%s;base64,%s" format base64]
+    img [src "data:image/%s;base64,%s" format base64]
   | T.Remote url ->
-    H.img [H.src "%s" url]
+    img [src "%s" url]
 
 let render_xmlns_prefix Xmlns.{prefix; xmlns} =
-  P.string_attr ("xmlns:" ^ prefix) "%s" xmlns
+  string_attr ("xmlns:" ^ prefix) "%s" xmlns
 
-let rec render_article (forest : State.t) (article : T.content T.article) : P.node =
+let render_date (date : Human_datetime.t) =
+  let year = txt "%i" (Human_datetime.year date) in
+  let month =
+    match Human_datetime.month date with
+    | None -> None
+    | Some i ->
+      match i with
+      | 1 -> Some (txt "January")
+      | 2 -> Some (txt "February")
+      | 3 -> Some (txt "March")
+      | 4 -> Some (txt "April")
+      | 5 -> Some (txt "May")
+      | 6 -> Some (txt "June")
+      | 7 -> Some (txt "July")
+      | 8 -> Some (txt "August")
+      | 9 -> Some (txt "September")
+      | 10 -> Some (txt "October")
+      | 11 -> Some (txt "November")
+      | 12 -> Some (txt "December")
+      | _ -> assert false
+  in
+  let day =
+    match Human_datetime.day date with
+    | None -> null []
+    | Some i -> txt "%i" i
+  in
+  li
+    [class_ "meta-item"]
+    [
+      a
+        [class_ "link local"]
+        [
+          Option.value ~default: (null []) month;
+          if Option.is_some month then txt " " else null [];
+          day;
+          if Option.is_some month then txt ", " else null [];
+          year
+        ]
+    ]
+
+let rec render_article (forest : State.t) (article : T.content T.article) : node =
   (* FIXME: What should reserved be here? *)
   let@ () = Xmlns.run ~reserved: [] in
-  H.article
-    []
+  HTML.article
+    [id "tree-container";]
     [
-      render_frontmatter forest article.frontmatter;
-      H.null @@ render_content forest article.mainmatter;
-      H.section [H.class_ "backmatter"] @@ render_content forest article.backmatter
+      (* FIXME: Should be reusing render_section *)
+      HTML.section
+        [class_ "block"]
+        [
+          details
+            [
+              (* TODO: check if expanded*)
+              open_
+            ]
+            (
+              summary
+                []
+                [
+                  render_frontmatter forest article.frontmatter;
+                ] :: render_content forest article.mainmatter;
+            );
+        ];
+      match Option.map (iri_is_home ~config: forest.config) article.frontmatter.iri with
+      | None ->
+        footer
+          []
+          (render_backmatter forest article.backmatter)
+      | Some false ->
+        footer
+          []
+          (render_backmatter forest article.backmatter)
+      | Some true ->
+        null []
     ]
 
-and render_section (forest : State.t) (section : T.content T.section) : P.node =
-  H.section
-    []
+and render_section (forest : State.t) (section : T.content T.section) : node =
+  match section with
+  | {frontmatter;
+    mainmatter;
+    flags = {header_shown;
+      metadata_shown;
+      expanded;
+      numbered = _;
+      included_in_toc = _;
+      hidden_when_empty = _;
+    }
+  } ->
+    let test k = function
+      | Some true -> true
+      | Some false -> false
+      | None -> k
+    in
+    let class_ =
+      if test false metadata_shown then class_ "block"
+      else
+        class_ "block hide-metadata"
+    in
+    let data_taxon =
+      match frontmatter.taxon with
+      | None -> null_
+      | Some _c ->
+        (* string_attr "data-taxon" () *)
+        null_
+    in
+    HTML.section
+      [
+        class_;
+        data_taxon;
+      ]
+      [
+        if test true header_shown then
+          details
+            [if test true expanded then open_ else null_]
+            [
+              summary
+                []
+                [
+                  render_frontmatter forest frontmatter;
+                ];
+              null @@ render_content forest mainmatter;
+            ]
+        else null @@ render_content forest mainmatter;
+        (* render_frontmatter forest frontmatter; *)
+        (* null @@ render_content forest mainmatter; *)
+      ]
+
+(* Same as render_section, but adds the backmatter-section class *)
+and render_backmatter (forest : State.t) backmatter =
+  List.map
+    (fun node ->
+      let attrs = Format.asprintf "%s backmatter-section" node.@["class"] in
+      node +@ class_ "%s" attrs
+    )
+    (render_content forest backmatter)
+
+and render_attributions forest (attributions : T.content T.attribution list) =
+  let render_attribution attribution =
+    match attribution with
+    | T.{vertex; _} ->
+      match vertex with
+      | T.Iri_vertex href ->
+        let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}; modifier = Identity}] in
+        null @@ render_link forest T.{href; content}
+      | T.Content_vertex content ->
+        null @@ render_content forest content
+  in
+  let authors, contributors =
+    List.partition_map
+      (fun a ->
+        match T.(a.role) with
+        | T.Author -> Left a
+        | Contributor -> Right a
+      )
+      attributions
+  in
+  li
+    [class_ "meta-item"]
     [
-      render_frontmatter forest section.frontmatter;
-      H.null @@ render_content forest section.mainmatter
+      address
+        [class_ "author"] @@
+      (List.map render_attribution authors) @
+      (
+        if List.length contributors > 0 then
+          [txt "with contributions from "]
+        else []
+      ) @
+      List.map render_attribution contributors
     ]
 
-and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : P.node =
-  H.header
-    []
-    [
-      H.h1 [] @@
-      List.concat @@
-      Option.to_list @@
+and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : node =
+  let taxon =
+    Option.value ~default: [] @@
       Option.map
-        (render_content forest)
+        (fun c ->
+          (
+            render_content forest @@
+              T.apply_modifier_to_content T.Sentence_case c
+          ) @
+            [txt "."]
+        )
+        frontmatter.taxon
+  in
+  let title =
+    Option.value ~default: [] @@
+      Option.map
+        (fun c ->
+          render_content forest @@
+            T.apply_modifier_to_content
+              T.Sentence_case
+              c
+        )
         frontmatter.title
+  in
+  let iri =
+    match frontmatter.iri with
+    | None -> null []
+    | Some iri ->
+      let iri_str =
+        if Iri.host iri = Some forest.config.host then
+          Scanf.(sscanf (Iri.path_string iri) "/%s") Fun.id
+        else
+          Format.asprintf "%a" pp_iri iri
+      in
+      a
+        [
+          class_ "slug";
+          href "%s" iri_str;
+        ]
+        [txt "[%s]" iri_str]
+  in
+  let source_path =
+    match frontmatter.source_path with
+    | Some path ->
+      [
+        a
+          [
+            class_ "edit-button";
+            href "vscode://file%s" path
+          ]
+          [txt "[edit]"]
+      ]
+    | None -> []
+  in
+  let find_meta key =
+    List.find_map
+      (fun (str, content) ->
+        if str = key then Some content
+        else None
+      )
+      frontmatter.metas
+  in
+  let render_meta key f =
+    Option.value
+      ~default: (null [])
+      (Option.map f (find_meta key))
+  in
+  let default_meta_item content =
+    li
+      [class_ "meta-item"]
+      (render_content forest content)
+  in
+  let labelled_external_link ~href ~label =
+    li
+      [class_ "meta-item"]
+      [a [class_ "link external"; href] [txt "%s" label]]
+  in
+  let to_string =
+    Plain_text_client.string_of_content
+      ~forest: forest.resources
+      ~router: (Legacy_xml_client.route forest)
+  in
+  let position = render_meta "position" default_meta_item in
+  let institution = render_meta "institution" default_meta_item in
+  let venue = render_meta "venue" default_meta_item in
+  let source = render_meta "source" default_meta_item in
+  let doi = render_meta "doi" default_meta_item in
+  let orcid =
+    render_meta "orcid" (fun c ->
+      let content = to_string c in
+      li
+        [class_ "meta-item"]
+        [
+          a
+            [
+              class_ "doi link";
+              href "https://www.doi.org/%s" content;
+            ]
+            [txt "%s" content]
+        ]
+    )
+  in
+  let external_ =
+    render_meta "external" (fun c ->
+      let content = to_string c in
+      li
+        [class_ "meta-item"]
+        [
+          a
+            [
+              class_ "link external";
+              href "%s" content;
+            ]
+            [txt "%s" content]
+        ]
+    )
+  in
+  let slides =
+    render_meta "slides" (fun c ->
+      labelled_external_link ~href: (href "%s" (to_string c)) ~label: "Slides"
+    )
+  in
+  let video =
+    render_meta "video" (fun c ->
+      labelled_external_link ~href: (href "%s" (to_string c)) ~label: "Video"
+    )
+  in
+  header
+    []
+    [
+      (
+        h1
+          []
+          (
+            [
+              span
+                [class_ "taxon"]
+                taxon
+            ] @
+            title @
+            [txt " "] @
+            [iri] @
+            source_path
+          )
+      );
+      div
+        [class_ "metadata"]
+        [
+          ul
+            []
+            (
+              (List.map render_date frontmatter.dates) @
+                [
+                  render_attributions forest frontmatter.attributions;
+                  position;
+                  institution;
+                  venue;
+                  source;
+                  doi;
+                  orcid;
+                  external_;
+                  slides;
+                  video;
+                ]
+            )
+        ];
     ]
 
-and render_content (forest : State.t) (Content content: T.content) : P.node list =
+and render_transclusion transclusion =
+  match transclusion with
+  | T.{href; target; modifier = _} ->
+    let headers = Yojson.Safe.to_string @@ content_target_to_http_header target in
+    [
+      span
+        [
+          Hx.trigger "load";
+          Hx.get "/trees%s" (Iri.path_string href);
+          Hx.target "this";
+          Hx.swap "outerHTML";
+          (* TODO: Update dream-html: https://github.com/yawaramin/dream-html/commit/2f358cc25ef34a590937b1f1e2740141ad06efa9 *)
+          attr (Format.asprintf "data-hx-headers='%s'" headers)
+        ]
+        [txt "transclusion: %s" (Format.asprintf "%a" pp_iri href)]
+    ]
+
+and render_content (forest : State.t) (Content content: T.content) : node list =
   List.concat_map (render_content_node forest) content
 
 and render_content_node
-  : State.t -> 'a T.content_node -> P.node list
+  : State.t -> 'a T.content_node -> node list
 = fun forest node ->
-  let open P in
-  (* let open H in *)
   match node with
   | Text str ->
-    [P.txt "%s" str]
+    [txt "%s" str]
   | CDATA str ->
-    [P.txt ~raw: true "<![CDATA[%s]]>" str]
+    [txt ~raw: true "<![CDATA[%s]]>" str]
   | Xml_elt elt ->
     let prefixes_to_add, (name, attrs, content) =
       let@ () = Xmlns.within_scope in
@@ -131,11 +512,11 @@ and render_content_node
       let xmlns_attrs = List.map render_xmlns_prefix prefixes_to_add in
       attrs @ xmlns_attrs
     in
-    [P.std_tag name attrs content]
+    [std_tag name attrs content]
   | Prim (p, content) ->
     [render_prim_node p @@ render_content forest content]
   | Transclude transclusion ->
-    render_transclusion forest transclusion
+    render_transclusion transclusion
   | Contextual_number addr ->
     let custom_number =
       let@ article = Option.bind @@ Forest.get_article addr forest.resources in
@@ -146,7 +527,7 @@ and render_content_node
       | None -> Format.asprintf "[%a]" Iri.pp addr
       | Some num -> num
     in
-    [P.txt "%s" num]
+    [txt "%s" num]
   | Link link ->
     render_link forest link
   | Results_of_query q ->
@@ -158,101 +539,113 @@ and render_content_node
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->
-    let l, r =
-      match mode with
-      | Display -> {|\[|}, {|\]|}
-      | Inline -> {|\(|}, {|\)|}
-    in
     let body = Plain_text_client.string_of_content ~forest: forest.resources ~router: Iri.to_uri content in
-    [P.txt ~raw: true "%s%s%s" l body r]
+    (* [txt ~raw: true "%s%s%s" l body r] *)
+    begin
+      match mode with
+      | Inline ->
+        [span [class_ "math"] [txt ~raw: true "%s" body]]
+      | Display ->
+        [div [class_ "math"] [txt ~raw: true "%s" body]]
+    end
   | TeX_cs cs ->
-    [P.txt ~raw: true "\\%s" (TeX_cs.show cs)]
+    [txt ~raw: true "\\%s" (TeX_cs.show cs)]
   | Img img ->
     [render_img img]
-  | T.Results_of_datalog_query q ->
+  | Results_of_datalog_query q ->
     (* We could just evaluate the query immediately. This is just experimental*)
     [
-      H.div
-        []
+      span
         [
-          H.div
-            [
-              Hx.get "/query";
-              Hx.trigger "load";
-              (* Hx.headers {|{"Content-Type": "application/json"}|}; *)
-              (* Hx.ext "json-enc"; *)
-              Hx.vals
-                "%s"
-                Repr.(
-                  to_json_string
-                    ~minify: true
-                    (* Datalog_expr.(query_t Repr.string (T.vertex_t T.content_t)) *)
-                    query_t
-                    {query = q}
-                )
-            ]
-            []
+          Hx.get "/query";
+          Hx.trigger "load";
+          Hx.swap "outerHTML";
+          Hx.target "this";
+          Hx.vals
+            "%s"
+            Repr.(
+              to_json_string
+                ~minify: true
+                query_t
+                {query = q}
+            )
         ]
+        []
     ]
   | T.Datalog_script _ -> []
   | T.Artefact _
   | T.Iri _
   | T.Route_of_iri _ ->
-    [P.txt "todo"]
-
-and _render_resource resource =
-  render_content resource.contents
-
-and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.node list =
-  List.concat @@
-  Option.to_list @@
-  Option.map (render_content forest) @@
-  Forest.get_content_of_transclusion transclusion forest.resources
+    [txt "todo"]
 
 (* TODO: links need to be flattened in order to produce valid HTML. *)
-and render_link (forest : State.t) (link : T.content T.link) : P.node list =
-  let article_opt = Forest.get_article link.href forest.resources in
+and render_link (forest : State.t) (link : T.content T.link) : node list =
   let attrs =
-    match article_opt with
+    match Forest.get_article link.href forest.resources with
     | None ->
-      [H.href "%s" (Format.asprintf "%a" Iri.pp link.href)]
-    | Some article ->
+      (* TODO: rendering of hrefs is suboptimal... *)
       [
-        begin
-          match article.frontmatter.iri with
-          | Some iri -> H.href "%s" @@ route forest iri
-          | None -> P.HTML.null_
-        end;
-        (* H.title_ "%s" @@ PT.string_of_content article.frontmatter.title *)
+        href "%s" (Format.asprintf "%a" Iri.pp link.href);
       ]
-  in
-  [H.a attrs @@ render_content forest link.content]
-
-let render_query_result (forest : State.t) vs =
-  let render_vertex = function
-    | T.Iri_vertex iri ->
+    | Some article ->
       begin
-        match Forest.find_opt forest.resources iri with
-        | None ->
-          H.li
-            []
-            [
-              H.a
-                [H.href "%s" (Format.asprintf "%a" pp_iri iri)]
-                [P.txt "%s" (Format.asprintf "%a" pp_iri iri)]
-            ]
-        | Some (T.Article a) ->
-          H.li
-            []
-            [
-              render_frontmatter forest a.frontmatter;
-              H.div [] @@ render_content forest a.mainmatter
-            ]
-        | Some (T.Asset _) ->
-          P.txt "todo: render asset"
-      end
-    | T.Content_vertex c -> H.div [] (render_content forest c)
+        match article.frontmatter.iri with
+        | Some _iri ->
+          [
+            title_ "%s" @@
+            Option.value ~default: "" @@
+            Option.map
+              (
+                Plain_text_client.string_of_content
+                  ~forest: forest.resources
+                  ~router: (Legacy_xml_client.route forest)
+              )
+              article.frontmatter.title;
+            href "/trees%s" (Format.asprintf "%s" (Iri.path_string link.href));
+            Hx.target "#tree-container";
+            Hx.swap "innerHTML";
+          ]
+        | None -> [HTML.null_]
+      end;
   in
+  [
+    span
+      [class_ "link local"]
+      [a attrs (render_content forest link.content)]
+  ]
+
+let render_query_result (forest : State.t) (vs : Vertex_set.t) =
+  let module C = Types.Comparators(struct
+    let string_of_content =
+      Plain_text_client.string_of_content
+        ~forest: forest.resources
+        ~router: (route forest)
+  end) in
   vs
-  |> Vertex_set.to_list (* TODO: Needs to be sorted *)
-  |> List.map render_vertex
+  |> Vertex_set.to_seq
+  |> Seq.filter_map Vertex.iri_of_vertex
+  |> Seq.filter_map (fun iri -> Forest.get_article iri forest.resources)
+  |> List.of_seq
+  |> List.sort C.compare_article
+  |> List.map
+      (
+        T.article_to_section
+          ~flags: {T.default_section_flags with
+            expanded = Some false;
+            numbered = Some false;
+            included_in_toc = Some false;
+            metadata_shown = Some true
+          }
+      )
+  |> List.map (render_section forest) |> fun nodes ->
+  if List.length nodes = 0 then None
+  else Some (div [class_ "tree-content"] nodes)
+
+let render_toc _article =
+  nav
+    [id "toc"; Hx.swap_oob "true"]
+    [
+      div
+        [class_ "block"]
+        [h1 [] [txt "Table of contents"]]
+    ]
