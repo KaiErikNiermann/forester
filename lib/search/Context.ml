@@ -30,7 +30,6 @@ let show_leaf_node
   | T.Xml_elt _
   | T.Transclude _
   | T.Contextual_number _
-  | T.Results_of_query _
   | T.Section _
   | T.KaTeX (_, _)
   | T.Link _
@@ -142,7 +141,6 @@ and render_context_node
     | T.Xml_elt elt -> render_context_content path elt.content
     | T.Transclude _ -> assert false
     | T.Contextual_number _ -> assert false
-    | T.Results_of_query _ -> assert false
     | T.Section _ -> assert false
     | T.KaTeX (_, _) -> assert false
     | T.TeX_cs _ -> assert false

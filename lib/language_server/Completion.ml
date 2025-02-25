@@ -44,18 +44,7 @@ let kind : Syn.node -> L.CompletionItemKind.t option = function
   | Object _
   | Patch _
   | Call (_, _)
-  | Query_polarity _
-  | Query_mode _
   | Results_of_query
-  | Query_rel _
-  | Query_isect
-  | Query_union
-  | Query_compl
-  | Query_isect_fam
-  | Query_union_fam
-  | Query_isect_fam_rel
-  | Query_union_fam_rel
-  | Query_builtin (_, _)
   | Dx_sequent (_, _)
   | Dx_query (_, _, _)
   | Dx_prop (_, _)

@@ -38,9 +38,6 @@ module Expand = Expand
 module Eval = Eval
 (** Transform {!Syn.tree}s into {{!Forester_core.Types.article}[articles]}.*)
 
-module Legacy_query_engine = Legacy_query_engine
-(* [@@ocaml.deprecated "Use Datalog_query_engine instead"] *)
-
 (** {1 High-level architecture}
 
     The compiler needs to support both batch-style and incremental compilation. To this end, we define a {{!State.t}state type} and {{!Phases}transition functions} that act on this state.

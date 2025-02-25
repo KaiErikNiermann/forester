@@ -8,7 +8,6 @@ open Forester_prelude
 open Forester_core
 
 module T = Types
-module Q = Query
 
 include URI.Tbl
 
@@ -23,10 +22,6 @@ type article = T.content T.article
 module Dx = Datalog_expr
 
 type env = (module Forest_graphs.S)
-
-let legacy_query_engine (env : env) : (module Legacy_query_engine.S) =
-  let module Graphs = (val env) in
-  (module Legacy_query_engine.Make(Graphs))
 
 let execute_datalog_script graphs script =
   let module Graphs = (val graphs : Forest_graphs.S) in
@@ -48,12 +43,11 @@ let add_edge graphs rel ~source ~target =
     let args = [Dx.Const source; Dx.Const target] in
     Dx.{rel; args}
   in
-  execute_datalog_script graphs [{conclusion; premises}];
-  Graphs.add_edge rel ~source ~target
+  execute_datalog_script graphs [{conclusion; premises}]
 
 let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) : unit =
   match node with
-  | Text _ | CDATA _ | Route_of_uri _ | Uri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Contextual_number _ -> ()
+  | Text _ | CDATA _ | Route_of_uri _ | Uri _ | Results_of_datalog_query _ | TeX_cs _ | Contextual_number _ -> ()
   | Transclude transclusion ->
     analyse_transclusion graphs scope transclusion
   | Xml_elt elt ->

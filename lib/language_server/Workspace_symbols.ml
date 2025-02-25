@@ -118,18 +118,7 @@ let compute
                     | Syn.Prim _
                     | Syn.Patch _
                     | Syn.Call (_, _)
-                    | Syn.Query_polarity _
-                    | Syn.Query_mode _
                     | Syn.Results_of_query
-                    | Syn.Query_rel _
-                    | Syn.Query_isect
-                    | Syn.Query_union
-                    | Syn.Query_compl
-                    | Syn.Query_isect_fam
-                    | Syn.Query_union_fam
-                    | Syn.Query_isect_fam_rel
-                    | Syn.Query_union_fam_rel
-                    | Syn.Query_builtin (_, _)
                     | Syn.Transclude
                     | Syn.Embed_tex
                     | Syn.Ref

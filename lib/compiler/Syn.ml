@@ -26,18 +26,7 @@ type node =
   | Object of {self: Symbol.t; methods: (string * t) list}
   | Patch of {obj: t; self: Symbol.t; super: Symbol.t; methods: (string * t) list}
   | Call of t * string
-  | Query_polarity of Query.polarity
-  | Query_mode of Query.mode
   | Results_of_query
-  | Query_rel of [`Content | `Uri]
-  | Query_isect
-  | Query_union
-  | Query_compl
-  | Query_isect_fam
-  | Query_union_fam
-  | Query_isect_fam_rel
-  | Query_union_fam_rel
-  | Query_builtin of [`Taxon | `Author | `Tag] * [`Content | `Uri]
   | Transclude
   | Embed_tex
   | Ref

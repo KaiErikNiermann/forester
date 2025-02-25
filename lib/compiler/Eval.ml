@@ -8,7 +8,6 @@ open Forester_prelude
 open Forester_core
 
 module T = Types
-module QLN = Query.Locally_nameless(Symbol)
 
 module Env = struct
   include Map.Make(Symbol)
@@ -25,9 +24,6 @@ module V = struct
   type t =
     | Content of T.content
     | Clo of t Env.t * Symbol.t binding list * Syn.t
-    | Query_polarity of Query.polarity
-    | Query_mode of Query.mode
-    | Query_expr of (T.content T.vertex, Symbol.t Query.lnvar) Query.expr
     | Dx_prop of (string, T.content T.vertex) Datalog_expr.prop
     | Dx_sequent of (string, T.content T.vertex) Datalog_expr.sequent
     | Dx_query of (string, T.content T.vertex) Datalog_expr.query
@@ -56,7 +52,7 @@ module V = struct
   let extract_content (node : located) =
     match node.value with
     | Content content -> content
-    | _ -> Reporter.fatal ?loc: node.loc Type_error "Expected content"
+    | _ -> Reporter.fatal ?loc: node.loc Type_error @@ Format.asprintf "Expected content but got: %a" pp node.value
 
   let extract_text (node : located) =
     let content = extract_content node in
@@ -69,21 +65,6 @@ module V = struct
     match loop Emp (T.extract_content content) with
     | Some txt -> String.trim txt
     | None -> Reporter.fatalf ?loc: node.loc Type_error "Expected text but got: %a" pp node.value
-
-  let extract_query_polarity (x : located) =
-    match x.value with
-    | Query_polarity pol -> pol
-    | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected query polarity"
-
-  let extract_query_mode (x : located) =
-    match x.value with
-    | Query_mode mode -> mode
-    | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected query mode"
-
-  let extract_query_expr (x : located) =
-    match x.value with
-    | Query_expr q -> q
-    | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected query expression"
 
   let extract_obj_ptr (x : located) =
     match x.value with
@@ -186,14 +167,6 @@ let extract_vertex ~type_ (node : V.located) =
     let@ uri = Result.map @~ extract_uri node in
     T.Uri_vertex uri
 
-let extract_query_vertex_expr ~host: _ ~type_ (node : V.located) =
-  match node.value with
-  | Sym sym -> Query.Var (Query.F sym)
-  | _ ->
-    match extract_vertex ~type_ node with
-    | Ok vtx -> Query.Vertex vtx
-    | Error _ -> Reporter.fatalf ?loc: node.loc Type_error "Expected valid URI in query expression"
-
 let anon_uri base =
   let ix = Anon_subtree_ix.get () in
   let ix' = ix + 1 in
@@ -280,73 +253,6 @@ and eval_node node : V.t =
     let name = T.{prefix = name.prefix; uname = name.uname; xmlns = name.xmlns} in
     let content = {node with value = eval_tape body} |> V.extract_content in
     emit_content_node ~loc @@ T.Xml_elt {name; attrs = process attrs; content}
-  | Query_polarity pol ->
-    focus ?loc @@ V.Query_polarity pol
-  | Query_mode mode ->
-    focus ?loc @@ V.Query_mode mode
-  | Query_rel type_ ->
-    let host = Host_env.read () in
-    let mode = eval_pop_arg ~loc |> V.extract_query_mode in
-    let pol = eval_pop_arg ~loc |> V.extract_query_polarity in
-    let rel = eval_pop_arg ~loc |> V.extract_text in
-    let vtx = eval_pop_arg ~loc |> extract_query_vertex_expr ~host ~type_ in
-    focus ?loc @@ V.Query_expr (Query.rel mode pol rel vtx)
-  | Query_isect ->
-    let queries =
-      let@ arg = List.map @~ Tape.pop_args () in
-      arg |> Range.map eval_tape |> V.extract_query_expr
-    in
-    focus ?loc @@ V.Query_expr (Query.isect queries)
-  | Query_union ->
-    let queries =
-      let@ arg = List.map @~ Tape.pop_args () in
-      arg |> Range.map eval_tape |> V.extract_query_expr
-    in
-    focus ?loc @@ V.Query_expr (Query.union queries)
-  | Query_compl ->
-    let q = eval_pop_arg ~loc |> V.extract_query_expr in
-    focus ?loc @@ V.Query_expr (Complement q)
-  | Query_isect_fam ->
-    let q = eval_pop_arg ~loc |> V.extract_query_expr in
-    let qfun = Tape.pop_arg ~loc in
-    let x = Symbol.fresh () in
-    let qx =
-      let tape = qfun.value @ [{node with value = Syn.Sym x}] in
-      {node with value = eval_tape tape} |> V.extract_query_expr
-    in
-    focus ?loc @@ V.Query_expr (QLN.isect_fam q x qx)
-  | Query_union_fam ->
-    let q = eval_pop_arg ~loc |> V.extract_query_expr in
-    let qfun = Tape.pop_arg ~loc in
-    let x = Symbol.fresh () in
-    let qx =
-      let tape = qfun.value @ [{node with value = Syn.Sym x}] in
-      {node with value = eval_tape tape} |> V.extract_query_expr
-    in
-    focus ?loc @@ V.Query_expr (QLN.union_fam q x qx)
-  | Query_isect_fam_rel ->
-    let q = eval_pop_arg ~loc |> V.extract_query_expr in
-    let mode = eval_pop_arg ~loc |> V.extract_query_mode in
-    let pol = eval_pop_arg ~loc |> V.extract_query_polarity in
-    let rel = pop_text_arg ~loc in
-    focus ?loc @@ V.Query_expr (QLN.isect_fam_rel q mode pol rel)
-  | Query_union_fam_rel ->
-    let q = eval_pop_arg ~loc |> V.extract_query_expr in
-    let mode = eval_pop_arg ~loc |> V.extract_query_mode in
-    let pol = eval_pop_arg ~loc |> V.extract_query_polarity in
-    let rel = pop_text_arg ~loc in
-    focus ?loc @@ V.Query_expr (QLN.union_fam_rel q mode pol rel)
-  | Query_builtin (builtin, type_) ->
-    let host = Host_env.read () in
-    let vtx = eval_pop_arg ~loc |> extract_query_vertex_expr ~host ~type_ in
-    let r =
-      match builtin with
-      | `Taxon -> Builtin_relation.has_taxon
-      | `Author -> Builtin_relation.has_author
-      | `Tag -> Builtin_relation.has_tag
-    in
-    let q = Query.rel Edges Incoming r vtx in
-    focus ?loc: node.loc @@ V.Query_expr q
   | TeX_cs cs ->
     emit_content_node ~loc @@ TeX_cs cs
   | Transclude ->
@@ -388,9 +294,7 @@ and eval_node node : V.t =
       match arg.value with
       | V.Dx_query query ->
         emit_content_node ~loc @@ Results_of_datalog_query query
-      | V.Query_expr query ->
-        emit_content_node ~loc @@ Results_of_query (QLN.distill query)
-      | _ -> Reporter.fatalf ?loc: arg.loc Type_error "Expected either legacy or datalog query expression"
+      | _ -> Reporter.fatalf ?loc: arg.loc Type_error "Expected datalog query expression"
     end
   | Publish_results_of_query ->
     let name = pop_text_arg ~loc in
@@ -690,7 +594,7 @@ and focus ?loc = function
       | V.Content (T.Content content') -> V.Content (T.Content (content @ content'))
       | value -> value
     end
-  | V.Query_expr _ | V.Query_mode _ | V.Query_polarity _ | V.Sym _ | V.Obj _ | V.Dx_prop _ | V.Dx_sequent _ | V.Dx_query _ | V.Dx_var _ | V.Dx_const _ as v ->
+  | V.Sym _ | V.Obj _ | V.Dx_prop _ | V.Dx_sequent _ | V.Dx_query _ | V.Dx_var _ | V.Dx_const _ as v ->
     begin
       match process_tape () with
       | V.Content content when T.strip_whitespace content = T.Content [] -> v

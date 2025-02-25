@@ -96,7 +96,6 @@ let rec tokenize_content
             []
           | T.Transclude _
           | T.Contextual_number _
-          | T.Results_of_query _
           | T.TeX_cs _
           | T.Artefact _
           | T.Uri _

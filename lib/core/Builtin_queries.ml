@@ -4,10 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Query
-
-open Locally_nameless(Global_name)
-
 module Dx = Datalog_expr
 
 let context_datalog vtx : _ Dx.query =

@@ -11,7 +11,6 @@ include module type of URI.Tbl
 (**/**)
 module T = Forester_core.Types
 module Dx = Forester_core.Datalog_expr
-val legacy_query_engine : (module Forest_graphs.S) -> (module Legacy_query_engine.S)
 
 val execute_datalog_script : (module Forest_graphs.S) -> (string, Vertex.t) Dx.sequent list -> unit
 (**/**)

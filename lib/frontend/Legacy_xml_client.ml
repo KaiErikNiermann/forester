@@ -246,21 +246,6 @@ and render_content_node
     end
   | Link link ->
     render_link forest link
-  | Results_of_query q ->
-    let article_to_section =
-      T.article_to_section
-        ~flags: {T.default_section_flags with
-          expanded = Some false;
-          numbered = Some false;
-          included_in_toc = Some false;
-          metadata_shown = Some true
-        }
-    in
-    let module Legacy_query_engine = (val (Forest.legacy_query_engine forest.graphs)) in
-    Legacy_query_engine.run_query q
-    |> get_sorted_articles forest
-    |> List.map article_to_section
-    |> List.map (render_section forest)
   | Results_of_datalog_query q ->
     let article_to_section =
       T.article_to_section

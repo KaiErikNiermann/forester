@@ -6,7 +6,6 @@
 
 open Forester_frontend.DSL
 open Forester_core
-open Query
 module T = Types
 
 let content_node =
@@ -41,7 +40,6 @@ let content =
       xml_elt (None, "html") [];
       transclude "foo-001";
       contextual_number "chapter-3";
-      results_of_query (union []);
       katex Inline [txt "a = b"];
       tex "\\begin{}";
       link "https://git.sr.ht/~jonsterling/ocaml-forester" [txt "Forester"];
@@ -96,7 +94,6 @@ let test () =
             Xml_elt {name = {prefix = ""; uname = "html"; xmlns = None}; attrs = []; content = (Content [])};
             Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter; modifier = Identity};
             Contextual_number (URI.of_string_exn "chapter-3");
-            Results_of_query (Query.Union []);
             KaTeX (Inline, Content [Text "a = b"]);
             TeX_cs (Word {|\begin{}|});
             Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = Content [Text "Forester"]};

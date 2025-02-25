@@ -20,20 +20,6 @@ type query = {
 
 module Xmlns = Xmlns_effect.Make ()
 
-let get_sorted_articles (forest : State.t) uris =
-  let module C = Types.Comparators(struct
-    let string_of_content =
-      Plain_text_client.string_of_content
-        ~forest: forest.resources
-        ~router: URI.to_string (* TODO *)
-  end) in
-  uris
-  |> Vertex_set.to_seq
-  |> Seq.filter_map Vertex.uri_of_vertex
-  |> Seq.filter_map (fun uri -> Forest.get_article uri forest.resources)
-  |> List.of_seq
-  |> List.sort C.compare_article
-
 let home_uri ~(config : Config.t) =
   (* let config = State.get_config forest in *)
   let@ root = Option.bind config.home in
@@ -474,12 +460,6 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
   (* [txt "%s" num] *)
   | Link link ->
     render_link forest link
-  | Results_of_query q ->
-    let module Graphs = (val forest.graphs) in
-    let module Engine = Legacy_query_engine.Make(Graphs) in
-    Engine.run_query q
-    |> get_sorted_articles forest
-    |> List.map (Fun.compose (render_section forest) T.article_to_section)
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->

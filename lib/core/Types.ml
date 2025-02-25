@@ -144,7 +144,6 @@ type 'content content_node =
   | Xml_elt of 'content xml_elt
   | Transclude of transclusion
   | Contextual_number of URI.t
-  | Results_of_query of ('content vertex, Query.dbix) Query.expr
   | Section of 'content section
   | KaTeX of math_mode * 'content
   | TeX_cs of TeX_cs.t
@@ -181,7 +180,6 @@ let prim (p : Prim.t) (content : 'content) : 'content content_node =
 let map_content f = function Content nodes -> Content (f nodes)
 let extract_content = function Content nodes -> nodes
 
-type query = (content vertex, Query.dbix) Query.expr
 type dx_query = (string, content vertex) Datalog_expr.query [@@deriving show]
 
 let is_whitespace node =
@@ -278,7 +276,7 @@ module TeX_like : sig
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
     | TeX_cs cs -> pp_tex_cs fmt cs
-    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
+    | Xml_elt _ | Transclude _ | Contextual_number _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
       Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
 
   let string_of_content =

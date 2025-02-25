@@ -32,11 +32,6 @@ module Reporter = Reporter
 
 module Range = Range
 
-(** {1 Query system}
-    *)
-
-module Query = Query
-
 (** {2 Builtins}*)
 module Builtin_relation = Builtin_relation
 module Builtin_queries = Builtin_queries

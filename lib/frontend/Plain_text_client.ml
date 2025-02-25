@@ -28,7 +28,7 @@ and pp_content_node
   | Contextual_number addr -> Format.fprintf fmt "[%a]" URI.pp addr
   | Section section -> pp_section ~forest ~router fmt section
   | Link link -> pp_link ~forest ~router fmt link
-  | Results_of_query _ | Results_of_datalog_query _ | Artefact _ | Datalog_script _ -> ()
+  | Results_of_datalog_query _ | Artefact _ | Datalog_script _ -> ()
 
 and pp_transclusion ~forest ~router fmt (transclusion : T.transclusion) =
   match Forest.get_content_of_transclusion transclusion forest with
