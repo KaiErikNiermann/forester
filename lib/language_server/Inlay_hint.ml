@@ -19,7 +19,6 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
     _;
   } ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
-    (* let render = Render.render forest STRING in *)
     let config = State.config forest in
     let host = config.host in
     match Forest.find_opt (State.parsed forest) (Iri_scheme.uri_to_iri ~host textDocument.uri) with

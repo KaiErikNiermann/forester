@@ -1,10 +1,7 @@
-(* stemmer.ml: Generates stems of English words.
+(*
+ * SPDX-FileCopyrightText: 2010, 2014 Erik Arneson <earneson@arnesonium.com>
  *
- * Copyright (C) 2003-2010, 2014 by Erik Arneson <earneson@arnesonium.com>
- *   No guarantees or restrictions on use.  This code is released into the
- *   public domain.
- *
- * $Id: stemmer.ml,v 1.4 2003/07/20 18:50:21 erik Exp $
+ * SPDX-License-Identifier: CC0-1.0
  *)
 
 exception No_stem of string
