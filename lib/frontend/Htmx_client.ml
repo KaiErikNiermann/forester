@@ -79,60 +79,12 @@ let render_xmlns_prefix Xmlns.{prefix; xmlns} =
 let rec render_article (forest : State.t) (article : T.content T.article) : P.node =
   (* FIXME: What should reserved be here? *)
   let@ () = Xmlns.run ~reserved: [] in
-  H.html
+  H.article
     []
     [
-      H.head
-        []
-        [
-          H.meta [H.charset "utf-8"];
-          (* H.link [H.rel "stylesheet"; H.href "style.css"]; *)
-          H.link
-            [
-              H.rel "stylesheet";
-              H.href "https://cdn.jsdelivr.net/npm/katex@0.16.20/dist/katex.min.css";
-              H.integrity "sha384-sMefv1J1YJCHsg0mTa9YG+n/9KnJb9lGrJUUY5arg6bAL1qps/oZjmUwaHlX5Ugg";
-              H.crossorigin `anonymous
-            ];
-          H.script
-            [
-              H.defer;
-              H.src "https://cdn.jsdelivr.net/npm/katex@0.16.20/dist/katex.min.js";
-              H.integrity "sha384-i9p+YmlwbK0lT9RcfgdAo/Cikui1KeFMeV/0Fwsu+rzgsCvas6oUptNOmo29C33p";
-              H.crossorigin `anonymous
-            ]
-            "";
-          H.script
-            [
-              H.defer;
-              H.src "https://cdn.jsdelivr.net/npm/katex@0.16.20/dist/contrib/auto-render.min.js";
-              H.integrity "sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh";
-              H.crossorigin `anonymous;
-              P.string_attr "onload" "renderMathInElement(document.body);"
-            ]
-            "";
-          H.script [H.src "https://unpkg.com/htmx.org@2.0.4/dist/htmx.js"] "";
-          H.script [H.src "https://unpkg.com/htmx.org/dist/ext/json-enc.js"] "";
-          H.script
-            [
-            ]
-            {js|
-              document.body.addEventListener('htmx:load', function(evt) {
-                myJavascriptLib.init(evt.detail.elt);
-              });
-            |js};
-        ];
-      H.body
-        []
-        [
-          H.article
-            []
-            [
-              render_frontmatter forest article.frontmatter;
-              H.null @@ render_content forest article.mainmatter;
-              H.section [H.class_ "backmatter"] @@ render_content forest article.backmatter
-            ]
-        ]
+      render_frontmatter forest article.frontmatter;
+      H.null @@ render_content forest article.mainmatter;
+      H.section [H.class_ "backmatter"] @@ render_content forest article.backmatter
     ]
 
 and render_section (forest : State.t) (section : T.content T.section) : P.node =

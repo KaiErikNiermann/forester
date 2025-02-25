@@ -19,7 +19,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
     _;
   } ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
-    let render = Render.render forest STRING in
+    (* let render = Render.render forest STRING in *)
     let config = State.config forest in
     let host = config.host in
     match Forest.find_opt (State.parsed forest) (Iri_scheme.uri_to_iri ~host textDocument.uri) with
@@ -48,20 +48,21 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
               match Analysis.extract_addr node with
               | None -> None
               | Some str ->
-                (* Eio.traceln "got addr"; *)
                 let iri = Iri_scheme.user_iri ~host str in
                 match Forest.get_article iri forest.resources with
                 | None ->
-                  (* Eio.traceln "article %a not found" pp_iri iri; *)
                   None
                 | Some {frontmatter; _} ->
-                  (* Eio.traceln "got article"; *)
                   match frontmatter.title with
                   | None -> None
                   | Some title ->
-                    (* Eio.traceln "got title"; *)
-                    let content = " " ^ render ~dev: true (Content title) in
-                    (* Eio.traceln "made content title"; *)
+                    let content =
+                      " " ^
+                        Plain_text_client.string_of_content
+                          ~forest: forest.resources
+                          ~router: (Legacy_xml_client.route forest)
+                          title
+                    in
                     Some
                       (
                         L.InlayHint.create

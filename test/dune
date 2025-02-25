@@ -11,10 +11,6 @@
    (FORESTERLSP_TEST true))))
 
 (cram
- (applies_to Render)
- (deps %{bin:server}))
-
-(cram
  (applies_to Lsp)
  (deps %{bin:forester} %{bin:nvim}))
 

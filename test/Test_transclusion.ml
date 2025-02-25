@@ -52,12 +52,14 @@ let () =
     let content = Option.get @@ Forest.get_content_of_transclusion t forest.resources in
     Format.printf
       "%a"
-      Render.(pp_xml ~forest ~dev: false ?stylesheet: None)
-      T.{
-        frontmatter = default_frontmatter ~iri: href ();
-        mainmatter = content;
-        backmatter = Content []
-      }
+      Legacy_xml_client.(pp_xml ~forest ?stylesheet: None)
+      (
+        T.{
+          frontmatter = default_frontmatter ~iri: href ();
+          mainmatter = content;
+          backmatter = Content []
+        }
+      )
   in
   let test_full_default () =
     print_transclusion

@@ -7,6 +7,11 @@
 
 open Forester_compiler
 
+(**/**)
+module State = Lsp_state
+module LspEio = LspEio
+(**/**)
+
 (** An implementation of the {{: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/} Microsoft Language Server Protocol } for forester. *)
 
 (** Analysis of the {{!type:Forester_compiler.Code.t}concrete syntax}*)

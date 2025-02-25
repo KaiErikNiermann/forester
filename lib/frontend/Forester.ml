@@ -15,7 +15,7 @@ module EP = Eio.Path
 type env = Eio_unix.Stdenv.base
 type dir = Eio.Fs.dir_ty EP.t
 
-type target = Target : 'a Render.target -> target
+type target = State_machine.target = HTML | JSON | XML | STRING
 
 let (let*) = Option.bind
 
@@ -62,7 +62,12 @@ let complete ~forest prefix =
   let@ iri = Option.bind @@ Option_util.guard Iri_scheme.is_named_iri iri in
   let iri = Iri_scheme.relativise_iri ~host: config.host iri in
   let@ title = Option.bind article.frontmatter.title in
-  let title = Format.asprintf "%a" Render.(pp ~dev: true forest STRING) (Content title) in
+  let title =
+    Plain_text_client.string_of_content
+      ~forest: forest.resources
+      ~router: (Legacy_xml_client.route forest)
+      title
+  in
   if String.starts_with ~prefix title then
     Some (iri, title)
   else
@@ -89,24 +94,14 @@ let render_tree
 = fun ~env ~config ~target addr ->
   let dev = true in
   let iri = Iri_scheme.user_iri ~host: config.host addr in
-  let Target tgt = target in
-  let result = State_machine.render_tree ~env ~config ~dev tgt iri in
+  let result = State_machine.render_tree ~env ~config ~dev target iri in
   Format.printf "%s" result
 
-(* FIXME: deprecate this*)
-let compile ~env ~dev ~(config : Config.t) : State.t =
-  State_machine.batch_run ~env ~config ~dev
-
 let json_manifest ~dev ~(forest : State.t) : string =
-  let render = Render.render ~dev forest JSON in
+  let render = Json_manifest_client.render_tree ~forest in
   forest.resources
   |> Forest.get_all_articles
-  |> List.map (fun tree -> render (Article tree))
-  |> List.map
-      (function
-        | `Assoc [r, t] -> r, t
-        | _ -> assert false
-      )
+  |> List.filter_map (fun tree -> render ~dev tree)
   |> (fun t -> `Assoc t)
   |> Yojson.Safe.to_string
 
@@ -129,7 +124,7 @@ let render_forest ~dev ~(forest : State.t) : unit =
     | T.Article article ->
       let@ iri = Option.map @~ article.frontmatter.iri in
       let route = Legacy_xml_client.route forest iri in
-      let content = Format.asprintf "%a" (Render.pp_xml ~dev ~stylesheet: "default.xsl" ~forest) article in
+      let content = Format.asprintf "%a" Legacy_xml_client.(pp_xml ~forest ~stylesheet: "default.xsl") article in
       route, content
     | T.Asset asset ->
       Option.some @@

@@ -8,6 +8,8 @@ open Forester_core
 open Forester_compiler
 open Forester_search
 
+type target = HTML | JSON | XML | STRING
+
 module T = Types
 
 type state = State.t
@@ -26,7 +28,7 @@ type 'a action =
   | Expand_only of iri
   | Eval_only of iri
   | Parse of iri
-  | Get of (('a Render.target [@opaque]) * iri)
+  | Get of iri
   | Query of (string, Vertex.t) Datalog_expr.query
   | Cache_results of (Vertex_set.t [@opaque])
   | Index
@@ -35,7 +37,7 @@ type 'a action =
 type ('r, 'e) result =
   | Nothing
   | Vertex_set of Vertex_set.t
-  | Render_result of 'r
+  | Got of T.content T.article
   | Error of 'e
 
 let update
@@ -52,22 +54,12 @@ let update
   | Query q ->
     let r = Forest.run_datalog_query state.graphs q in
     (Cache_results r, state, Vertex_set r)
-  | Get (target, iri) ->
+  | Get iri ->
     begin
       match Forest.get_article iri state.resources with
       | Some article ->
-        let result =
-          Render_result
-            (
-              Render.render
-                ~dev: true
-                state
-                target
-                (Article article)
-            )
-        in
-        (Done, state, result)
-      | None -> (Done, state, Error (`Not_found iri))
+        Done, state, Got article
+      | None -> Done, state, Error (`Not_found iri)
     end
   | Quit -> exit 0
   | Load_all_configured_dirs ->
@@ -186,4 +178,9 @@ let render_tree ~env ~config ~dev target iri =
   match Forest.get_article iri forest.resources with
   | None -> assert false
   | Some article ->
-    Format.asprintf "%a" Render.(pp ~dev forest target) (Article article)
+    match target with
+    | HTML -> Pure_html.to_string @@ Htmx_client.render_article forest article
+    | XML ->
+      Format.asprintf "%a" Legacy_xml_client.(pp_xml ~forest ?stylesheet: None) article
+    | JSON -> Yojson.Safe.to_string @@ snd @@ Option.get @@ Json_manifest_client.render_tree ~dev ~forest article
+    | STRING -> "TODO"

@@ -466,12 +466,12 @@ let render_article forest (article : T.content T.article) : P.node =
       X.backmatter [] @@ render_content forest article.backmatter
     ]
 
-(* let pp_xml ?stylesheet fmt article = *)
-(*   Format.fprintf fmt {|<?xml version="1.0" encoding="UTF-8"?>|}; *)
-(*   Format.pp_print_newline fmt (); *)
-(*   begin *)
-(*     let@ uri = Option.iter @~ stylesheet in *)
-(*     Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"%s\"?>" uri *)
-(*   end; *)
-(*   Format.pp_print_newline fmt (); *)
-(*   P.pp_xml fmt @@ render_article article *)
+let pp_xml ~forest ?stylesheet fmt article =
+  Format.fprintf fmt {|<?xml version="1.0" encoding="UTF-8"?>|};
+  Format.pp_print_newline fmt ();
+  begin
+    let@ uri = Option.iter @~ stylesheet in
+    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"%s\"?>" uri
+  end;
+  Format.pp_print_newline fmt ();
+  P.pp_xml fmt @@ render_article forest article

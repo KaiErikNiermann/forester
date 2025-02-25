@@ -13,9 +13,9 @@
   routes
   forester.prelude
   forester.core
-  forester.language_server
   forester.compiler
   forester.frontend
+  forester.search
   iri
   pure-html
   logs

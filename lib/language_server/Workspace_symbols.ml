@@ -17,8 +17,13 @@ let compute
     ({query = _; _}: L.WorkspaceSymbolParams.t)
   =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let render = Render.render ~dev: true forest STRING in
-  let trees =
+  let render =
+    Plain_text_client.string_of_content
+      ~forest: forest.resources
+      ~router: (Legacy_xml_client.route forest)
+  in
+  let trees
+    =
     forest
     |> State.parsed
     |> Forest.to_seq_keys
@@ -31,7 +36,7 @@ let compute
               begin
                 match frontmatter.title with
                 | None -> "untitled"
-                | Some content -> render (Content content)
+                | Some content -> render content
               end
           in
           let uri =

@@ -89,14 +89,7 @@ let handler
           match Forest.get_article iri forest.resources with
           | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
           | Some article ->
-            let content =
-              Render.(
-                Format.asprintf
-                  "%a"
-                  (pp ~dev: forest.dev forest HTML)
-                  (Article article)
-              )
-            in
+            let content = Pure_html.to_string @@ Htmx_client.render_article forest article in
             Cohttp_eio.Server.respond_string ~status: `OK ~body: content ()
         end
       | Search ->
@@ -111,7 +104,17 @@ let handler
               )
               (Uri.query_of_encoded body)
           in
-          Cohttp_eio.Server.respond_string ~status: `OK ~body: (Format.asprintf "%s" search_term) ()
+          let search_results = Forester_search.Index.search forest.search_index search_term in
+          let response =
+            List.concat_map
+              (fun iris ->
+                let open Pure_html in
+                let open HTML in
+                [ul [] (List.map (fun iri -> li [] [txt "%s" (Format.asprintf "%a" pp_iri iri)]) iris)]
+              )
+              search_results
+          in
+          Cohttp_eio.Server.respond_string ~status: `OK ~body: (Pure_html.to_string @@ Pure_html.HTML.ul [] response) ()
         else
           Cohttp_eio.Server.respond_string ~status: `Method_not_allowed ~body: "" ()
       | Searchmenu ->
@@ -129,17 +132,8 @@ let handler
             | None ->
               Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
             | Some home_tree ->
-              begin
-                let content =
-                  Render.(
-                    Format.asprintf
-                      "%a"
-                      (pp ~dev: forest.dev forest HTML)
-                      (Article home_tree)
-                  )
-                in
-                Cohttp_eio.Server.respond_string ~status: `OK ~body: content ()
-              end
+              let content = Pure_html.to_string @@ Htmx_client.render_article forest home_tree in
+              Cohttp_eio.Server.respond_string ~status: `OK ~body: content ()
         end
       | Query ->
         let q = Uri.get_query_param resource "query" in
@@ -156,7 +150,7 @@ let handler
                 match result with
                 | Vertex_set vs ->
                   Htmx_client.render_query_result forest vs
-                | Render_result _
+                | Got _
                 | Error _
                 | Nothing ->
                   [Pure_html.txt "failed to run"]

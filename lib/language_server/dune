@@ -4,30 +4,31 @@
 
 (library
  (name Forester_lsp)
+ (public_name forester.language_server)
  (libraries
-   algaeff
-   repr
-   unix
-   ocamlgraph
-   forester.prelude
-   forester.core
-   forester.compiler
-   forester.frontend
-   forester.human_datetime
-   lsp
-   asai
-   eio
-   eio.core
-   eio.unix
-   jsonrpc
-   yojson
-   bwd
-   iri
-   yuujinchou
-   fmt
-   str
-   logs
-   )
+  algaeff
+  repr
+  unix
+  ocamlgraph
+  forester.prelude
+  forester.core
+  forester.compiler
+  forester.frontend
+  forester.human_datetime
+  lsp
+  asai
+  eio
+  eio.core
+  eio.unix
+  jsonrpc
+  yojson
+  bwd
+  iri
+  yuujinchou
+  fmt
+  str
+  logs)
  (preprocess
   (pps ppx_deriving.show ppx_repr ppx_yojson_conv))
- (public_name forester.language_server))
+ (instrumentation
+  (backend bisect_ppx)))

@@ -16,7 +16,11 @@ let (let*) = Option.bind
 (* TODO: handle external links as well? *)
 let compute (params : L.DocumentLinkParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let render = Render.render ~dev: true forest STRING in
+  let render =
+    Plain_text_client.string_of_content
+      ~forest: forest.resources
+      ~router: (Legacy_xml_client.route forest)
+  in
   let config = State.config forest in
   match params with
   | {textDocument; _} ->
@@ -39,7 +43,7 @@ let compute (params : L.DocumentLinkParams.t) =
                   let iri = (Iri_scheme.user_iri ~host: config.host addr) in
                   let* target = Option.map Lsp.Uri.of_path @@ Iri_tbl.find_opt forest.resolver iri in
                   let* {frontmatter; _} = Forest.get_article iri forest.resources in
-                  let* tooltip = Option.map (fun c -> render (Content c)) frontmatter.title in
+                  let* tooltip = Option.map (fun c -> render c) frontmatter.title in
                   let link =
                     L.DocumentLink.create
                       ~range

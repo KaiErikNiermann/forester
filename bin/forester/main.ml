@@ -45,7 +45,7 @@ let build ~env _ config_filename dev no_theme =
       let@ () = Reporter.trace "when copying theme directory" in
       Forester.copy_contents_of_dir ~env @@ Eio_util.path_of_dir ~env config.theme
   end;
-  let forest = Forester.compile ~env ~dev ~config in
+  let forest = State_machine.batch_run ~env ~dev ~config in
   forest
   |> State.diagnostics
   |> Diagnostic_store.iter (fun _ d -> List.iter Reporter.Tty.display d);
@@ -54,7 +54,7 @@ let build ~env _ config_filename dev no_theme =
 let export ~env _ config_filename dev =
   let config = Config_parser.parse_forest_config_file config_filename in
   Logs.debug (fun m -> m "Parsed config file %s" config_filename);
-  let forest = Forester.compile ~env ~dev ~config in
+  let forest = State_machine.batch_run ~env ~dev ~config in
   forest
   |> State.diagnostics
   |> Diagnostic_store.iter (fun _ d -> List.iter Reporter.Tty.display d);
@@ -63,7 +63,7 @@ let export ~env _ config_filename dev =
 let new_tree ~env config_filename dest_dir prefix template random =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
-  let forest = Forester.compile ~env ~dev: true ~config in
+  let forest = State_machine.batch_run ~env ~dev: true ~config in
   let mode = if random then `Random else `Sequential in
   let new_tree = Forester.create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~forest in
   Format.printf "%s" new_tree
@@ -71,14 +71,14 @@ let new_tree ~env config_filename dest_dir prefix template random =
 let complete ~env config_filename title =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
-  let forest = Forester.compile ~env ~dev: true ~config in
+  let forest = State_machine.batch_run ~env ~dev: true ~config in
   let@ iri, title = Seq.iter @~ Forester.complete ~forest title in
   Format.printf "%a, %s\n" pp_iri iri title
 
 let query_all ~env config_filename =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
-  let forest = Forester.compile ~env ~config ~dev: true in
+  let forest = State_machine.batch_run ~env ~config ~dev: true in
   Format.printf "%s" @@
     Forester.json_manifest ~dev: true ~forest
 
@@ -349,14 +349,14 @@ let render_cmd ~env =
         (
           Arg.enum
             [
-              "html", Forester.Target HTML;
-              "json", Forester.Target JSON;
-              "xml", Forester.Target XML;
-              "string", Forester.Target STRING
+              "html", Forester.HTML;
+              "json", JSON;
+              "xml", XML;
+              "string", STRING
             ]
         )
-        ~vopt: (Forester.Target HTML)
-        (Target HTML)
+        ~vopt: Forester.HTML
+        HTML
       & info ["format"]
     )
   in

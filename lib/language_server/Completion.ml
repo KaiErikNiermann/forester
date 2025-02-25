@@ -116,15 +116,19 @@ let compute
               let* iri = tree.iri in
               let* {frontmatter; mainmatter; _} = Forest.get_article iri forest.resources in
               let documentation =
-                let render = Render.render ~dev: true forest STRING in
+                let render =
+                  Plain_text_client.string_of_content
+                    ~forest: forest.resources
+                    ~router: (Legacy_xml_client.route forest)
+                in
                 let title = frontmatter.title in
                 let taxon = frontmatter.taxon in
                 let content =
                   Format.asprintf
                     {|%s\n %s\n %s\n |}
-                    (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render (Content s))) title)
-                    (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render (Content s))) taxon)
-                    (render (Content mainmatter))
+                    (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
+                    (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
+                    (render mainmatter)
                 in
                 Some (`String content)
               in

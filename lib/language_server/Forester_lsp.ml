@@ -9,6 +9,8 @@ module L = Lsp.Types
 module RPC = Jsonrpc
 module Server = Lsp_server
 module Analysis = Analysis
+module State = Lsp_state
+module LspEio = LspEio
 
 open Forester_compiler
 open Forester_frontend

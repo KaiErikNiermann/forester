@@ -24,7 +24,11 @@ let compute
     : L.Hover.t option
   =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let render = Render.render ~dev: true forest STRING in
+  let render =
+    Plain_text_client.string_of_content
+      ~forest: forest.resources
+      ~router: (Legacy_xml_client.route forest)
+  in
   let config = State.config forest in
   let host = config.host in
   let content =
@@ -42,7 +46,7 @@ let compute
         | None ->
           Format.asprintf "Could not get article %a." pp_iri iri_under_cursor
         | Some {mainmatter; frontmatter; _} ->
-          let main = render (Content mainmatter) in
+          let main = render mainmatter in
           if main = "" then (Format.asprintf "%a" T.(pp_frontmatter pp_content) frontmatter)
           else main
   in

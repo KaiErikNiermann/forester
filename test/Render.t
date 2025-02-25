@@ -1,5 +1,7 @@
   $ cd forest
   $ forester render --addr=index --format=xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  
   <fr:tree xmlns:fr="http://www.jonmsterling.com/jms-005P.xml" root="true">
     <fr:frontmatter>
       <fr:authors />
