@@ -71,6 +71,7 @@ type 'content frontmatter = {
   source_path: string option;
   tags: 'content vertex list;
   metas: (string * 'content) list;
+  last_changed: float option;
 }
 [@@deriving show, repr]
 
@@ -196,7 +197,7 @@ let trim_whitespace xs =
   in
   trim_back @@ trim_front xs
 
-let default_frontmatter ?iri ?source_path ?designated_parent ?(dates = []) ?(attributions = []) ?taxon ?number ?(metas = []) ?(tags = []) ?title () = {iri; source_path; designated_parent; dates; attributions; taxon; number; metas; tags; title}
+let default_frontmatter ?iri ?source_path ?designated_parent ?(dates = []) ?(attributions = []) ?taxon ?number ?(metas = []) ?(tags = []) ?title ?last_changed () = {iri; source_path; designated_parent; dates; attributions; taxon; number; metas; tags; title; last_changed}
 
 let article_to_section ?(flags = default_section_flags) (article : 'a article) =
   let mainmatter =

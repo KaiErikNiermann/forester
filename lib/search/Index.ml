@@ -5,146 +5,157 @@
  *)
 
 open Forester_core
-open Forester_compiler
+open Forester_prelude
+open Spelll
+
 module T = Forester_core.Types
-module Search_index = State.Search_index
 
-module Set = Set.Make(String)
-(* module Index = Map.Make(String) *)
+module Ocurrences = Set.Make(struct
+  type t = int list list * iri
+  (* FIXME: *)
+  let compare (_i, x) (_j, y) = Iri.compare ?normalize: None x y
+end)
 
-let common_words =
-  Set.of_list
-    [
-      "a";
-      "and";
-      "be";
-      "have";
-      "i";
-      "in";
-      "of";
-      "that";
-      "the";
-      "to";
-    ]
+type t = {
+  index: Ocurrences.t Index.t;
+  number_of_tokens: int;
+  number_of_docs: int;
+}
 
-let tokenize string =
-  Str.(split @@ regexp "[^a-zA-Z0-9]+") string
-  |> List.filter_map
-      (fun s ->
-        let lower = String.lowercase_ascii s in
-        if not @@ Set.mem lower common_words then
-          Some (Stemming.stem lower)
-        else
-          None
-      )
+let average_doc_length
+  : t -> float
+= fun {number_of_tokens; number_of_docs; _} ->
+  Float.of_int number_of_tokens /. Float.of_int number_of_docs
 
-let rec tokenize_content : T.content -> _ = function
-  | Content nodes ->
-    List.concat_map
-      (function
-        | T.Text s
-        | T.CDATA s ->
-          tokenize s
-        | T.Xml_elt {content; _} ->
-          (* TODO: Consider tokenizing xml_qname *)
-          tokenize_content content
-        | T.Section {frontmatter; mainmatter; _} -> tokenize_frontmatter frontmatter @ tokenize_content mainmatter
-        | T.Prim (_, content) -> tokenize_content content
-        | T.Link {content; _} -> tokenize_content content
-        | T.KaTeX (_, _) ->
-          (* NOTE:
-             In order to properly search math, we need to revamp the
-             architecture and add more features...*)
-          []
-        | T.Transclude _
-        | T.Contextual_number _
-        | T.Results_of_query _
-        | T.TeX_cs _
-        | T.Img _
-        | T.Artefact _
-        | T.Iri _
-        | T.Route_of_iri _
-        | T.Datalog_script _
-        | T.Results_of_datalog_query _ ->
-          []
-      )
-      nodes
-
-and tokenize_vertex = function
-  | T.Iri_vertex _ -> []
-  | T.Content_vertex c ->
-    tokenize_content c
-
-and tokenize_attribution
-  : T.content T.attribution -> _
-= function
-  | {vertex; _} ->
-    tokenize_vertex vertex
-
-and tokenize_frontmatter
-  : T.content T.frontmatter -> _
-= function
-  | {title;
-    attributions;
-    taxon;
-    tags;
-    metas;
-    _;
-  } ->
-    List.concat
-      [
-        Option.value ~default: [] (Option.map tokenize_content title);
-        Option.value ~default: [] (Option.map tokenize_content taxon);
-        List.concat_map tokenize_attribution attributions;
-        List.concat_map tokenize_vertex tags;
-        List.concat_map (fun (s, c) -> tokenize s @ tokenize_content c) metas;
-      ]
-
-let tokenize_article : T.content T.article -> _ = function
-  | {frontmatter; mainmatter; _} ->
-    tokenize_frontmatter frontmatter @ tokenize_content mainmatter
+let add_one
+  : T.content T.article -> t -> t
+= fun article ({index; number_of_tokens; number_of_docs;} as t) ->
+  if Option.is_none T.(article.frontmatter.iri) then t
+  else
+    let tokens_in_article = Tokenizer.tokenize_article article in
+    let iri = Option.get T.(article.frontmatter.iri) in
+    let new_tokens = ref 0 in
+    let new_index =
+      List.fold_left
+        (fun index (ocurrences, token) ->
+          match Index.retrieve_l ~limit: 0 index token with
+          | [] ->
+            (* Unseen token*)
+            (* TODO: add to list of ocurrences*)
+            let ocurrence = Ocurrences.singleton ([ocurrences], iri) in
+            new_tokens := !new_tokens + 1;
+            Index.add index token ocurrence
+          | ids :: [] ->
+            Index.add index token (Ocurrences.add ([ocurrences], iri) ids)
+          | _ ->
+            (* We are using limit=0, so this shouldn't happen*)
+            assert false
+        )
+        index
+        tokens_in_article
+    in
+    {
+      index = new_index;
+      number_of_docs = number_of_docs + 1;
+      number_of_tokens = number_of_tokens + !new_tokens
+    }
 
 let add
-  : T.content T.article list ->
-  iri list Search_index.t ->
-  iri list Search_index.t
-= fun articles index ->
-  List.fold_left
-    (fun acc article ->
-      if Option.is_none T.(article.frontmatter.iri) then acc
-      else
-        let tokens = tokenize_article article in
-        let iri = Option.get T.(article.frontmatter.iri) in
-        List.fold_left
-          (fun acc token ->
-            match Search_index.find_opt token acc with
-            | Some ids ->
-              if List.nth ids (List.length ids - 1) = iri then acc
-              else
-                Search_index.add token (ids @ [iri]) acc
-            | None -> Search_index.add token [iri] acc
-          )
-          acc
-          tokens
-    )
-    index
-    articles
+    : T.content T.article list -> t -> t
+  =
+  List.fold_right add_one
 
 let search
-  : iri list Search_index.t -> string -> iri list list
-= fun index term ->
-  tokenize term
+  : ?fuzz: int -> t -> string -> (int list list * iri) list
+= fun ?(fuzz = 0) index term ->
+  Tokenizer.tokenize term
   |> List.concat_map
       (fun str ->
-        match Search_index.find_opt str index with
-        | Some ids ->
-          [ids]
-        | None -> []
+        List.concat_map Ocurrences.to_list @@
+          Index.retrieve_l ~limit: fuzz index.index str
       )
 
-let index
-  : T.content T.resource Forest.t -> iri list Search_index.t
-= function
-  | resources ->
-    Forest.get_all_articles resources
-    |> (fun articles -> add articles Search_index.empty)
+module BM_25 = struct
+  let sum = List.fold_left (+.) 0.
+
+  (* Inverse document frequency *)
+  let idf q (index : t) =
+    let n = Float.of_int @@ List.length @@ search ~fuzz: 0 index q in
+    log (((Float.of_int index.number_of_docs -. n +. 0.5) /. n +. 0.5) +. 1.)
+
+  let doc_length d =
+    Float.of_int @@
+    List.length @@
+    Tokenizer.tokenize_article d
+
+  let score
+    : T.content T.article -> string -> t -> float
+  = fun d q index ->
+    let tokens = Tokenizer.tokenize q in
+    assert (List.length tokens > 0);
+    let avg_len = average_doc_length index in
+    let k_1 = 1.5 in
+    let b = 0.75 in
+    sum @@
+      List.map
+        (fun q_i ->
+          let num_occurrences =
+            Float.of_int @@
+            List.length @@ search index q_i
+          in
+          (* Format.printf "num_occurrences: %f" num_occurrences; *)
+          idf q index *.
+            begin
+              (num_occurrences *. k_1 +. 1.) /.
+                (num_occurrences +. k_1 *. (1. -. b +. (b *. doc_length d /. avg_len))) +.
+                1.
+            end
+        )
+        tokens
+end
+
+let ranked_search
+  : ?fuzz: int -> t -> T.content T.resource Iri_tbl.t -> string -> (iri * float) list
+= fun ?fuzz index forest terms ->
+  Tokenizer.tokenize terms |> function
+    | tokens ->
+      (* In order to rank documents, I search for the first token and then
+         rank the returned documents according to all tokens. This duplicates the
+         search for the first token, so this should be changed.*)
+      let first_token = List.hd tokens in
+      let matches = search ~fuzz: 1 index first_token in
+      let iris =
+        List.filter_map
+          (fun (_, iri) ->
+            match Iri_tbl.find_opt forest iri with
+            | Some (T.Article a) ->
+              Some (iri, BM_25.score a terms index)
+            | None -> assert false
+            | _ -> None
+          )
+          matches
+      in
+      List.sort
+        (fun (_, score_a) (_, score_b) -> Float.compare score_a score_b)
+        iris
+
+let create articles =
+  let index = {
+    index = Index.empty;
+    number_of_docs = 0;
+    number_of_tokens = 0
+  }
+  in
+  add articles index
+
+let marshal (v : t) filename =
+  let oc = open_out_bin filename in
+  Fun.protect
+    ~finally: (fun () -> close_out oc)
+    (fun () -> Marshal.to_channel oc v [])
+
+let unmarshal filename : t =
+  let ic = open_in_bin filename in
+  Fun.protect
+    ~finally: (fun () -> close_in ic)
+    (fun () -> Marshal.from_channel ic)

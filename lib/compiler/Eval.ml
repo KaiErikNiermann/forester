@@ -383,7 +383,7 @@ and eval_node node : V.t =
         | Some current_iri ->
           anon_iri current_iri
     in
-    let subtree = eval_tree_inner ~iri nodes in
+    let subtree = eval_tree_inner ~iri nodes.syn in
     let frontmatter = Frontmatter.get () in
     let subtree = {subtree with frontmatter = {subtree.frontmatter with iri = Some iri; designated_parent = frontmatter.iri}} in
     Emitted_trees.modify @@ List.cons subtree;
@@ -719,7 +719,7 @@ and emit_content_nodes ~loc content =
 and emit_content_node ~loc content =
   emit_content_nodes ~loc [content]
 
-and eval_tree_inner ~(iri : iri) (tree : Syn.tree) : T.content T.article =
+and eval_tree_inner ~(iri : iri) (syn : Syn.t) : T.content T.article =
   let attribution_is_author attr =
     match T.(attr.role) with
     | T.Author -> true
@@ -737,7 +737,7 @@ and eval_tree_inner ~(iri : iri) (tree : Syn.tree) : T.content T.article =
   in
   let@ () = Anon_subtree_ix.run ~init: 0 in
   let@ () = Frontmatter.run ~init: frontmatter in
-  let mainmatter = {value = eval_tape tree.syn; loc = None} |> V.extract_content in
+  let mainmatter = {value = eval_tape syn; loc = None} |> V.extract_content in
   let frontmatter = Frontmatter.get () in
   let backmatter = default_backmatter ~iri in
   T.{frontmatter; mainmatter; backmatter}
@@ -747,7 +747,7 @@ let empty_result = {
   jobs = []
 }
 
-let eval_tree ?(quit_on_failure = true) ~(host : string) ~(iri : iri) ~(source_path : string option) (tree : Syn.tree) : Reporter.Message.t Asai.Diagnostic.t list * result =
+let eval_tree ?(quit_on_failure = true) ~(host : string) ~(iri : iri) ~(source_path : string option) (tree : Syn.t) : Reporter.Message.t Asai.Diagnostic.t list * result =
   let diagnostics = ref [] in
   let push d = diagnostics := d :: !diagnostics in
   let res =

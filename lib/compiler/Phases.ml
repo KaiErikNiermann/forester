@@ -25,7 +25,7 @@ let init ~(env : Eio_unix.Stdenv.base) ~(config : Config.t) ~(dev : bool) : stat
   let resources = Forest.create 1000 in
   let diagnostics = Diagnostic_store.create 100 in
   let units = Expand.Env.empty in
-  let search_index = State.Search_index.empty in
+  let search_index = Forester_search.Index.create [] in
   {
     env;
     dev;
@@ -94,9 +94,14 @@ let parse
       let parse_result =
         let@ () = Reporter.tracef "when parsing %a (%s)" pp_iri iri source_path in
         let@ code = Result.map @~ Parse.parse_document doc in
+        (* I am doing some more IO here. I am not stat-ing when
+           the file is first loaded because things pass through
+           L.Text_document.t, which I did not want to change.*)
+        let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / source_path).mtime in
         Code.{
           code;
           iri = Some iri;
+          timestamp = Some timestamp;
           source_path = Some source_path;
         }
       in
@@ -128,13 +133,15 @@ let reparse (doc : Lsp.Text_document.t) : transition = fun forest ->
   let host = forest.config.host in
   let uri = Lsp.Text_document.documentUri doc in
   let path = Lsp.Uri.to_path uri in
+  let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / path).mtime in
   match Parse.parse_document doc with
   | Ok code ->
     let tree =
       Code.{
         code;
         iri = Option.some @@ Iri_scheme.uri_to_iri ~host uri;
-        source_path = Some path
+        source_path = Some path;
+        timestamp = Some timestamp;
       }
     in
     Forest.add forest.parsed (Iri_scheme.uri_to_iri ~host uri) tree;
@@ -159,7 +166,8 @@ let build_import_graph_for ~(iri : iri) (forest : state) : state =
   | Some source_path ->
     match Parse.parse_file source_path with
     | Ok code ->
-      let tree = Code.{code; iri = Some iri; source_path = Some source_path} in
+      let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / source_path).mtime in
+      let tree = Code.{code; iri = Some iri; source_path = Some source_path; timestamp = Some timestamp;} in
       let module Graphs = (val forest.graphs) in
       let import_graph = Imports.dependencies tree forest in
       {forest with import_graph}
@@ -198,7 +206,7 @@ let expand ~(quit_on_error : bool) (forest : state) : state =
   begin
     let@ (diagnostics, source_path, (syn : Syn.tree)) = List.iter @~ expanded_trees in
     let@ iri = Option.iter @~ syn.iri in
-    Forest.replace forest.expanded iri syn;
+    Forest.replace forest.expanded iri syn.syn;
     match source_path with
     | None ->
       Logs.warn (fun m -> m "tree at %a has no source path." pp_iri iri);
@@ -227,7 +235,7 @@ let expand ~(quit_on_error : bool) (forest : state) : state =
 (* There is some duplicated code here. The only significant difference is the
    fact that we are using a different graph builder, one that only traverses
    the dependencies of a specific tree*)
-let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Expand.Env.t * Diagnostic_store.t * Syn.tree Forest.t =
+let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
   let import_graph =
     Imports.run_builder
       ~root: addr
@@ -238,7 +246,7 @@ let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Exp
       }
   in
   assert (Forest_graph.nb_vertex import_graph >= Forest.length forest.parsed);
-  let task (addr : Vertex.t) (units, diagnostics, trees) =
+  let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t Iri_tbl.t))) =
     match addr with
     | T.Content_vertex _ ->
       (* when creating the import graph we are only adding iri vertices *)
@@ -253,7 +261,7 @@ let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Exp
         let ds, units, syn = Expand.expand_tree ~quit_on_error ~host: forest.config.host units tree in
         let source_path = tree.source_path in
         begin
-          Forest.add trees iri syn;
+          Forest.add trees iri syn.syn;
           match source_path with
           | None ->
             Logs.warn (fun m -> m "Could not construct URI for tree at %a. There may be missing diagnostics." pp_iri iri)

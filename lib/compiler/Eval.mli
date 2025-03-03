@@ -18,5 +18,5 @@ val eval_tree :
   host: string ->
   iri: iri ->
   source_path: string option ->
-  Syn.tree ->
+  Syn.t ->
   Reporter.diagnostic list * result

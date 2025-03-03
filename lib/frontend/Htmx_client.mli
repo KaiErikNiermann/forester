@@ -23,4 +23,4 @@ val render_frontmatter : State.t -> T.content T.frontmatter -> Pure_html.node
 
 val render_query_result : State.t -> Vertex_set.t -> Pure_html.node option
 
-val render_toc : 'a -> Pure_html.node
+val render_toc : T.content T.section -> Pure_html.node

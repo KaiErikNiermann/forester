@@ -175,6 +175,37 @@ let render_date (date : Human_datetime.t) =
         ]
     ]
 
+(*This type is just temporary until I figure out the logic *)
+type toc_config = {
+  suffix: string;
+  taxon: string;
+  number: string;
+  fallback_number: string;
+
+  (* In XSL, hese require querying the ancestors. We can't do this here, so we
+     explicitly pass  these parameters down*)
+  in_backmatter: bool;
+  is_root: bool;
+  implicitly_unnumbered: bool;
+}
+
+let default_toc_config
+  ?(suffix = "")
+  ?(taxon = "")
+  ?(number = "")
+  ?(fallback_number = "")
+  ?(in_backmatter = false)
+  ()
+= {
+  suffix;
+  taxon;
+  number;
+  fallback_number;
+  in_backmatter;
+  is_root = false;
+  implicitly_unnumbered = false;
+}
+
 let rec render_article (forest : State.t) (article : T.content T.article) : node =
   (* FIXME: What should reserved be here? *)
   let@ () = Xmlns.run ~reserved: [] in
@@ -314,7 +345,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
             render_content forest @@
               T.apply_modifier_to_content T.Sentence_case c
           ) @
-            [txt "."]
+            [txt ". "]
         )
         frontmatter.taxon
   in
@@ -518,16 +549,26 @@ and render_content_node
   | Transclude transclusion ->
     render_transclusion transclusion
   | Contextual_number addr ->
-    let custom_number =
-      let@ article = Option.bind @@ Forest.get_article addr forest.resources in
-      article.frontmatter.number
-    in
-    let num =
-      match custom_number with
-      | None -> Format.asprintf "[%a]" Iri.pp addr
-      | Some num -> num
-    in
-    [txt "%s" num]
+    begin
+      match (Forest.get_article addr) forest.resources with
+      | Some a ->
+        [
+          contextual_number
+            (T.article_to_section a)
+            (default_toc_config ())
+        ]
+      | None -> []
+    end
+
+  (* let custom_number = *)
+  (*   article.frontmatter.number *)
+  (* in *)
+  (* let num = *)
+  (*   match custom_number with *)
+  (*   | None -> Format.asprintf "[%a]" Iri.pp addr *)
+  (*   | Some num -> num *)
+  (* in *)
+  (* [txt "%s" num] *)
   | Link link ->
     render_link forest link
   | Results_of_query q ->
@@ -614,6 +655,116 @@ and render_link (forest : State.t) (link : T.content T.link) : node list =
       [a attrs (render_content forest link.content)]
   ]
 
+and contextual_number (_tree : T.content T.section) (cfg : toc_config) =
+  let should_number =
+    cfg.number <> ""
+    || (
+      (not cfg.in_backmatter && not cfg.is_root)
+      && not cfg.implicitly_unnumbered
+    )
+  in
+  let taxon =
+    if cfg.taxon <> "" then
+      cfg.taxon ^
+        (
+          if should_number || cfg.fallback_number <> "" then " "
+          else ""
+        )
+    else ""
+  in
+  let number =
+    if should_number then
+      if cfg.number <> String.empty then cfg.number
+      else
+        (* TODO: Implement this:
+            <xsl:number format="1.1" count="f:tree[ancestor::f:tree and (not(@toc='false' or @numbered='false'))]" level="multiple" />
+        *)
+        assert false
+    else if cfg.fallback_number <> String.empty then
+      cfg.fallback_number
+    else ""
+  in
+  let suffix =
+    if cfg.taxon <> String.empty
+      || cfg.fallback_number <> String.empty
+      || should_number then cfg.suffix
+    else ""
+  in
+  null [txt "%s %s %s" taxon suffix number]
+
+and _tree_taxon_with_number (_tree : T.content T.section) cfg =
+  (*TODO: Implement.*)
+  contextual_number _tree cfg
+
+and _render_toc_item (forest : State.t) (item : T.content T.section) =
+  let to_str = Plain_text_client.string_of_content ~forest: forest.resources ~router: (Legacy_xml_client.route forest) in
+  null
+    [
+      a
+        [
+          class_ "bullet";
+          href "";
+          title_
+            "%s%s"
+            (Option.value ~default: "" @@ Option.map to_str item.frontmatter.title)
+            (
+              Option.value ~default: "" @@
+                Option.map
+                  (
+                    Format.asprintf
+                      "[%a]"
+                      pp_iri
+                  )
+                  item.frontmatter.iri
+            )
+        ]
+        [txt "■"];
+      span
+        [class_ "link local"]
+        [
+          span
+            [class_ "taxon"]
+            [_tree_taxon_with_number item (default_toc_config ())];
+          (* null @@ render_content forest item.mainmatter; *)
+        ];
+      ul [] (render_content forest item.mainmatter)
+    ]
+
+and render_toc_mainmatter content =
+  let T.Content nodes = content in
+  ul
+    [class_ "block"]
+    (
+      List.filter_map
+        (fun node ->
+          match node with
+          | T.Section section ->
+            Some (render_toc section)
+          | _ -> None
+        )
+        nodes
+    )
+
+and render_toc (section : T.content T.section) =
+  if Some false
+    = List.find_map
+        (fun (k, v) ->
+          if k = "toc" && v = T.Content [T.Text "true"] then Some true
+          else None
+        )
+        section.frontmatter.metas then null []
+  else
+    nav
+      [id "toc"; Hx.swap_oob "true"]
+      [
+        div
+          [class_ "block"]
+          [
+            h1 [] [txt "Table of contents"];
+            (render_toc_mainmatter section.mainmatter);
+          ]
+      ]
+
 let render_query_result (forest : State.t) (vs : Vertex_set.t) =
   let module C = Types.Comparators(struct
     let string_of_content =
@@ -640,12 +791,3 @@ let render_query_result (forest : State.t) (vs : Vertex_set.t) =
   |> List.map (render_section forest) |> fun nodes ->
   if List.length nodes = 0 then None
   else Some (div [class_ "tree-content"] nodes)
-
-let render_toc _article =
-  nav
-    [id "toc"; Hx.swap_oob "true"]
-    [
-      div
-        [class_ "block"]
-        [h1 [] [txt "Table of contents"]]
-    ]

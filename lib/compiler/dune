@@ -19,6 +19,7 @@
   forester.core
   forester.human_datetime
   forester.parser
+  forester.search
   yuujinchou
   asai
   ocamlgraph

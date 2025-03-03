@@ -2,7 +2,59 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(env
+ (dev
+  (flags
+   (:standard -w -66-32-33-27-26-69))))
+
 (library
  (name Forester_search)
+ (preprocess
+  (pps ppx_deriving.show))
+ (modules Forester_search Index Stemming Tokenizer Context)
  (public_name forester.search)
- (libraries forester.core forester.compiler str eio.core eio))
+ (libraries
+  yuujinchou
+  forester.human_datetime
+  forester.prelude
+  forester.core
+  str
+  iri
+  eio.core
+  eio
+  eio.unix
+  spelll))
+
+(executable
+ (name Search_engine)
+ (public_name forester-search)
+ (modules Search_engine)
+ (libraries
+  forester.prelude
+  forester.compiler
+  forester.frontend
+  forester.core
+  logs.fmt
+  asai
+  iri
+  logs
+  eio
+  eio_main
+  eio.unix
+  forester.search
+  cmdliner))
+
+(test
+ (name Test_forester_search)
+ (modules Test_forester_search)
+ (preprocess
+  (pps ppx_deriving.show))
+ (libraries
+  alcotest
+  spelll
+  yuujinchou
+  iri
+  forester.search
+  forester.core
+  forester.frontend
+  forester.compiler))

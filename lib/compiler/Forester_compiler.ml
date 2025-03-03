@@ -75,4 +75,5 @@ module Job = Job
 (**/**)
 module Eio_util = Eio_util
 module Export_for_test = Export_for_test
+module Cache = Cache
 (**/**)

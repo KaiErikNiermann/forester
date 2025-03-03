@@ -16,3 +16,5 @@ module type S = sig
 end
 
 module Make () : S
+
+val init : Datalog_engine.db -> (module S)

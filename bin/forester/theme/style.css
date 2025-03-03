@@ -1,5 +1,20 @@
 /* SPDX-License-Identifier: CC0-1.0 */
 
+.search-result-item {
+  padding: 0.75em 1em;
+  display: flex;
+  border-left: 2px solid transparent;
+  align-items: center;
+  justify-content: start;
+  outline: none;
+  transition: color;
+  width: 100%;
+}
+
+#search-results {
+  list-style: none;
+}
+
 #search-results:empty {
   display: none;
 }
@@ -8,8 +23,8 @@
   display: none;
 }
 
-.search-wrapper {
-  display: flex;
+.search-form {
+  display: grid;
 }
 
 .search {

@@ -19,6 +19,7 @@ let () =
       Expand.Env.empty
       {
         source_path = None;
+        timestamp = None;
         (* If tree has no address, exports are not added *)
         iri = Some (Iri_scheme.user_iri ~host "test-tree");
         code = let open DSL.Code in

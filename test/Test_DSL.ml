@@ -42,7 +42,7 @@ let content =
       transclude "foo-001";
       contextual_number "chapter-3";
       results_of_query (union []);
-      katex Inline (T.Content [txt "a = b"]);
+      katex Inline [txt "a = b"];
       tex "\\begin{}";
       link "https://git.sr.ht/~jonsterling/ocaml-forester" [txt "Forester"];
       img "img.png";
@@ -91,7 +91,7 @@ let test () =
                 (
                   Section
                     {
-                      frontmatter = {iri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []};
+                      frontmatter = {iri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []; last_changed = None;};
                       mainmatter = (Content [(Prim (`P, (Content [(Text "section")])))]);
                       flags = {hidden_when_empty = None; included_in_toc = None; header_shown = None; metadata_shown = (Some false); numbered = None; expanded = None}
                     }

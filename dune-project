@@ -99,6 +99,7 @@
    (>= 2.0.0))
   (brr
    (>= 0.0.7))
+  spelll
   (odoc
    (>= 2.4.4 :with-doc))
   (alcotest :with-test)))

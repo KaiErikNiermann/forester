@@ -25,10 +25,11 @@ let load_theme ~env theme_location =
   assert (List.length theme_location = 1);
   let base_dir = List.hd theme_location in
   let theme_dir = EP.(env#fs / base_dir / "theme") in
-  let stylesheet = EP.(load (theme_dir / "style.css")) in
-  let htmx = EP.(load (theme_dir / "htmx.js")) in
+  let load_file f = EP.(load (theme_dir / f)) in
+  let stylesheet = load_file "style.css" in
+  let htmx = load_file "htmx.js" in
+  let favicon = load_file "favicon.ico" in
   let js_bundle = EP.(load (env#fs / base_dir / "min.js")) in
-  let favicon = EP.(load (theme_dir / "favicon.ico")) in
   let font_dir = EP.(native_exn @@ theme_dir / "fonts") in
   {stylesheet; htmx; js_bundle; font_dir; favicon;}
 
@@ -79,57 +80,51 @@ let handler
         let headers = Http.Header.of_list ["Content-Type", "application/javascript"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.js_bundle ()
       | Index ->
-        Cohttp_eio.Server.respond_string ~status: `OK ~body: (Pure_html.to_string (Index.v ())) ()
+        let headers = Http.Header.of_list ["Content-Type", "text/html"] in
+        Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: (Pure_html.to_string (Index.v ())) ()
       | Favicon ->
         let headers = Http.Header.of_list ["Content-Type", "image/x-icon"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.favicon ()
       | Tree s ->
         let href = Iri_scheme.user_iri ~host: State.(forest.config.host) s in
         let request_headers = Http.Request.headers request in
-        let is_htmx = Option.is_some @@ Http.Header.get request_headers "Hx-Request" in
+        let is_htmx =
+          (*If it is an HTMX request, we just send a fragment.
+            If it is not an HTMX request, we need to send the whole page. This
+            happens for example when the user opens a link via the URL bar of
+            the browser.
+          *)
+          Option.is_some @@ Http.Header.get request_headers "Hx-Request"
+        in
         begin
           if is_htmx then
-            (* If it is an HTMX request, we just send a fragment. *)
             begin
+              (* We use custom headers to configure the transclusion. *)
               match Headers.parse_content_target request_headers with
+              (* If we fail to parse a target, just render the article.*)
               | None ->
                 begin
                   match Forest.get_article href forest.resources with
-                  | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
+                  | None ->
+                    (* TODO: Some sort of 404 template *)
+                    Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
                   | Some content ->
-                    let response =
-                      Pure_html.(
-                        to_string @@
-                          (Htmx_client.render_article forest content)
-                      )
-                    in
+                    let response = Pure_html.to_string @@ Htmx_client.render_article forest content in
                     Cohttp_eio.Server.respond_string ~status: `OK ~body: response ()
                 end
               | Some target ->
                 let modifier = Option.value ~default: T.Identity (Headers.parse_modifier request_headers) in
-                match Forest.get_content_of_transclusion
-                  {target; href; modifier;}
-                  forest.resources with
+                match Forest.get_content_of_transclusion {target; href; modifier;} forest.resources with
                 | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
                 | Some content ->
-                  let response =
-                    Pure_html.(
-                      to_string @@
-                        HTML.span [] (Htmx_client.render_content forest content)
-                    )
-                  in
+                  (* TODO: Remove any sort of HTML generation from the handler. *)
+                  let response = Pure_html.(to_string @@ HTML.span [] (Htmx_client.render_content forest content)) in
                   Cohttp_eio.Server.respond_string ~status: `OK ~body: response ()
             end
           else
-            (* If it is not an HTMX request, we need to send the whole page. *)
             match Forest.get_article href forest.resources with
             | Some article ->
-              let content =
-                Pure_html.to_string @@
-                  Index.v
-                    ~c: (Htmx_client.render_article forest article)
-                    ()
-              in
+              let content = Pure_html.to_string @@ Index.v ~c: (Htmx_client.render_article forest article) () in
               let headers = Http.Header.of_list ["Content-Type", "text/html"] in
               Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: content ()
             | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
@@ -137,26 +132,42 @@ let handler
       | Search ->
         if request.meth = `POST then
           let body = Eio.Flow.read_all body in
-          let search_term =
-            String.concat "" @@
-            snd @@
-            List.find
+          let get_param key =
+            Option.map (String.concat "") @@
+            Option.map snd @@
+            List.find_opt
               (fun (s, _) ->
-                s = "search"
+                s = key
               )
               (Uri.query_of_encoded body)
           in
-          let search_results = Forester_search.Index.search forest.search_index search_term in
-          let response =
-            List.concat_map
-              (fun iris ->
-                let open Pure_html in
-                let open HTML in
-                [ul [] (List.map (fun iri -> li [] [txt "%s" (Format.asprintf "%a" pp_iri iri)]) iris)]
-              )
-              search_results
+          let _search_term = Option.value ~default: "" @@ get_param "search" in
+          let search_for = get_param "search-for" in
+          let search_results =
+            match search_for with
+            | None -> []
+            | Some "title-text" ->
+              (* Forester_search.Index.search *)
+              (*   forest.search_index *)
+              (*   search_term *)
+              []
+            | Some "full-text" ->
+              (* Forester_search.Index.search *)
+              (*   forest.search_index *)
+              (*   search_term *)
+              []
+            | Some _ -> assert false
           in
-          Cohttp_eio.Server.respond_string ~status: `OK ~body: (Pure_html.to_string @@ Pure_html.HTML.ul [] response) ()
+          let response
+            =
+            Search_menu.results
+              forest
+              (List.map snd search_results)
+          in
+          Cohttp_eio.Server.respond_string
+            ~status: `OK
+            ~body: response
+            ()
         else
           Cohttp_eio.Server.respond_string ~status: `Method_not_allowed ~body: "" ()
       | Searchmenu ->

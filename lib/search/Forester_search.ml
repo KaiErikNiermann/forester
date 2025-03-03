@@ -5,3 +5,6 @@
  *)
 
 module Index = Index
+module Tokenizer = Tokenizer
+module Stemming = Stemming
+module Context = Context

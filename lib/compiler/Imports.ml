@@ -28,7 +28,8 @@ let resolve_iri_to_code iri (forest : State.t) =
         begin
           match Parse.parse_file path with
           | Ok code ->
-            Some Code.{code; iri = Some iri; source_path = Some path}
+            let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / path).mtime in
+            Some Code.{code; iri = Some iri; source_path = Some path; timestamp = Some timestamp}
           | Error _ -> None
         end
       | None -> None
@@ -75,7 +76,8 @@ and analyse_node roots (node : Code.node Asai.Range.located) =
     analyse_tree
       roots
       (* Consider using the env to keep track of the current source path *)
-      {iri; code; source_path = None}
+      (* FIXME: not passing timestamp of parent tree. Need to modify Analysis_env for that *)
+      {iri; code; source_path = None; timestamp = None;}
   | Scope code | Namespace (_, code) | Group (_, code) | Math (_, code) | Let (_, _, code) | Fun (_, code) | Def (_, _, code) ->
     analyse_code roots code
   | Object {methods; _} | Patch {methods; _} ->

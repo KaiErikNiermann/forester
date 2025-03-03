@@ -161,7 +161,7 @@ let rec expand : Code.t -> Syn.t = function
     {value = Syn.Group (d, expand xs); loc} :: expand rest
   | {value = Subtree (addr, nodes); loc} :: rest ->
     let host = H.read () in
-    let subtree = expand_tree_inner @@ Code.{source_path = None; iri = Option.map (Iri_scheme.user_iri ~host) addr; code = nodes} in
+    let subtree = expand_tree_inner @@ Code.{source_path = None; timestamp = None; iri = Option.map (Iri_scheme.user_iri ~host) addr; code = nodes} in
     {value = Syn.Subtree (addr, subtree); loc} :: expand rest
   | {value = Math (m, xs); loc} :: rest ->
     {value = Syn.Math (m, expand xs); loc} :: expand rest

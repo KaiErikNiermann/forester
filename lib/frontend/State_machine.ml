@@ -6,7 +6,6 @@
 
 open Forester_core
 open Forester_compiler
-open Forester_search
 
 type target = HTML | JSON | XML | STRING
 
@@ -31,7 +30,6 @@ type 'a action =
   | Get of iri
   | Query of (string, Vertex.t) Datalog_expr.query
   | Cache_results of (Vertex_set.t [@opaque])
-  | Index
 [@@deriving show]
 
 type ('r, 'e) result =
@@ -128,12 +126,6 @@ let update
   | Cache_results _
   | Done ->
     (Done, state, Nothing)
-  | Index ->
-    (
-      Done,
-      {state with search_index = Index.index state.resources},
-      Nothing
-    )
 
 let run_action action state : state =
   let rec go action state =
@@ -164,7 +156,6 @@ let batch_run ~env ~(config : Config.t) ~dev =
   |> plant_assets
   |> implant_foreign
   |> run_action Load_all_configured_dirs
-  |> run_action Index
 
 let language_server
   : state -> unit

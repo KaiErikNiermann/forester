@@ -25,4 +25,5 @@
   http
   cohttp-eio
   uri
-  fmt))
+  fmt
+  spelll))
