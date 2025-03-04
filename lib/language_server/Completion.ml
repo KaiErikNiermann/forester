@@ -107,8 +107,7 @@ let compute
     in
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let addr_items () =
-      forest
-      |> State.parsed
+      forest.parsed
       |> Forest.to_seq_values
       |> Seq.filter_map
           begin
@@ -148,8 +147,7 @@ let compute
       (* TODO: If the selected item is not in scope in the current tree, auto-import it.
          reference: https://github.com/rust-lang/rust-analyzer/blob/fc98e0657abf3ce07eed513e38274c89bbb2f8ad/crates/ide-assists/src/handlers/auto_import.rs#L15
          *)
-      let units = State.units forest in
-      units
+      forest.units
       |> Expand.Unit_map.to_list
       |> List.map snd
       |> List.concat_map

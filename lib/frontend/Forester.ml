@@ -15,7 +15,7 @@ module EP = Eio.Path
 type env = Eio_unix.Stdenv.base
 type dir = Eio.Fs.dir_ty EP.t
 
-type target = State_machine.target = HTML | JSON | XML | STRING
+type target = HTML | JSON | XML | STRING
 
 let (let*) = Option.bind
 
@@ -55,8 +55,8 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
   EP.save ~create path @@ body ^ template_content;
   EP.native_exn path
 
-let complete ~forest prefix =
-  let config = State.config forest in
+let complete ~(forest : State.t) prefix =
+  let config = forest.config in
   let@ article = Seq.filter_map @~ List.to_seq @@ Forest.get_all_articles forest.resources in
   let@ iri = Option.bind article.frontmatter.iri in
   let@ iri = Option.bind @@ Option_util.guard Iri_scheme.is_named_iri iri in
@@ -94,8 +94,34 @@ let render_tree
 = fun ~env ~config ~target addr ->
   let dev = true in
   let iri = Iri_scheme.user_iri ~host: config.host addr in
-  let result = State_machine.render_tree ~env ~config ~dev target iri in
-  Format.printf "%s" result
+  let forest =
+    State.make ~env ~config ~dev ()
+    |> Driver.run_action (Build_dependency_graph iri)
+  in
+  let output =
+    match Forest.get_article iri forest.resources with
+    | None -> assert false
+    | Some article ->
+      match target with
+      | HTML -> Pure_html.to_string @@ Htmx_client.render_article forest article
+      | XML ->
+        Format.asprintf "%a" Legacy_xml_client.(pp_xml ~forest ?stylesheet: None) article
+      | JSON -> Yojson.Safe.to_string @@ snd @@ Option.get @@ Json_manifest_client.render_tree ~dev ~forest article
+      | STRING -> "TODO"
+  in
+  Format.printf "%s" output
+
+(* let result = *)
+(*   render_tree *)
+(*     ~env *)
+(*     ~config *)
+(*     ~dev *)
+(*     target *)
+(*     iri *)
+(*     in *)
+(*     Format.printf *)
+(*     "%s" *)
+(*     result *)
 
 let json_manifest ~dev ~(forest : State.t) : string =
   let render = Json_manifest_client.render_tree ~forest in
@@ -106,7 +132,7 @@ let json_manifest ~dev ~(forest : State.t) : string =
   |> Yojson.Safe.to_string
 
 let render_forest ~dev ~(forest : State.t) : unit =
-  let cwd = Eio.Stdenv.cwd (State.env forest) in
+  let cwd = Eio.Stdenv.cwd forest.env in
   let all_resources = forest.resources |> Forest.get_all_resources in
   List.iter (fun t -> Forest.plant_resource t forest.graphs forest.resources) all_resources;
   Logs.debug (fun m -> m "Rendering %i resources" (List.length all_resources));
@@ -116,7 +142,7 @@ let render_forest ~dev ~(forest : State.t) : unit =
     Eio_util.ensure_context_of_path ~perm: 0o755 json_path;
     EP.save ~create: (`Or_truncate 0o644) json_path json_string
   end;
-  let module Graphs = (val State.graphs forest) in
+  let module Graphs = (val forest.graphs) in
   let jobs =
     (* TODO: this takes a long time, but it does not seem to be the case that parallising helps at all. *)
     let@ resource = List.filter_map @~ all_resources in

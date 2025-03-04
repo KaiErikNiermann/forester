@@ -10,7 +10,7 @@ open Forester_compiler
 type env = Eio_unix.Stdenv.base
 type dir = Eio.Fs.dir_ty Eio.Path.t
 
-type target = State_machine.target = HTML | JSON | XML | STRING
+type target = HTML | JSON | XML | STRING
 
 val render_forest :
   dev: bool ->

@@ -1,0 +1,45 @@
+;;; SPDX-FileCopyrightText: 2024 The Forester Project Contributors
+;;;
+;;; SPDX-License-Identifier: GPL-3.0-or-later
+
+(tests
+ (names
+  Test_LaTeX_pipeline
+  Test_compiler
+  Test_diagnostic_store
+  Test_driver
+  Test_errors
+  Test_eval
+  Test_expansion
+  Test_graph_database
+  Test_import_graph
+  Test_iri_util)
+ (preprocess
+  (pps ppx_deriving.show))
+ (libraries
+  asai
+  eio
+  eio_main
+  eio.core
+  eio.unix
+  alcotest
+  unix
+  fmt
+  iri
+  lsp
+  logs
+  yuujinchou
+  ocamlgraph
+  forester.test
+  forester.prelude
+  forester.parser
+  forester.compiler
+  forester.core
+  forester.frontend))
+
+;;; 
+
+(executable
+ (name Test_timestamp)
+ (public_name test-timestamp)
+ (libraries))

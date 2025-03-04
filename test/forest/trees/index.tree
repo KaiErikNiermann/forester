@@ -1,7 +1,0 @@
-\title{hello}
-\subtree[sub]{
-  \title{I am a subtree}
-}
-\subtree{
-  \title{I am an anonymous subtree}
-}

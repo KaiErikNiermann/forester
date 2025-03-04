@@ -747,32 +747,32 @@ let empty_result = {
   jobs = []
 }
 
-let eval_tree ?(quit_on_failure = true) ~(host : string) ~(iri : iri) ~(source_path : string option) (tree : Syn.t) : Reporter.Message.t Asai.Diagnostic.t list * result =
-  let diagnostics = ref [] in
-  let push d = diagnostics := d :: !diagnostics in
+let recover_tree _d = empty_result
+
+let eval_tree
+    ~(host : string)
+    ~(iri : iri)
+    ~(source_path : string option)
+    (tree : Syn.t)
+    : result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t
+  =
+  let diagnostics = ref (Hashtbl.create 0) in
   let res =
-    let fatal d =
-      push d;
-      if quit_on_failure then
-        begin
-          Reporter.Tty.display d ~debug: true;
-          exit 1
-        end
-      else
-        empty_result
-    in
-    Reporter.run ~emit: push ~fatal @@ fun () ->
-    let fm = T.default_frontmatter ~iri ?source_path () in
-    let@ () = Frontmatter.run ~init: fm in
-    let@ () = Emitted_trees.run ~init: [] in
-    let@ () = Jobs.run ~init: [] in
-    let@ () = Heap.run ~init: Env.empty in
-    let@ () = Lex_env.run ~env: Env.empty in
-    let@ () = Dyn_env.run ~env: Env.empty in
-    let@ () = Host_env.run ~env: host in
-    let main = eval_tree_inner ~iri tree in
-    let side = Emitted_trees.get () in
-    let jobs = Jobs.get () in
-    {articles = main :: side; jobs}
+    Reporter.lsp_run
+      ~recover: recover_tree
+      (fun ds -> diagnostics := ds;)
+      @@ fun () ->
+      let fm = T.default_frontmatter ~iri ?source_path () in
+      let@ () = Frontmatter.run ~init: fm in
+      let@ () = Emitted_trees.run ~init: [] in
+      let@ () = Jobs.run ~init: [] in
+      let@ () = Heap.run ~init: Env.empty in
+      let@ () = Lex_env.run ~env: Env.empty in
+      let@ () = Dyn_env.run ~env: Env.empty in
+      let@ () = Host_env.run ~env: host in
+      let main = eval_tree_inner ~iri tree in
+      let side = Emitted_trees.get () in
+      let jobs = Jobs.get () in
+      {articles = main :: side; jobs}
   in
-  !diagnostics, res
+  res, !diagnostics

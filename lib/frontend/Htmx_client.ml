@@ -50,8 +50,8 @@ let iri_is_home ~config iri =
     Iri.equal ~normalize: false home_iri iri
   | None -> false
 
-let route forest addr =
-  let config = State.config forest in
+let route (forest : State.t) addr =
+  let config = forest.config in
   if Some addr = Option.map (Iri_scheme.user_iri ~host: config.host) config.home then
     "index.html"
   else

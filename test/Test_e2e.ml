@@ -78,20 +78,21 @@ let () =
         (Lsp.Header.to_string header)
         content
     in
-    let stdin =
+    let _stdin =
       Eio.Flow.string_source
         initialize_request
     in
     let paths = parse_paths env#fs @@ Sys.getenv "PATH" in
-    let forester = Option.get @@ which "forester" paths in
-    (* let _o = *)
-    (*   pipe_into ~env stdin [forester; "lsp"] *)
-    (* in *)
+    let _forester = Option.get @@ which "forester" paths in
     Alcotest.(check string)
       ""
       ""
       ""
   in
   let open Alcotest in
-  (* Format.printf "%s@." o *)
-  run "Language server" ["initialization", [test_case "" `Quick test_initialization]]
+  run
+    "Language server"
+    [
+      "initialization",
+      [test_case "" `Quick test_initialization]
+    ]

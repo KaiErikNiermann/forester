@@ -10,130 +10,67 @@ open Forester_core
 
 module T = Types
 
-type state = State.t
+type diagnostic = Reporter.Message.t Asai.Diagnostic.t
 
-type transition = state -> state
+(* I am currently implementing incremental compilation.
 
-let init ~(env : Eio_unix.Stdenv.base) ~(config : Config.t) ~(dev : bool) : state =
-  Logs.debug (fun m -> m "Initializing with config %a" Config.pp config);
-  let graphs = (module Forest_graphs.Make (): Forest_graphs.S) in
-  let import_graph = Forest_graph.create ~size: 1000 () in
-  let parsed = Forest.create 1000 in
-  let documents = Hashtbl.create 1000 in
-  let resolver = Iri_tbl.create 1000 in
-  let expanded = Forest.create 1000 in
-  let resources = Forest.create 1000 in
-  let diagnostics = Diagnostic_store.create 100 in
-  let units = Expand.Env.empty in
-  let search_index = Forester_search.Index.create [] in
-  {
-    env;
-    dev;
-    config;
-    units;
-    documents;
-    diagnostics;
-    parsed;
-    expanded;
-    resources;
-    resolver;
-    import_graph;
-    graphs;
-    search_index;
-  }
+   TODO:
 
-let load
-  : Eio.Fs.dir_ty Eio.Path.t list -> transition
-= fun tree_dirs forest ->
-  Logs.debug (fun m -> m "loading trees from file system");
-  let paths = Dir_scanner.scan_directories tree_dirs in
-  paths
-  |> Seq.iter
-      begin
-        fun path ->
-          let content = Eio.Path.load path in
-          let path_str = Eio.Path.native_exn path in
-          assert (not @@ Filename.is_relative path_str);
-          let uri = Lsp.Uri.of_path path_str in
-          let iri = Iri_scheme.uri_to_iri ~host: forest.config.host uri in
-          let tree =
-            Lsp.Text_document.make
-              ~position_encoding: `UTF8
-              {
-                textDocument = {
-                  languageId = "forester";
-                  text = content;
-                  uri;
-                  version = 1
-                }
-              }
-          in
-          Iri_tbl.add forest.resolver iri path_str;
-          Hashtbl.replace forest.documents uri tree
-      end;
-  let loaded = forest.documents |> Hashtbl.length in
-  Logs.debug (fun m -> m "loaded %i trees" loaded);
-  forest
+    - functions should leverage the cache by looking up relevant stuff in forest
 
-let load_configured_dirs
-  : transition
-= fun forest ->
-  let@ () = Reporter.tracef "when loading trees from disk" in
-  let tree_dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
-  load tree_dirs forest
+   *)
 
-let parse
-  : quit_on_error: bool -> transition
-= fun ~quit_on_error forest ->
+let load_tree path =
+  let content = Eio.Path.load path in
+  let path_str = Eio.Path.native_exn path in
+  assert (not @@ Filename.is_relative path_str);
+  let uri = Lsp.Uri.of_path path_str in
+  Lsp.Text_document.make
+    ~position_encoding: `UTF8
+    {
+      textDocument = {
+        languageId = "forester";
+        text = content;
+        uri;
+        version = 1
+      }
+    }
+
+let load (tree_dirs : Eio.Fs.dir_ty Eio.Path.t list) =
+  Logs.debug (fun m -> m "loading trees from %i directories" (List.length tree_dirs));
+  Dir_scanner.scan_directories tree_dirs
+  |> Seq.map load_tree
+
+let parse (forest : State.t) =
   let host = forest.config.host in
-  begin
-    forest.documents
-    |> Hashtbl.iter @@ fun uri doc ->
-      let iri = Iri_scheme.uri_to_iri ~host uri in
-      let source_path = Lsp.Uri.to_path uri in
-      let parse_result =
-        let@ () = Reporter.tracef "when parsing %a (%s)" pp_iri iri source_path in
-        let@ code = Result.map @~ Parse.parse_document doc in
-        (* I am doing some more IO here. I am not stat-ing when
-           the file is first loaded because things pass through
-           L.Text_document.t, which I did not want to change.*)
-        let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / source_path).mtime in
-        Code.{
-          code;
-          iri = Some iri;
-          timestamp = Some timestamp;
-          source_path = Some source_path;
-        }
-      in
-      begin
-        match parse_result with
-        | Error diagnostic ->
-          if quit_on_error then
-            begin
-              Reporter.Tty.display diagnostic;
-              exit 1;
-            end
-          else
-            Diagnostic_store.replace forest.diagnostics uri [diagnostic];
-        | Ok tree -> Forest.add forest.parsed iri tree
-      end;
-  end;
-  let parsed = forest.parsed |> Forest.length in
-  if not quit_on_error then
-    (* If quit_on_error is true and we have encountered an error, we have
-       already exited at this point. This means there should be exactly as
-       many parsed trees as loaded documents*)
-    assert (parsed = Hashtbl.length forest.documents);
-  Logs.debug (fun m -> m "parsed %i trees" parsed);
-  forest
+  let now = Unix.time () in
+  forest.documents
+  |> Hashtbl.to_seq
+  |> Seq.map @@ fun (uri, doc) ->
+    let iri = Iri_scheme.uri_to_iri ~host uri in
+    let source_path = Lsp.Uri.to_path uri in
+    let@ () = Reporter.tracef "when parsing %a (%s)" pp_iri iri source_path in
+    let@ code = Result.map @~ Parse.parse_document doc in
+    Code.{
+      code;
+      iri = Some iri;
+      timestamp = Some now;
+      source_path = Some source_path;
+    }
 
-(* FIXME: Amend import graph *)
-let reparse (doc : Lsp.Text_document.t) : transition = fun forest ->
+(* Fix signature. Should not mutate the forest*)
+let reparse (doc : Lsp.Text_document.t) : State.t -> State.t * diagnostic option = fun forest ->
   Logs.debug (fun m -> m "reparsing");
   let host = forest.config.host in
   let uri = Lsp.Text_document.documentUri doc in
   let path = Lsp.Uri.to_path uri in
-  let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / path).mtime in
+  let timestamp =
+    try
+      Some Eio.Path.(stat ~follow: true @@ forest.env#fs / path).mtime
+    with
+      | _ ->
+        None
+  in
   match Parse.parse_document doc with
   | Ok code ->
     let tree =
@@ -141,26 +78,34 @@ let reparse (doc : Lsp.Text_document.t) : transition = fun forest ->
         code;
         iri = Option.some @@ Iri_scheme.uri_to_iri ~host uri;
         source_path = Some path;
-        timestamp = Some timestamp;
+        timestamp;
       }
     in
-    Forest.add forest.parsed (Iri_scheme.uri_to_iri ~host uri) tree;
-    Eio.traceln "No parse errors. Clearing previous diagnostics";
+    Forest.replace forest.parsed (Iri_scheme.uri_to_iri ~host uri) tree;
+    Imports.fixup tree forest;
     Diagnostic_store.remove forest.diagnostics uri;
-    forest
+    forest, None
   | Error d ->
     (* When we get a parsing diagnostic, we don't need to merge the value
        with the diagnostics from previous passes*)
-    Diagnostic_store.replace forest.diagnostics uri [d];
-    forest
+    Diagnostic_store.replace forest.diagnostics [d];
+    forest, None
 
-let build_import_graph (forest : state) : state =
-  (* I chose not to mention the graph in the trace message since I feel like
-     it unnecessarily exposes implementation details.*)
+let build_import_graph (forest : State.t) =
+  (* Now that I am adding caching, is this function still correct?*)
   let@ () = Reporter.trace "when resolving imports" in
-  {forest with import_graph = Imports.build forest}
+  let diagnostics = Diagnostic_store.create 100 in
+  let push d = Diagnostic_store.add diagnostics [d] in
+  Reporter.run
+    ~emit: push
+    ~fatal: (
+      (* No fatal diagnostics should arise. *)
+      assert false
+    )
+    @@ fun () ->
+    Imports.build forest, diagnostics
 
-let build_import_graph_for ~(iri : iri) (forest : state) : state =
+let build_import_graph_for ~(iri : iri) (forest : State.t) =
   match Dir_scanner.find_tree (Eio_util.paths_of_dirs ~env: forest.env forest.config.trees) iri with
   | None -> Reporter.fatalf Resource_not_found "Could not find tree %a in the configured directories." pp_iri iri
   | Some source_path ->
@@ -170,10 +115,12 @@ let build_import_graph_for ~(iri : iri) (forest : state) : state =
       let tree = Code.{code; iri = Some iri; source_path = Some source_path; timestamp = Some timestamp;} in
       let module Graphs = (val forest.graphs) in
       let import_graph = Imports.dependencies tree forest in
-      {forest with import_graph}
+      import_graph
     | Error _ -> Reporter.fatalf Parse_error ""
 
-let expand ~(quit_on_error : bool) (forest : state) : state =
+let expand (forest : State.t) =
+  (* This should only return the units for trees that have actually changed.
+     Then the driver can just merge the maps without checking anything.*)
   let parsed = forest.parsed in
   let module Graphs = (val forest.graphs) in
   let task (addr : Vertex.t) (units, trees) =
@@ -189,7 +136,6 @@ let expand ~(quit_on_error : bool) (forest : state) : state =
       | Some tree ->
         let diagnostics, units, syn =
           Expand.expand_tree
-            ~quit_on_error
             ~host: forest.config.host
             units
             tree
@@ -203,48 +149,13 @@ let expand ~(quit_on_error : bool) (forest : state) : state =
       forest.import_graph
       (Expand.Env.empty, [])
   in
-  begin
-    let@ (diagnostics, source_path, (syn : Syn.tree)) = List.iter @~ expanded_trees in
-    let@ iri = Option.iter @~ syn.iri in
-    Forest.replace forest.expanded iri syn.syn;
-    match source_path with
-    | None ->
-      Logs.warn (fun m -> m "tree at %a has no source path." pp_iri iri);
-      (* There is an implicit assumption here that diagnostics are only
-          emitted for trees that have a source path. I should think about
-          this.*)
-      if forest.dev then assert false
-    | Some path ->
-      assert (not (Filename.is_relative path));
-      match diagnostics with
-      | [] -> ()
-      | diagnostics ->
-        let uri = Lsp.Uri.of_path path in
-
-        (* If we obtained some diagnostics from expanding, we have
-        succesfully parsed the tree and can thus overwrite the parsing
-        diagnostics *)
-        Diagnostic_store.replace forest.diagnostics uri diagnostics
-  end;
-  let expanded = forest.expanded |> Forest.length in
-  let diagnostics = forest.diagnostics |> Diagnostic_store.length in
-  Logs.debug (fun m -> m "expanded %i trees" expanded);
-  Logs.debug (fun m -> m "%i trees emitted diagnostics." diagnostics);
-  State.with_units units forest
+  units, expanded_trees
 
 (* There is some duplicated code here. The only significant difference is the
    fact that we are using a different graph builder, one that only traverses
    the dependencies of a specific tree*)
-let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
-  let import_graph =
-    Imports.run_builder
-      ~root: addr
-      {
-        graph = Forest_graph.create ();
-        follow = true;
-        forest;
-      }
-  in
+let expand_only_aux ~(addr : iri) (forest : State.t) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
+  let import_graph = Forest_graph.dependencies forest.import_graph (T.Iri_vertex addr) in
   assert (Forest_graph.nb_vertex import_graph >= Forest.length forest.parsed);
   let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t Iri_tbl.t))) =
     match addr with
@@ -258,18 +169,12 @@ let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Exp
         Logs.debug (fun m -> m "failed to resolve %a" pp_iri iri);
         units, diagnostics, trees
       | Some tree ->
-        let ds, units, syn = Expand.expand_tree ~quit_on_error ~host: forest.config.host units tree in
-        let source_path = tree.source_path in
+        let ds, units, syn = Expand.expand_tree ~host: forest.config.host units tree in
         begin
           Forest.add trees iri syn.syn;
-          match source_path with
-          | None ->
-            Logs.warn (fun m -> m "Could not construct URI for tree at %a. There may be missing diagnostics." pp_iri iri)
-          | Some path ->
-            let uri = Lsp.Uri.of_path path in
-            match ds with
-            | [] -> ()
-            | ds -> Diagnostic_store.add diagnostics uri ds
+          match ds with
+          | [] -> ()
+          | ds -> Diagnostic_store.add diagnostics ds
         end;
         units, diagnostics, trees
   in
@@ -285,10 +190,9 @@ let expand_only_aux ~(quit_on_error : bool) ~(addr : iri) (forest : state) : Exp
 
 (* The purpose of this function is to update the exported units when a tree has
    been changed when running with the lsp.*)
-let expand_only (iri : iri) : transition = fun forest ->
+let expand_only (iri : iri) : State.t -> State.t * diagnostic option = fun forest ->
   let units, new_diagnostics, trees =
     expand_only_aux
-      ~quit_on_error: false
       ~addr: iri
       forest
   in
@@ -312,23 +216,23 @@ let expand_only (iri : iri) : transition = fun forest ->
       match diagnostics with
       | [] -> ()
       | diagnostics ->
-        Diagnostic_store.append forest.diagnostics uri diagnostics
+        Diagnostic_store.add forest.diagnostics diagnostics
   end;
   (*FIXME: Don't replace all units. Just update the ones that have changed!*)
-  {forest with units}
+  {forest with units}, None
 
-let export_publication ~env ~(forest : state) (publication : Job.publication) : unit =
+let export_publication ~env ~(forest : State.t) (publication : Job.publication) : unit =
   let vertices = Forest.run_datalog_query forest.graphs publication.query in
   let resources =
     let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
     match vertex with
     | Content_vertex _ -> None
     | Iri_vertex iri ->
-        match Forest.find_opt forest.resources iri with
-        | None ->
-          Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" Iri.pp iri;
-          None
-        | Some result -> Some result
+      match Forest.find_opt forest.resources iri with
+      | None ->
+        Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" Iri.pp iri;
+        None
+      | Some result -> Some result
   in
   match publication.format with
   | Json_blob ->
@@ -341,64 +245,90 @@ let export_publication ~env ~(forest : state) (publication : Job.publication) : 
     Eio.Path.save ~create: (`Or_truncate 0o644) path blob;
     assert (Eio.Path.is_file path)
 
-let eval_tree (forest : state) iri syn =
-  let host = forest.config.host in
-  let env = forest.env in
-  let@ () = Reporter.tracef "when evaluating %a" pp_iri iri in
-  let source_path = if forest.dev then Iri_tbl.find_opt forest.resolver iri else None in
-  let uri = Option.map Lsp.Uri.of_path source_path in
-  let diagnostics, Eval.{articles; jobs} =
-    Eval.eval_tree
-      ~quit_on_failure: false
-      ~host
-      ~source_path
-      ~iri
-      syn
-  in
-  let append_diagnostics () =
-    let@ uri = Option.iter @~ uri in
-    Diagnostic_store.append forest.diagnostics uri diagnostics
-  in
-  let plant_articles () =
-    let@ article = List.iter @~ articles in
+let run_jobs (forest : State.t) jobs =
+  Logs.debug (fun m -> m "Running %d jobs" (List.length jobs));
+  let@ Range.{value; loc} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
+  let@ () = Reporter.easy_run in
+  match value with
+  | Job.LaTeX_to_svg {hash; source; content} ->
+    let svg = Build_latex.latex_to_svg ~env: forest.env ?loc source in
+    let iri = Iri_scheme.hash_iri ~host: forest.config.host hash in
+    let frontmatter = T.default_frontmatter ~iri () in
+    let mainmatter = content ~svg in
+    let backmatter = T.Content [] in
+    let article = T.{frontmatter; mainmatter; backmatter} in
     Forest.plant_resource (T.Article article) forest.graphs forest.resources
-  in
-  append_diagnostics ();
-  plant_articles ();
-  begin
-    let@ Range.{value; loc} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
-    let@ () = Reporter.easy_run in
-    match value with
-    | Job.LaTeX_to_svg {hash; source; content} ->
-      let svg = Build_latex.latex_to_svg ~env ?loc source in
-      let iri = Iri_scheme.hash_iri ~host hash in
-      let frontmatter = T.default_frontmatter ~iri () in
-      let mainmatter = content ~svg in
-      let backmatter = T.Content [] in
-      let article = T.{frontmatter; mainmatter; backmatter} in
-      Forest.plant_resource (T.Article article) forest.graphs forest.resources
-    | Job.Publish publication ->
-      export_publication ~env ~forest publication
-      (* TODO: This MUST be deferred until after all the trees have been evaluated. *)
-  end
+  | Job.Publish publication ->
+    export_publication ~env: forest.env ~forest publication
 
-let eval : transition = fun forest ->
-  let expanded = forest.expanded in
-  expanded |> Forest.iter (eval_tree forest);
-  Logs.debug (fun m -> m "evaluated %i resources" (Forest.length forest.resources));
-  forest
+(* in *)
+(* let append_diagnostics () = *)
+(*   let@ uri = Option.iter @~ uri in *)
+(*   Diagnostic_store.append forest.diagnostics uri diagnostics *)
+(* in *)
+(* let plant_articles () = *)
+(*   let@ article = List.iter @~ articles in *)
+(*   Forest.plant_resource (T.Article article) forest.graphs forest.resources *)
+(* in *)
+(* append_diagnostics (); *)
+(* plant_articles (); *)
+(* begin *)
+(*   let@ Range.{value; loc} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in *)
+(*   let@ () = Reporter.easy_run in *)
+(*   match value with *)
+(*   | Job.LaTeX_to_svg {hash; source; content} -> *)
+(*     let svg = Build_latex.latex_to_svg ~env ?loc source in *)
+(*     let iri = Iri_scheme.hash_iri ~host hash in *)
+(*     let frontmatter = T.default_frontmatter ~iri () in *)
+(*     let mainmatter = content ~svg in *)
+(*     let backmatter = T.Content [] in *)
+(*     let article = T.{frontmatter; mainmatter; backmatter} in *)
+(*     Forest.plant_resource (T.Article article) forest.graphs forest.resources *)
+(*   | Job.Publish publication -> *)
+(*     export_publication ~env ~forest publication *)
+(* end *)
+
+let eval (forest : State.t) =
+  let host = forest.config.host in
+  let trees, diagnostics =
+    Iri_tbl.to_seq forest.expanded
+    |> Seq.map (fun (iri, syn) ->
+        let source_path = if forest.dev then Iri_tbl.find_opt forest.resolver iri else None in
+        Eval.eval_tree
+          ~host
+          ~source_path
+          ~iri
+          syn
+      )
+    |> Seq.split
+  in
+  let diags =
+    match List.of_seq diagnostics with
+    | [] -> None
+    | hd :: rest ->
+      List.iter
+        (fun tbl ->
+          Hashtbl.to_seq tbl
+          |> Seq.iter (fun (iri, diags) ->
+              assert (not @@ Hashtbl.mem hd iri);
+              Hashtbl.add hd iri diags
+            )
+        )
+        rest;
+      Some hd
+  in
+  trees, diags
 
 let eval_only
   (iri : iri)
-  : transition
+  : State.t -> State.t * diagnostic option
 = fun forest ->
   match Forest.find_opt forest.expanded iri with
   | None -> assert false
   | Some syn ->
     (* NOTE: Not running jobs. *)
-    let diagnostics, Eval.{articles; jobs = _} =
+    let Eval.{articles; jobs = _}, _diagnostics =
       Eval.eval_tree
-        ~quit_on_failure: false
         ~host: forest.config.host
         ~source_path: None
         ~iri
@@ -408,24 +338,25 @@ let eval_only
       let@ article = List.iter @~ articles in
       Forest.plant_resource (Article article) forest.graphs forest.resources
     end;
-    begin
-      let@ uri =
-        Option.iter @~
-        Option.map Lsp.Uri.of_path @@
-        Iri_tbl.find_opt forest.resolver iri
-      in
-      Diagnostic_store.append
-        forest.diagnostics
-        uri
-        diagnostics;
-    end;
-    forest
+    (* Diagnostic_store.add forest.diagnostics diagnostics; *)
+    forest, None
+
+let check_status
+  _iri
+  : State.t -> State.t * diagnostic option
+= fun state ->
+  match state with
+  | {dependency_cache = _;
+    _;
+  } ->
+    state, None
 
 let implant_foreign
-  : transition
+  : State.t -> State.t * diagnostic option
 = fun state ->
   begin
     let foreign_paths = Eio_util.paths_of_files ~env: state.env state.config.foreign in
+    Logs.debug (fun m -> m "implanting %i foreign paths" (List.length foreign_paths));
     let module EP = Eio.Path in
     let@ path = List.iter @~ foreign_paths in
     let path_str = EP.native_exn path in
@@ -441,25 +372,4 @@ let implant_foreign
     | exception exn ->
       Reporter.fatalf Parse_error "Encountered unknown error while decoding foreign forest blob: %s" (Printexc.to_string exn)
   end;
-  state
-
-let plant_assets
-  : transition
-= fun state ->
-  let@ () = Reporter.tracef "when planting assets" in
-  let paths =
-    Dir_scanner.scan_asset_directories
-      (Eio_util.paths_of_dirs ~env: state.env state.config.assets)
-  in
-  Logs.debug (fun m -> m "got %i asset paths" (Seq.length paths));
-  Logs.debug (fun m -> m "planting %i assets" (Seq.length paths));
-  let module EP = Eio.Path in
-  begin
-    let@ path = Eio.Fiber.List.iter ~max_fibers: 20 @~ List.of_seq paths in
-    let content = EP.load path in
-    let source_path = EP.native_exn path in
-    let iri = Asset_router.install ~host: state.config.host ~source_path ~content in
-    Logs.debug (fun m -> m "Installed %s at %a" source_path pp_iri iri);
-    Forest.plant_resource (T.Asset {iri; host = state.config.host; content}) state.graphs state.resources;
-  end;
-  state
+  state, None

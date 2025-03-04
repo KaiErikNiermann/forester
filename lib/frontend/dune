@@ -10,6 +10,7 @@
  (preprocess
   (pps ppx_deriving.show ppx_repr))
  (libraries
+  logs.fmt
   http
   cohttp-eio
   eio_main

@@ -23,6 +23,7 @@ module Iri_tbl : sig
   val find_opt : 'a t -> key -> 'a option
   val add : 'a t -> key -> 'a -> unit
   val length : 'a t -> int
+  val to_seq : 'a t -> (key * 'a) Seq.t
   val to_seq_values : 'a t -> 'a Seq.t
   val to_seq_keys : 'a t -> key Seq.t
   val replace : 'a t -> key -> 'a -> unit

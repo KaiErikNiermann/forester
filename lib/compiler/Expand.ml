@@ -438,15 +438,13 @@ let builtins = [
 ]
 
 let expand_tree
-  : ?quit_on_error: bool ->
-  host: string ->
+  : host: string ->
   Env.t ->
   Code.tree ->
   Reporter.diagnostic list
   * exports Unit_map.t
   * Syn.tree
 = fun
-    ?(quit_on_error = true)
     ~host
     units
     tree
@@ -458,14 +456,9 @@ let expand_tree
       ~emit: push
       ~fatal: (fun d ->
         push d;
-        if quit_on_error then
-          begin
-            Reporter.Tty.display d;
-            exit 1
-          end
-        else
-          Unit_map.empty,
-          Syn.{syn = []; iri = tree.iri}
+        (*Return `units` here?*)
+        Unit_map.empty,
+        Syn.{syn = []; iri = tree.iri}
       )
       @@ fun () ->
       let@ () = U.run ~init: units in

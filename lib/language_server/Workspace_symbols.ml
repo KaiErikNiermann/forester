@@ -24,8 +24,7 @@ let compute
   in
   let trees
     =
-    forest
-    |> State.parsed
+    forest.parsed
     |> Forest.to_seq_keys
     |> Seq.filter_map
         (fun iri ->
@@ -41,7 +40,7 @@ let compute
           in
           let uri =
             let (let*) = Option.bind in
-            let* tree = Forest.find_opt (State.parsed forest) iri in
+            let* tree = Forest.find_opt forest.parsed iri in
             let* source_path = tree.source_path in
             Some (Lsp.Uri.of_path source_path)
           in
@@ -63,8 +62,7 @@ let compute
   in
   let symbols =
     let open Forester_compiler in
-    forest
-    |> State.units
+    forest.units
     |> Unit_map.to_seq
     |> Seq.concat_map
         (fun ((iri, exports): iri * _) ->
@@ -79,7 +77,7 @@ let compute
                   in
                   let uri =
                     let (let*) = Option.bind in
-                    let* tree = Forest.find_opt (State.parsed forest) iri in
+                    let* tree = Forest.find_opt forest.parsed iri in
                     let* source_path = tree.source_path in
                     Some (Lsp.Uri.of_path source_path)
                   in

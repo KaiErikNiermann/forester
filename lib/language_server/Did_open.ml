@@ -5,19 +5,16 @@
  *
  *)
 
-open Forester_compiler
-
 module L = Lsp.Types
 
 let compute
     ({textDocument = {uri; _}} as params: L.DidOpenTextDocumentParams.t)
   =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let docs = State.documents forest in
   let document =
     Lsp.Text_document.make
       ~position_encoding: `UTF16
       params
   in
-  Hashtbl.replace docs uri document;
+  Hashtbl.replace forest.documents uri document;
   Diagnostics.compute document

@@ -55,6 +55,7 @@ module Iri_tbl = struct
   let length = Tbl.length
   let create = Tbl.create
   let iter f = Tbl.iter (fun x y -> f (x : S.t :> iri) y)
+  let to_seq tbl = Tbl.to_seq tbl |> Seq.map (fun (x, y) -> (x : S.t :> iri), y)
   let to_seq_values = Tbl.to_seq_values
   let to_seq_keys tbl = Tbl.to_seq_keys tbl |> Seq.map (fun x -> (x : S.t :> iri))
 end

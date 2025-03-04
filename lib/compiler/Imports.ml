@@ -7,10 +7,11 @@
 open Forester_core
 open Forester_prelude
 
+(* Think hard about the usage of imperative graphs here. *)
+
 module T = Types
 
 type analysis_env = {
-  graph: Forest_graph.t;
   follow: bool;
   forest: State.t;
 }
@@ -49,7 +50,7 @@ let rec analyse_tree roots (tree : Code.tree) =
   in
   analyse_code roots code;
   let@ iri = Option.iter @~ iri_opt in
-  Forest_graph.add_vertex env.graph (T.Iri_vertex iri)
+  Forest_graph.add_vertex env.forest.import_graph (T.Iri_vertex iri)
 
 and analyse_code roots (code : Code.t) =
   List.iter (analyse_node roots) code
@@ -63,7 +64,7 @@ and analyse_node roots (node : Code.node Asai.Range.located) =
     let dependency = T.Iri_vertex dep_iri in
     let@ iri = List.iter @~ roots in
     let target = T.Iri_vertex iri in
-    Forest_graph.add_edge env.graph dependency target;
+    Forest_graph.add_edge_exn env.forest.import_graph dependency target;
     begin
       if env.follow then
         match resolve_iri_to_code dep_iri env.forest with
@@ -95,11 +96,33 @@ and analyse_node roots (node : Code.node Asai.Range.located) =
   | Text _ | Hash_ident _ | Xml_ident (_, _) | Verbatim _ | Ident _ | Open _ | Put (_, _) | Default (_, _) | Get _ | Decl_xmlns (_, _) | Call (_, _) | Alloc _ | Dx_var _ | Dx_const_content _ | Dx_const_iri _ | Comment _ | Error _ -> ()
 
 let dependencies tree forest =
-  let graph = Forest_graph.create () in
-  let env = {graph; forest; follow = true} in
+  let env = {forest; follow = true} in
   let@ () = Analysis_env.run ~env in
   analyse_tree [] tree;
-  env.graph
+  env.forest.import_graph
+
+let fixup (tree : Code.tree) (forest : State.t) =
+  let graph = forest.import_graph in
+  let this_iri = Option.get tree.iri in
+  let this_vertex = T.Iri_vertex this_iri in
+  let old_deps = Vertex_set.of_list @@ Forest_graph.immediate_dependencies graph this_vertex in
+  let new_deps =
+    let env = {
+      forest;
+      follow = false;
+    }
+    in
+    let@ () = Analysis_env.run ~env in
+    begin
+      analyse_tree [] tree;
+      Vertex_set.of_list @@ Forest_graph.immediate_dependencies env.forest.import_graph this_vertex
+    end;
+  in
+  let unchanged_deps = Vertex_set.inter new_deps old_deps in
+  let added_deps = Vertex_set.diff new_deps unchanged_deps in
+  let removed_deps = Vertex_set.diff old_deps unchanged_deps in
+  Vertex_set.iter (fun v -> Forest_graph.remove_edge graph v this_vertex) removed_deps;
+  Vertex_set.iter (fun v -> Forest_graph.add_edge graph v this_vertex) added_deps
 
 let _minimal_dependency_graph
   : addr: iri -> Forest_graph.t
@@ -135,9 +158,8 @@ let run_builder ?root env =
       |> Forest.to_seq_values
       |> Seq.iter (analyse_tree [])
   end;
-  env.graph
+  env.forest.import_graph
 
 let build forest =
-  let graph = Forest_graph.create () in
-  let env = {graph; forest; follow = false} in
+  let env = {forest; follow = false} in
   run_builder env

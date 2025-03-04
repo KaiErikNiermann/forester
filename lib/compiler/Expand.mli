@@ -32,7 +32,6 @@ end
 val suggestions : string list -> ('a, 'b) Trie.t -> (Trie.path * 'a * int) list
 
 val expand_tree :
-  ?quit_on_error: bool ->
   host: string ->
   Env.t ->
   Code.tree ->

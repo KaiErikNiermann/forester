@@ -14,7 +14,13 @@ let path_of_dir ~env dir =
     assert (Path.is_directory path);
     path
   with
-    | Unix.Unix_error (e, _, m) -> Reporter.fatalf Configuration_error "%s: %s" (Unix.error_message e) m
+    | Unix.Unix_error (e, _, m) ->
+      Reporter.fatalf
+        Configuration_error
+        "%s: %s"
+        (Unix.error_message e)
+        m
+    | Assert_failure (_, _, _) -> Reporter.fatalf Configuration_error "%s is not a directory" dir
 
 let path_of_file ~env file =
   try

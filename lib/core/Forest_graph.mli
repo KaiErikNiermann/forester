@@ -6,17 +6,31 @@
 
 type t
 
+module Map : (G_Dst : Graph.Gmap.V_DST) ->
+  sig
+    val map : (Vertex.t -> G_Dst.vertex) -> t -> G_Dst.t
+    val filter_map : (Vertex.t -> G_Dst.vertex option) -> t -> G_Dst.t
+  end
+
 val create : ?size: int -> unit -> t
 val add_vertex : t -> Vertex.t -> unit
 val add_edge : t -> Vertex.t -> Vertex.t -> unit
+
+(* Only adds the edge if both vertices are in g*)
+val add_edge_safe : t -> Vertex.t -> Vertex.t -> unit
+val add_edge_exn : t -> Vertex.t -> Vertex.t -> unit
 val safe_pred : t -> Vertex.t -> Vertex.t list
 val safe_succ : t -> Vertex.t -> Vertex.t list
+val immediate_dependencies : t -> Vertex.t -> Vertex.t list
+val safe_dependents : t -> Vertex.t -> Vertex.t list
 val mem_edge : t -> Vertex.t -> Vertex.t -> bool
 val transitive_closure : ?reflexive: bool -> t -> t
 
 val out_degree : t -> Vertex.t -> int
+val in_degree : t -> Vertex.t -> int
 
 val remove_vertex : t -> Vertex.t -> unit
+val remove_edge : t -> Vertex.t -> Vertex.t -> unit
 val transitive_reduction : ?reflexive: bool -> t -> t
 val nb_vertex : t -> int
 val iter_edges : (Vertex.t -> Vertex.t -> unit) -> t -> unit
@@ -25,3 +39,10 @@ val mem_vertex : t -> Vertex.t -> bool
 val topo_fold : (Vertex.t -> 'a -> 'a) -> t -> 'a -> 'a
 
 val iter_succ : (Vertex.t -> unit) -> t -> Vertex.t -> unit
+
+val dependencies : t -> Vertex.t -> t
+
+module Graphviz : sig
+  val fprint_graph : Format.formatter -> t -> unit
+  val output_graph : out_channel -> t -> unit
+end

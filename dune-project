@@ -45,6 +45,7 @@
    (>= 5.2.0))
   dune
   dune-site
+  ocaml-index
   ppx_deriving
   (cmdliner
    (>= 1.2.0))

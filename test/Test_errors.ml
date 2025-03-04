@@ -7,8 +7,6 @@
 open Forester_core
 open Forester_prelude
 open Forester_compiler
-open Forester_compiler
-open Forester_frontend
 open Testables
 open Prelude
 
@@ -20,26 +18,25 @@ let parse_string str =
 let test_parse_error_explanation src expect =
   Alcotest.(check @@ result code string)
     ""
+    (Result.Error expect)
     (
-      parse_string {||}
+      parse_string src
       |> Result.map_error
           (fun d -> Asai.Diagnostic.string_of_text d.explanation.value)
     )
-    (Result.Error "")
 
 let () =
   let@ env = Eio_main.run in
   let@ () = Reporter.easy_run in
   let config = {Config.default with trees = ["errors"]} in
-  let tree_dirs = Eio_util.paths_of_dirs ~env config.trees in
-  let mk_iri addr = Iri_scheme.user_iri ~host: config.host addr in
-  let _, forest, _ =
-    Phases.init ~env ~config ~dev: false
-    |> State_machine.(update Load_all_configured_dirs)
+  let _tree_dirs = Eio_util.paths_of_dirs ~env config.trees in
+  let _mk_iri addr = Iri_scheme.user_iri ~host: config.host addr in
+  let _, forest =
+    State.make ~env ~config ~dev: false ()
+    |> Driver.(update Load_all_configured_dirs)
   in
-  let documents = State.documents forest in
   let parse_error_uri =
-    documents
+    forest.documents
     |> Hashtbl.to_seq_keys
     |> Seq.find_map
         (fun uri ->
@@ -55,7 +52,7 @@ let () =
       ""
       {|syntax error, unexpected "<"|}
       (
-        Hashtbl.find documents parse_error_uri
+        Hashtbl.find forest.documents parse_error_uri
         |> Parse.parse_document
         |> Result.get_error |> fun d ->
         Asai.Diagnostic.string_of_text d.explanation.value

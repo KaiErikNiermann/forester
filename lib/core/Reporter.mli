@@ -47,13 +47,16 @@ val profile : string -> (unit -> 'a) -> 'a
 val easy_run : (unit -> 'a) -> 'a
 val silence : (unit -> 'a) -> 'a
 val test_run : (unit -> 'a) -> 'a
+
+val guess_uri : diagnostic -> Lsp.Uri.t option
+
 val lsp_run :
-  ?init_loc: Asai.Range.t ->
-  ?init_backtrace: Asai.Diagnostic.backtrace ->
-  ('a -> Message.t Asai.Diagnostic.t list -> unit) ->
-  'a ->
-  (unit -> unit) ->
-  unit
+  ?init_loc:Range.t ->
+  ?init_backtrace:Asai.Diagnostic.backtrace ->
+  recover: (diagnostic -> 'a) ->
+  ((Lsp.Uri.t, diagnostic list) Hashtbl.t -> unit) ->
+  (unit -> 'a) -> 'a
+
 val ignore :
   ?init_loc: Asai.Range.t ->
   ?init_backtrace: Asai.Diagnostic.backtrace ->

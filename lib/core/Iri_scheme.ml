@@ -79,6 +79,9 @@ let path_to_iri ~host str =
   |> last_segment
   |> user_iri ~host
 
+(* Badly named. This is not a general conversion but the forester-specific way
+   we convert a path into an iri, namely keeping only the filename and chopping
+   the extension*)
 let uri_to_iri
   : host: string -> Lsp.Uri.t -> Iri.t
 = fun ~host uri ->
@@ -95,6 +98,7 @@ let uri_to_iri
 let path_to_iri ~host str =
   str
   |> last_segment
+  |> Filename.chop_extension
   |> user_iri ~host
 
 let source_path_to_addr p = Filename.(chop_extension @@ basename p)

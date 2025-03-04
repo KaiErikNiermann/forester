@@ -1,0 +1,37 @@
+(tests
+ (names
+  Test_DSL
+  Test_config
+  Test_implanting
+  Test_json_manifest_client
+  Test_legacy_xml_client)
+ (preprocess
+  (pps ppx_deriving.show ppx_yojson_conv))
+ (libraries
+  alcotest
+  asai
+  fmt
+  eio_main
+  eio
+  eio.unix
+  logs
+  iri
+  pure-html
+  forester.prelude
+  forester.core
+  forester.compiler
+  forester.frontend
+  forester.test))
+
+(executable
+ (name Test_transclusion)
+ (public_name transclude)
+ (libraries
+  forester.core
+  forester.prelude
+  forester.compiler
+  forester.frontend
+  pure-html
+  eio_main
+  logs
+  iri))

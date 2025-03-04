@@ -13,6 +13,7 @@ depends: [
   "ocaml" {>= "5.2.0"}
   "dune" {>= "3.13"}
   "dune-site"
+  "ocaml-index"
   "ppx_deriving"
   "cmdliner" {>= "1.2.0"}
   "dune-build-info"

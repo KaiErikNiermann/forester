@@ -21,7 +21,7 @@ let test_ranked (forest : State.t) =
       forest.resources
       "hyprtext format"
   in
-  Format.printf "got %i results.@." (List.length ranked_results);
+  Format.printf "got %i ranked results.@." (List.length ranked_results);
   List.iter
     (fun (iri, score) ->
       match Forest.get_article iri forest.resources with
@@ -31,28 +31,13 @@ let test_ranked (forest : State.t) =
     )
     ranked_results
 
-let test_search_cache index =
-  Reporter.profile "marshalling" @@ fun () ->
-  Index.marshal index ".forester.index";
-  Reporter.profile "unmarshal" @@ fun () ->
-  let index = Index.unmarshal ".forester.index" in
-  begin
-    Index.search ~fuzz: 1 index "forester" |> function results -> Format.printf "got %d results from marshalled index" (List.length results);
-  end
-
-let test_cache (forest : State.t) =
-  Logs.set_reporter (Logs_fmt.reporter ());
-  Logs.set_level (Some Debug);
-  Format.printf "Original forest has %d articles " @@ List.length @@ Forest.get_all_articles @@ forest.resources;
-  Cache.(marshal "forest.cache" @@ serialize_state forest);
-  let cached_forest =
-    Cache.(
-      reconstruct ~env: forest.env ~config: forest.config @@
-        unmarshal "forest.cache"
-    )
-  in
-  Format.printf "Reconstructed forest has %d articles " @@ List.length @@ Forest.get_all_articles @@ cached_forest.resources
-
+(* let test_search_cache index = *)
+(*   Reporter.profile "marshalling" @@ fun () -> *)
+(*   Index.marshal index ".forester.index"; *)
+(*   Reporter.profile "unmarshal" @@ fun () -> *)
+(*   let index = Index.unmarshal ".forester.index" in *)
+(*   Index.search ~fuzz: 1 index "forester" |> fun results -> Format.printf "got %d results for \"forester\" from marshalled index" (List.length results) *)
+(**)
 let test_search (forest : State.t) =
   let s = read_line () in
   let results =
@@ -90,19 +75,18 @@ let test_search (forest : State.t) =
 let main ~env () =
   let config = Config_parser.parse_forest_config_file "forest.toml" in
   let dev = true in
-  let forest = State_machine.batch_run ~env ~dev ~config in
+  let forest = Driver.batch_run ~env ~dev ~config in
   let articles = Forest.get_all_articles forest.resources in
   let index =
-    Reporter.profile "Building index" @@ fun () ->
+    (* Reporter.profile "Building index" @@ fun () -> *)
     Index.create articles
   in
   let size = Obj.reachable_words @@ Obj.repr index in
   Format.printf "index size: %i@." size;
   let forest = {forest with search_index = index} in
-  test_search forest;
-  test_search_cache forest.search_index
-(* test_ranked forest; *)
-(* test_cache forest *)
+  test_search forest
+(*   test_search_cache forest.search_index *)
+(*   test_ranked forest; *)
 
 let () =
   let@ env = Eio_main.run in

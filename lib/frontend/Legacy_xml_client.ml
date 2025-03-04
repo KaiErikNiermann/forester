@@ -68,8 +68,8 @@ let iri_is_home ~config iri =
     Iri.equal ~normalize: false home_iri iri
   | None -> false
 
-let route_resource_iri ~suffix forest iri =
-  let config = State.config forest in
+let route_resource_iri ~suffix (forest : State.t) iri =
+  let config = forest.config in
   let host = Option.value ~default: "" @@ Iri.host iri in
   let bare_route =
     String.concat "-" @@
@@ -86,8 +86,8 @@ let route_resource_iri ~suffix forest iri =
       "foreign-" ^ host ^ "-" ^ bare_route ^ suffix
   end
 
-let route forest iri =
-  match Forest.find_opt (State.resources forest) iri with
+let route (forest : State.t) iri =
+  match Forest.find_opt forest.resources iri with
   | Some resource ->
     let suffix =
       match resource with
@@ -183,11 +183,11 @@ let rec render_section forest (section : T.content T.section) : P.node =
           render_content forest section.mainmatter
     ]
 
-and render_frontmatter forest (frontmatter : T.content T.frontmatter) : P.node =
+and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : P.node =
   (* match Hashtbl.find_opt frontmatter_cache frontmatter with *)
   (* | Some cached -> cached *)
   (* | None -> *)
-  let config = State.config forest in
+  let config = forest.config in
   let result =
     X.frontmatter
       []
@@ -231,7 +231,7 @@ and render_content (forest : State.t) (Content content: T.content) : P.node list
 and render_content_node
   : State.t -> 'a T.content_node -> P.node list
 = fun forest node ->
-  let config = State.config forest in
+  let config = forest.config in
   match node with
   | Text str ->
     [P.txt "%s" str]
@@ -284,7 +284,7 @@ and render_content_node
           metadata_shown = Some true
         }
     in
-    let module Legacy_query_engine = (val (Forest.legacy_query_engine (State.graphs forest))) in
+    let module Legacy_query_engine = (val (Forest.legacy_query_engine forest.graphs)) in
     Legacy_query_engine.run_query q
     |> get_sorted_articles forest
     |> List.map article_to_section
@@ -299,7 +299,7 @@ and render_content_node
           metadata_shown = Some true
         }
     in
-    Forest.run_datalog_query (State.graphs forest) q
+    Forest.run_datalog_query forest.graphs q
     |> get_sorted_articles forest
     |> List.map article_to_section
     |> List.map (render_section forest)
@@ -350,7 +350,7 @@ and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.n
       nodes
 
 and render_link (forest : State.t) (link : T.content T.link) : P.node list =
-  let config = State.config forest in
+  let config = forest.config in
   let article_opt = Forest.get_article link.href forest.resources in
   let attrs =
     match article_opt with
@@ -388,7 +388,7 @@ and render_attributions =
               let positives = [Builtin_relation.has_indirect_contributor @* [const (T.Iri_vertex scope); var "X"]] in
               let negatives = [] in
               Datalog_expr.{var = "X"; positives; negatives}
-              |> Forest.run_datalog_query (State.graphs forest)
+              |> Forest.run_datalog_query forest.graphs
               |> get_sorted_articles forest
             in
             let@ biotree = List.filter_map @~ articles in
@@ -427,7 +427,7 @@ and render_dates forest dates =
   X.null @@ List.map (render_date forest) dates
 
 and render_date forest (date : Human_datetime.t) =
-  let config = State.config forest in
+  let config = forest.config in
   let href_attr =
     let str = Format.asprintf "%a" Human_datetime.pp (Human_datetime.drop_time date) in
     let base = Iri_scheme.base_iri ~host: config.host in
@@ -444,9 +444,9 @@ and render_date forest (date : Human_datetime.t) =
       Human_datetime.day date |> X.optional @@ X.day [] "%i"
     ]
 
-let render_article forest (article : T.content T.article) : P.node =
+let render_article (forest : State.t) (article : T.content T.article) : P.node =
   let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option Iri.pp) article.frontmatter.iri in
-  let config = State.config forest in
+  let config = forest.config in
   let xmlns_prefix = Xmlns.{prefix = X.reserved_prefix; xmlns = X.forester_xmlns} in
   let@ () = Loop_detection.run ~env: Iri_set.empty in
   let@ () = Scope.run ~env: article.frontmatter.iri in

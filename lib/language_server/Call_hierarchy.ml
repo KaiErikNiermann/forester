@@ -13,8 +13,8 @@ module L = Lsp.Types
 
 let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let config = State.config forest in
-  let module G = (val State.graphs forest) in
+  let config = forest.config in
+  let module G = (val forest.graphs) in
   match params with
   | {item; _} ->
     let vertex_to_item (v : _ T.vertex) =
@@ -28,7 +28,7 @@ let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
     | {uri; _} ->
       let iri = Iri_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
       let vertex = T.Iri_vertex iri in
-      let run_query = Forest.run_datalog_query (State.graphs forest) in
+      let run_query = Forest.run_datalog_query forest.graphs in
       let fwdlinks = run_query @@ Builtin_queries.fwdlinks_datalog vertex in
       Eio.traceln "got %i link items" (Vertex_set.cardinal fwdlinks);
       let children = run_query @@ Builtin_queries.children_datalog vertex in
@@ -38,8 +38,8 @@ let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
 
 let outgoing (params : L.CallHierarchyOutgoingCallsParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let config = State.config forest in
-  let module G = (val State.graphs forest) in
+  let config = forest.config in
+  let module G = (val forest.graphs) in
   Eio.traceln "computing outgoing calls";
   match params with
   | {item; _} ->
@@ -54,7 +54,7 @@ let outgoing (params : L.CallHierarchyOutgoingCallsParams.t) =
     | {uri; _} ->
       let iri = Iri_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
       let vertex = T.Iri_vertex iri in
-      let run_query = Forest.run_datalog_query (State.graphs forest) in
+      let run_query = Forest.run_datalog_query forest.graphs in
       let backlinks = run_query @@ Builtin_queries.backlinks_datalog vertex in
       Eio.traceln "got %i link items" (Vertex_set.cardinal backlinks);
       let parents = run_query @@ Builtin_queries.context_datalog vertex in

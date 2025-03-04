@@ -99,19 +99,53 @@ let test_run k =
   let emit _diagnostics = () in
   run ~emit ~fatal k
 
-let lsp_run ?init_loc ?init_backtrace publish path k =
-  let diagnostics = ref [] in
+(* Reporting diagnostics requires a document URI to publish *)
+let guess_uri (d : diagnostic) =
+  match d with
+  | {explanation; _} ->
+    match explanation.loc with
+    | None -> None
+    | Some loc ->
+      match Range.view loc with
+      | `End_of_file {source; _}
+      | `Range ({source; _}, _) ->
+        match source with
+        | `String _ -> None
+        | `File path ->
+          if path <> "" then
+            Some (Lsp.Uri.of_path path)
+          else None
+
+let lsp_run ?init_loc ?init_backtrace ~recover publish k =
+  let diagnostics = Hashtbl.create 100 in
   let push_diagnostic d =
-    diagnostics := d :: !diagnostics
+    match guess_uri d with
+    | None -> fatal Internal_error "dropped a diagnostic because URI could not be guessed."
+    | Some uri ->
+      match Hashtbl.find_opt diagnostics uri with
+      | None ->
+        Hashtbl.add diagnostics uri [d];
+        recover d
+      | Some previous ->
+        Hashtbl.add diagnostics uri (d :: previous);
+        recover d
   in
   run
-    ~emit: push_diagnostic
+    ~emit: (fun d -> ignore @@ push_diagnostic d)
     ~fatal: push_diagnostic
     ?init_loc
     ?init_backtrace
     @@ fun () ->
     let result = k () in
-    publish path !diagnostics;
+    publish diagnostics;
     result
 
 let ignore = run ~emit: (fun _ -> ()) ~fatal: (fun _ -> fatalf Message.Internal_error "ignoring error")
+
+let () =
+  register_printer (function
+    | `Emit _
+    | `Trace
+    | `Fatal _ ->
+      Some "unhandled effect!"
+  )

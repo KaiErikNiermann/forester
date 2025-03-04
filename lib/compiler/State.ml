@@ -21,27 +21,76 @@ type t = {
   resources: resource Forest.t;
   graphs: (module Forest_graphs.S);
   import_graph: Forest_graph.t;
+  dependency_cache: Cache.t;
   resolver: string Iri_tbl.t;
   search_index: Forester_search.Index.t;
 }
 
-let documents (t : t) = t.documents
-let parsed (t : t) = t.parsed
-let resources (t : t) = t.resources
-let expanded (t : t) = t.expanded
-let graphs (t : t) = t.graphs
-let import_graph (t : t) = t.import_graph
-let config (t : t) = t.config
-let env (t : t) = t.env
-let diagnostics (t : t) = t.diagnostics
-let units (t : t) = t.units
+let make
+  ~(env : Eio_unix.Stdenv.base)
+  ~(config : Config.t)
+  ~(dev : bool)
+  ?(graphs = (module Forest_graphs.Make (): Forest_graphs.S))
+  ?(import_graph = Forest_graph.create ~size: 1000 ())
+  ?(parsed = Forest.create 1000)
+  ?(documents = Hashtbl.create 1000)
+  ?(resolver = Iri_tbl.create 1000)
+  ?(expanded = Forest.create 1000)
+  ?(resources = Forest.create 1000)
+  ?(diagnostics = Diagnostic_store.create 100)
+  ?(units = Expand.Env.empty)
+  ?(search_index = Forester_search.Index.create [])
+  ?(dependency_cache = Cache.empty)
+  ()
+= {env; dev; config; units; documents; diagnostics; parsed; expanded; resources; resolver; import_graph; graphs; search_index; dependency_cache;}
 
-let with_config
-  : Config.t -> t -> t
-= fun config forest ->
-  {forest with config}
+let serialize_graphs
+  : (module Forest_graphs.S) -> 'a
+= fun s ->
+  let module Graphs = (val s) in
+  Graphs.dl_db
 
-let with_units
-  : Expand.Env.t -> t -> t
-= fun units forest ->
-  {forest with units}
+(* This function is a temporary solution. Here is the plan:
+
+  Write this function, then go to Phases.ml and make sure that the computations
+  we are doing in bulk here are carried out with each step.
+   *)
+let batch_write : t -> _ = function
+  | {import_graph;
+    _
+  } ->
+    (* let dl_db = serialize_graphs graphs in *)
+    let open Cache in
+    let module Gmap = Forest_graph.Map(Cache.Dependecy_graph) in
+    let tbl = Dependency_tbl.create 100 in
+    let now = Unix.time () in
+    let g =
+      Gmap.map
+        (function
+          | T.Content_vertex _ ->
+            (*Import graph has no content vertices*)
+            assert false
+          | T.Iri_vertex iri ->
+            let item = Item.Tree iri in
+            Dependency_tbl.add tbl item Item.{timestamp = Some now; color = Green};
+            item
+        )
+        import_graph
+    in
+    {Cache.empty with graph = g; tbl;}
+
+let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
+  match cache with
+  | {search_index = _; _} ->
+    (* let init = Phases.init ~env ~config ~dev: true in *)
+    (* let graphs = Forest_graphs.init dl_db in *)
+    paths
+    |> Seq.iter (fun _path ->
+        (* let iri = Iri_scheme.path_to_iri ~host: config.host (Eio.Path.native_exn path) in *)
+        (* match Iri_tbl.find_opt forest iri with *)
+        (* | None -> () *)
+        (* | Some tree -> *)
+        (*   match check_timestamp path tree.timestamp with *)
+        (*   | _ -> () *)
+        ()
+      )

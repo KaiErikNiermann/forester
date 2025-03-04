@@ -19,9 +19,9 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
     _;
   } ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
-    let config = State.config forest in
+    let config = forest.config in
     let host = config.host in
-    match Forest.find_opt (State.parsed forest) (Iri_scheme.uri_to_iri ~host textDocument.uri) with
+    match Forest.find_opt forest.parsed (Iri_scheme.uri_to_iri ~host textDocument.uri) with
     | None ->
       None
     | Some {code; _} ->

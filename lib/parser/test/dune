@@ -1,0 +1,10 @@
+(test
+ (name Test_parser)
+ (libraries
+  alcotest
+  forester.test
+  forester.prelude
+  forester.compiler
+  forester.core
+  forester.parser
+  forester.frontend))

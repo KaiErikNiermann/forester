@@ -1,6 +1,0 @@
-[forest]
-host = "lsp-test"
-trees = ["trees" ]
-theme = "nonexistent"
-home = "index"
-prefixes = ["test"]

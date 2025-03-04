@@ -36,6 +36,7 @@ let execute_datalog_script graphs script =
 (* let () = execute_datalog_script Builtin_relation.axioms *)
 
 let run_datalog_query (graphs : env) (q : (string, Vertex.t) Dx.query) : Vertex_set.t =
+  let@ () = Reporter.trace "when running query" in
   let () = execute_datalog_script graphs Builtin_relation.axioms in
   let module Graphs = (val graphs) in
   Datalog_eval.run_query Graphs.dl_db q

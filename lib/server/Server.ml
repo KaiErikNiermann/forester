@@ -197,17 +197,15 @@ let handler
           |> Iri_types.pct_decode
           |> Repr.of_json_string
               Datalog_expr.(query_t Repr.string (T.vertex_t T.content_t)) |> function
-            | Ok q ->
+            | Ok _q ->
               Logs.app (fun m -> m "parsed successfully");
-              let (_, _, result) = State_machine.update (Query q) forest in
+              (* let _, _, result = Driver.update (Query q) forest in *)
               begin
-                match result with
-                | Vertex_set vs -> Htmx_client.render_query_result forest vs
-                | Got _
-                | Error _
-                | Nothing ->
-                  None
-                (* Pure_html.txt "failed to run" *)
+                match None with
+                (*  FIXME :*)
+                (* | `Vertex_set(vs : Vertex_set.t) -> Htmx_client.render_query_result forest vs *)
+                | Some (`Vertex_set vs) -> Htmx_client.render_query_result forest vs
+                | _ -> None
               end
             | Error (`Msg str) ->
               Logs.app (fun m -> m "failed to parse: %s" str);

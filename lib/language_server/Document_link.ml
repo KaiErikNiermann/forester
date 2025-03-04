@@ -21,12 +21,12 @@ let compute (params : L.DocumentLinkParams.t) =
       ~forest: forest.resources
       ~router: (Legacy_xml_client.route forest)
   in
-  let config = State.config forest in
+  let config = forest.config in
   match params with
   | {textDocument; _} ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let links =
-      let iri = Iri_scheme.uri_to_iri ~host: forest.config.host textDocument.uri in
+      let iri = Iri_scheme.uri_to_iri ~host: config.host textDocument.uri in
       match Imports.resolve_iri_to_code iri forest with
       | None -> []
       | Some tree ->

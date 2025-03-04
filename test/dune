@@ -2,95 +2,25 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
-(env
- (dev
-  (flags
-   (:standard -w -66-32-26-27-33)))
- (_
-  (env-vars
-   (FORESTERLSP_TEST true))))
-
-(cram
- (applies_to Lsp)
- (deps %{bin:forester} %{bin:nvim}))
-
-(cram
- (applies_to Transclude)
- (deps
-  %{bin:transclude}
-  (glob_files_rec ./transclude/*)))
-
-(cram
- (applies_to :whole_subtree)
- (deps
-  %{bin:forester}
-  (glob_files_rec ./forest/*)))
-
-(executables
- (names Test_transclusion)
- (public_names transclude)
- (libraries
-  logs
-  logs.fmt
-  pure-html
-  eio
-  eio.core
-  eio.unix
-  eio_main
-  lsp
-  yojson
-  forester.language_server
-  forester.frontend
-  forester.prelude
-  forester.compiler
-  forester.core))
-
-(alias
- (name dev))
-
-(tests
- (names
-  Test_LaTeX_pipeline
-  Test_DSL
-  Test_compiler
-  Test_config
-  Test_errors
-  Test_expansion
-  Test_graph_database
-  Test_import_graph
-  Test_implanting
-  Test_iri_util
-  Test_json_manifest_client
-  Test_legacy_xml_client
-  Test_parser
-  Test_eval)
+(library
+ (name Forester_test)
+ (public_name forester.test)
  (preprocess
   (pps ppx_deriving.show ppx_yojson_conv))
- (deps
-  (glob_files_rec ./errors/*)
-  (glob_files_rec ./trees/*)
-  (glob_files_rec ./imports/*))
  (libraries
   alcotest
+  forester.prelude
+  forester.core
+  forester.compiler
+  forester.parser
+  forester.frontend
+  eio
+  eio_main
+  eio.unix
   asai
   bwd
-  eio
-  eio.core
-  eio.unix
-  eio_main
   fmt
-  forester.compiler
-  forester.core
-  forester.frontend
-  forester.language_server
-  forester.parser
-  forester.prelude
   iri
-  jsonrpc
-  logs
-  logs.fmt
   lsp
-  pure-html
-  unix
-  yojson
-  yuujinchou))
+  jsonrpc
+  yojson))

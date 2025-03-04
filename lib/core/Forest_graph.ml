@@ -7,6 +7,7 @@
 module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
 include G
 include Graph.Oper.I(G)
+module Map = Graph.Gmap.Vertex(G)
 
 module Reachability = Graph.Fixpoint.Make(G)(struct
   type vertex = G.E.vertex
@@ -25,5 +26,56 @@ let topo_fold = Topo.fold
 let safe_succ g x =
   if mem_vertex g x then succ g x else []
 
+let safe_dependents = safe_succ
+
 let safe_pred g x =
   if mem_vertex g x then pred g x else []
+
+let immediate_dependencies = safe_pred
+
+let add_edge_safe g v w = if mem_vertex g v && mem_vertex g w then add_edge g v w
+let add_edge_exn g v w =
+  if mem_vertex g v then
+    if mem_vertex g w then add_edge g v w
+    else
+      (* We should only be adding iri vertices anyway *)
+      let iri = Option.get @@ Vertex.iri_of_vertex w in
+      Reporter.fatalf Internal_error "%a is not in the graph" Base.pp_iri iri
+  else
+    let iri = Option.get @@ Vertex.iri_of_vertex v in
+    Reporter.fatalf Internal_error "%a is not in the import graph" Base.pp_iri iri
+
+let dependencies graph vertex : t =
+  let dep_graph = create () in
+  let rec go v =
+    iter_pred
+      (fun dep ->
+        if mem_vertex dep_graph dep then ()
+        else
+          begin
+            add_edge dep_graph dep v;
+            go dep
+          end
+      )
+      graph
+      v
+  in
+  go vertex;
+  dep_graph
+
+module Graphviz = Graph.Graphviz.Dot(struct
+  include G
+  module V = Vertex
+
+  let vertex_name v =
+    match Vertex.iri_of_vertex v with
+    | Some iri -> "\"" ^ Iri.to_string iri ^ "\""
+    | None -> ""
+
+  let graph_attributes _ = []
+  let default_vertex_attributes _ = []
+  let vertex_attributes _ = []
+  let default_edge_attributes _ = []
+  let edge_attributes e = [`Label ""]
+  let get_subgraph _ = None
+end)

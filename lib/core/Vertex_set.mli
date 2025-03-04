@@ -20,3 +20,9 @@ val filter : (Vertex.t -> bool) -> t -> t
 val elements : t -> Vertex.t list
 
 val cardinal : t -> int
+
+val mem : Vertex.t -> t -> bool
+val fold : (Vertex.t -> 'acc -> 'acc) -> t -> 'acc -> 'acc
+val iter : (Vertex.t -> unit) -> t -> unit
+val inter : t -> t -> t
+val diff : t -> t -> t

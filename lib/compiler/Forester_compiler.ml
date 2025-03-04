@@ -57,6 +57,7 @@ module Forest = Forest
 
 module State = State
 module Phases = Phases
+module Driver = Driver
 module Asset_router = Asset_router
 
 module Iri_util = Iri_util
@@ -67,6 +68,7 @@ module Diagnostic_store = Diagnostic_store
 
 (** {2 LaTeX pipeline}*)
 
+module Build_latex = Build_latex
 module LaTeX_pipeline = LaTeX_pipeline
 module LaTeX_template = LaTeX_template
 module Job = Job
@@ -76,4 +78,5 @@ module Job = Job
 module Eio_util = Eio_util
 module Export_for_test = Export_for_test
 module Cache = Cache
+module Dir_scanner = Dir_scanner
 (**/**)

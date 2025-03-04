@@ -12,8 +12,8 @@ module T = Types
 
 module PT = Plain_text_client
 
-let render_tree ~dev ~forest (doc : T.content T.article) : (string * Yojson.Safe.t) option =
-  let host = (State.config forest).host in
+let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string * Yojson.Safe.t) option =
+  let host = forest.config.host in
   let@ iri = Option.bind doc.frontmatter.iri in
   (* TODO : Check routing *)
   let route = Legacy_xml_client.route forest iri in

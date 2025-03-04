@@ -29,7 +29,7 @@ let compute
       ~forest: forest.resources
       ~router: (Legacy_xml_client.route forest)
   in
-  let config = State.config forest in
+  let config = forest.config in
   let host = config.host in
   let content =
     match Forest.find_opt

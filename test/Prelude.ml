@@ -7,6 +7,7 @@
 open Forester_prelude
 open Forester_core
 open Forester_compiler
+open Forester_parser
 
 let rec strip_loc : Code.t -> Code.t = fun nodes ->
   List.map
@@ -50,7 +51,39 @@ and strip_loc_node : Code.node -> Code.node = fun node ->
   | Error _ ->
     node
 
+type raw_tree = {path: string; content: string}
+
 let parse_string str =
   let lexbuf = Lexing.from_string str in
   let res = Parse.parse ~source: (`String {title = None; content = str}) lexbuf in
   Result.map strip_loc res
+
+let with_open_tmp_dir ~env kont =
+  let open Eio in
+  let dir_name = string_of_int @@ Oo.id (object end) in
+  let cwd = Eio.Stdenv.cwd env in
+  let tmp = "_tmp" in
+  let tmp_path = Eio.Path.(cwd / tmp / dir_name) in
+  Path.rmtree ~missing_ok: true tmp_path;
+  Path.mkdirs ~exists_ok: true ~perm: 0o755 tmp_path;
+  (* let@ p = Eio.Path.with_open_dir tmp_path in *)
+  let result = kont tmp_path in
+  Path.rmtree ~missing_ok: true tmp_path;
+  result
+
+let setup_forest ~env ~raw_trees ~(config : Config.t) kont =
+  let@ tmp = with_open_tmp_dir ~env in
+  let module EP = Eio.Path in
+  (* let tree_dir = EP.(tmp / "trees") in *)
+  let tree_dirs =
+    List.map
+      (fun dir_name ->
+        let dir = EP.(tmp / dir_name) in
+        EP.(mkdir ~perm: 0o755 dir);
+        dir
+      )
+      config.trees
+  in
+  let create = `Exclusive 0o644 in
+  List.iter (fun tree -> EP.(save ~create (List.hd tree_dirs / tree.path) tree.content)) raw_trees;
+  kont tmp

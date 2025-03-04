@@ -7,30 +7,55 @@
 
 open Forester_core
 
-type diagnostics = Reporter.Message.t Asai.Diagnostic.t list
 module Table = Hashtbl.Make(Lsp.Uri)
 include Table
 
-type t = diagnostics Table.t
+type t = Reporter.diagnostic list Table.t
 
 let replace
-  : 'a Table.t -> key -> 'a -> unit
-= fun table uri a ->
-  assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
-  Table.replace table uri a
+  : 'a list Table.t -> 'a list -> unit
+= fun table fresh_diagnostics ->
+  let diags = Hashtbl.create 100 in
+  fresh_diagnostics
+  |> List.iter
+      (fun d ->
+        match Reporter.guess_uri d with
+        | None ->
+          Reporter.fatalf Internal_error "Dropped a diagnostic because its URI could not be guessed"
+        | Some uri ->
+          Hashtbl.replace diags uri [d]
+      );
+  diags
+  |> Hashtbl.to_seq
+  |> Seq.iter
+      (fun (uri, ds) ->
+        assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
+        Table.replace table uri ds
+      )
 
 let add
-  : 'a Table.t -> key -> 'a -> unit
-= fun table uri a ->
-  assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
-  Table.add table uri a
-
-let append
-  : t -> key -> diagnostics -> unit
-= fun table uri diagnostics ->
-  assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
-  match find_opt table uri with
-  | None ->
-    add table uri diagnostics
-  | Some previous ->
-    replace table uri (previous @ diagnostics)
+  : 'a list Table.t -> 'a list -> unit
+= fun table fresh_diagnostics ->
+  let diagnostics = Hashtbl.create 100 in
+  fresh_diagnostics
+  |> List.iter
+      (fun d ->
+        match Reporter.guess_uri d with
+        | None ->
+          Reporter.fatalf Internal_error "Dropped a diagnostic because its URI could not be guessed"
+        | Some uri ->
+          match Hashtbl.find_opt diagnostics uri with
+          | None -> Hashtbl.replace diagnostics uri [d]
+          | Some t -> Hashtbl.replace diagnostics uri (d :: t)
+      );
+  diagnostics
+  |> Hashtbl.to_seq
+  |> Seq.iter
+      (fun (uri, ds) ->
+        assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
+        match Table.find_opt table uri with
+        | None ->
+          Table.replace table uri ds
+        | Some previous ->
+          Table.replace table uri (ds @ previous)
+      )
