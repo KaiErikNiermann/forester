@@ -228,7 +228,7 @@ let export_cmd ~env =
 let new_tree_cmd ~env =
   let arg_prefix =
     let doc = "The namespace prefix for the created tree." in
-    Arg.required @@
+    Arg.value @@
     Arg.opt (Arg.some Arg.string) None @@
     Arg.info ["prefix"] ~docv: "XXX" ~doc
   in

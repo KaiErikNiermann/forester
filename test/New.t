@@ -22,7 +22,7 @@
   nested
   person.tree
   $ forester new --prefix=foo no-export.toml
-  ./trees/foo-0002.tree
+  $TESTCASE_ROOT/forest/trees/foo-0002.tree
   $ mkdir dest
   $ forester new --prefix=foo --dest=dest no-export.toml
   ./dest/foo-0003.tree

@@ -27,6 +27,8 @@ sig
     | Broken_link
     | IO_error
     | Log
+    | Missing_argument
+
   val pp :
     Ppx_deriving_runtime.Format.formatter ->
     t ->

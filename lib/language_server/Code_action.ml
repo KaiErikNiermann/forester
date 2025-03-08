@@ -22,7 +22,7 @@ let execute (params : L.ExecuteCommandParams.t) =
       let prefix, mode =
         match arguments with
         | Some [json_stuff] ->
-          let prefix = json_stuff |> member "prefix" |> to_string in
+          let prefix = json_stuff |> member "prefix" |> to_string_option in
           let mode =
             json_stuff |> member "mode" |> to_string |> function
               | "random" -> `Random

@@ -28,6 +28,7 @@ module Message = struct
     | Broken_link
     | IO_error
     | Log
+    | Missing_argument
   [@@deriving show]
 
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -51,6 +52,7 @@ module Message = struct
     | Resource_not_found -> Error
     | Broken_link -> Warning
     | IO_error -> Error
+    | Missing_argument -> Error
 
   let short_code : t -> string =
     show

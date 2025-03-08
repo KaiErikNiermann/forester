@@ -38,7 +38,7 @@ val uri_to_iri :
 
 val split_addr :
   Iri.t ->
-  string * int option
+  (string option * int) option
 
 val path_to_iri :
   host: string ->

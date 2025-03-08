@@ -16,39 +16,42 @@ let rec random_not_in keys =
     attempt
 
 let next_iri
-  : prefix: string ->
+  : prefix: (string option) ->
   mode: [< `Random | `Sequential] ->
   config: Config.t ->
   (iri * string) list ->
-  string * string
+  string * string option
 = fun
     ~prefix
     ~mode
     ~(config : Config.t)
     addrs
   ->
+  let default_dir = List.nth_opt config.trees 0 in
   let keys =
     let@ (addr, uri) = List.filter_map @~ addrs in
-    let prefix', key = Iri_scheme.split_addr addr in
+    let@ prefix', key = Option.bind @@ Iri_scheme.split_addr addr in
     if prefix = prefix' then
-      Option.map (fun key -> (key, uri)) key
+      Some (key, Filename.dirname uri)
     else None
+  in
+  let last_sequential, dir =
+    List.fold_left
+      (fun (acc_i, acc_uri) (i, uri) ->
+        if i > acc_i then (i, Some uri) else (acc_i, acc_uri)
+      )
+      (0, default_dir)
+      keys
   in
   let next, dest_dir =
     match mode with
     | `Sequential ->
-      let max, uri =
-        List.fold_left
-          (fun (i, uri) (acc_i, _) -> (max i acc_i, uri))
-          (0, List.hd config.trees)
-          keys
-      in
-      1 + max, uri
+      last_sequential + 1, dir
     | `Random ->
       random_not_in (List.map fst keys),
-      snd @@ List.hd keys
+      dir
   in
-  prefix ^ "-" ^ BaseN.Base36.string_of_int next, dest_dir
+  (match prefix with None -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
 
 (* Reporting diagnostics requires a document URI to publish *)
 let guess_uri (d : Reporter.diagnostic) =

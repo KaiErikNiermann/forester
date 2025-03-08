@@ -41,7 +41,14 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
   let body = Format.asprintf "\\date{%a}\n" Human_datetime.pp now in
   let create = `Exclusive 0o644 in
   (* If no dest_dir is passed, use the directory of the last previous tree *)
-  let dir = match dest_dir with Some dir -> dir | None -> next_dir in
+  let dir =
+    match dest_dir with
+    | Some dir -> dir
+    | None ->
+      match next_dir with
+      | Some next_dir -> next_dir
+      | None -> Reporter.fatalf Missing_argument "Unable to guess destination director for new tree; please supply one."
+  in
   let path =
     EP.(env#fs / dir / fname)
   in

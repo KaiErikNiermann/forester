@@ -52,13 +52,13 @@ let name
   |> last_segment
 
 let split_addr
-  : Iri.t -> string * int option
+  : Iri.t -> (string option * int) option
 = fun iri ->
   let name = last_segment @@ Iri.path_string iri in
   (* primitively check for address of form YYYY-MM-DD *)
   let date_regex = Str.regexp {|^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$|} in
   if Str.string_match date_regex name 0 then
-    (name, None)
+    None
   else
     match String.rindex_opt name '-' with
     | Some i ->
@@ -67,10 +67,12 @@ let split_addr
       in
       begin
         match BaseN.Base36.int_of_string suffix with
-        | Some key -> prefix, Some key
-        | None -> name, None
+        | Some key -> Some (Some prefix, key)
+        | None -> None
       end
-    | _ -> name, None
+    | _ ->
+      let@ key = Option.map @~ BaseN.Base36.int_of_string name in
+      None, key
 
 let path_to_iri ~host str =
   str
