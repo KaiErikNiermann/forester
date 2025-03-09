@@ -124,17 +124,6 @@ type 'content link = {
 }
 [@@deriving show, repr]
 
-type inline_img = {
-  format: string;
-  base64: string
-}
-[@@deriving show, repr]
-
-type img =
-  | Inline of inline_img
-  | Remote of string
-[@@deriving show, repr]
-
 type artefact_source = {
   type_: string;
   part: string;
@@ -160,7 +149,6 @@ type 'content content_node =
   | KaTeX of math_mode * 'content
   | TeX_cs of TeX_cs.t
   | Link of 'content link
-  | Img of img
   | Artefact of 'content artefact
   | Uri of URI.t
   | Route_of_uri of URI.t
@@ -290,7 +278,7 @@ module TeX_like : sig
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
     | TeX_cs cs -> pp_tex_cs fmt cs
-    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Link _ | Img _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
+    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
       Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
 
   let string_of_content =

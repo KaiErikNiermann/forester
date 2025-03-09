@@ -412,8 +412,22 @@ and eval_node node : V.t =
     let hash = Digest.to_hex @@ Digest.string source in
     let content ~svg =
       let base64 = Base64.encode_string svg in
-      let img = T.Inline T.{format = "svg+xml"; base64} in
-      let content = T.Content [T.Img img] in
+      let content =
+        T.Content
+          [
+            T.Xml_elt
+              {
+                content = T.Content [];
+                name = {uname = "img"; prefix = "html"; xmlns = Some "http://www.w3.org/1999/xhtml"};
+                attrs = [
+                  {
+                    key = {uname = "src"; prefix = ""; xmlns = None};
+                    value = T.Content [T.Text (Format.sprintf "data:image/svg+xml;base64,%s" base64)]
+                  }
+                ]
+              }
+          ]
+      in
       let sources = [
         T.{type_ = "latex"; part = "preamble"; source = preamble};
         T.{type_ = "latex"; part = "body"; source = body}

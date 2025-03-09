@@ -166,8 +166,8 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
   let resources =
     let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
     match vertex with
-    | Content_vertex _ -> None
-    | Uri_vertex uri ->
+    | T.Content_vertex _ -> None
+    | T.Uri_vertex uri ->
       match Forest.find_opt forest.resources uri with
       | None ->
         Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" URI.pp uri;

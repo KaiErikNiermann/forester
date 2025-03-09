@@ -113,12 +113,6 @@ let render_xml_attr (forest : State.t) T.{key; value} =
   let str_value = Plain_text_client.string_of_content ~forest: forest.resources ~router: (route forest) value in
   P.string_attr (render_xml_qname key) "%s" str_value
 
-let render_img = function
-  | T.Inline {format; base64} ->
-    X.img [X.src "data:image/%s;base64,%s" format base64]
-  | T.Remote url ->
-    X.img [X.src "%s" url]
-
 let render_xmlns_prefix ({prefix; xmlns}: Forester_xml_names.xmlns_attr) =
   P.string_attr ("xmlns:" ^ prefix) "%s" xmlns
 
@@ -295,8 +289,6 @@ and render_content_node
     (* Should not happen! *)
     (* assert false *)
     [P.txt ~raw: true "\\%s" @@ TeX_cs.show cs]
-  | Img img ->
-    [render_img img]
   | Artefact resource ->
     [render_artefact forest resource]
   | Datalog_script _ -> []

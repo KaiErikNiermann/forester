@@ -98,7 +98,6 @@ let rec tokenize_content
           | T.Contextual_number _
           | T.Results_of_query _
           | T.TeX_cs _
-          | T.Img _
           | T.Artefact _
           | T.Uri _
           | T.Route_of_uri _

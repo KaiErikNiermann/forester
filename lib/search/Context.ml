@@ -34,7 +34,6 @@ let show_leaf_node
   | T.Section _
   | T.KaTeX (_, _)
   | T.Link _
-  | T.Img _
   | T.Artefact _
   | T.Datalog_script _
   | T.Results_of_datalog_query _ ->
@@ -148,7 +147,6 @@ and render_context_node
     | T.KaTeX (_, _) -> assert false
     | T.TeX_cs _ -> assert false
     | T.Link {href; content} -> render_context_content path' content
-    | T.Img _ -> assert false
     | T.Artefact _ -> assert false
     | T.Uri _ -> assert false
     | T.Route_of_uri _ -> assert false

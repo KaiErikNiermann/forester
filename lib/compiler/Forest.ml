@@ -53,7 +53,7 @@ let add_edge graphs rel ~source ~target =
 
 let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) : unit =
   match node with
-  | Text _ | CDATA _ | Route_of_uri _ | Uri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Img _ | Contextual_number _ -> ()
+  | Text _ | CDATA _ | Route_of_uri _ | Uri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Contextual_number _ -> ()
   | Transclude transclusion ->
     analyse_transclusion graphs scope transclusion
   | Xml_elt elt ->

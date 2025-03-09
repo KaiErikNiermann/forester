@@ -110,12 +110,6 @@ let render_xml_attr
   string_attr (render_xml_qname key) "todo"
 (* "%a" render_content value *)
 
-let render_img = function
-  | T.Inline {format; base64} ->
-    img [src "data:image/%s;base64,%s" format base64]
-  | T.Remote url ->
-    img [src "%s" url]
-
 let render_xmlns_prefix ({prefix; xmlns}: xmlns_attr) =
   string_attr ("xmlns:" ^ prefix) "%s" xmlns
 
@@ -573,8 +567,6 @@ and render_content_node
     end
   | TeX_cs cs ->
     [txt ~raw: true "\\%s" (TeX_cs.show cs)]
-  | Img img ->
-    [render_img img]
   | Results_of_datalog_query q ->
     (* We could just evaluate the query immediately. This is just experimental*)
     [
