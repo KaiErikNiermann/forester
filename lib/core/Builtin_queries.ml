@@ -60,7 +60,10 @@ let contributions_datalog vtx : _ Dx.query =
   let x = "X" in
   Dx.{
     var = x;
-    positives = [Builtin_relation.has_direct_contributor @* [var x; const vtx]];
+    positives = [
+      Builtin_relation.has_direct_contributor @* [var x; const vtx];
+      Builtin_relation.is_reference @* [var x]
+    ];
     negatives = []
   }
 
