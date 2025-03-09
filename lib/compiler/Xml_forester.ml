@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_xml_names
 open Pure_html
 
-let reserved_prefix = "fr"
-let forester_xmlns = "http://www.jonmsterling.com/jms-005P.xml"
+let forester_xmlns = {prefix = "fr"; xmlns = "http://www.jonmsterling.com/jms-005P.xml"}
+let html_xlmns = {prefix = "html"; xmlns = "http://www.w3.org/1999/xhtml"}
+
+let reserved_xmlnss = [forester_xmlns; html_xlmns]
 
 let null = HTML.null
 let null_ = HTML.null_
@@ -27,16 +30,16 @@ let optional_ kont opt =
   | Some x -> kont x
   | None -> null_
 
-let register_ns tag attrs =
-  let f_xmlns = string_attr ("xmlns:" ^ reserved_prefix) "%s" forester_xmlns in
-  tag (f_xmlns :: attrs)
+let add_forester_ns name = Format.sprintf "%s:%s" forester_xmlns.prefix name
+let add_html_ns name = Format.sprintf "%s:%s" html_xlmns.prefix name
 
-let add_ns name = Format.sprintf "%s:%s" reserved_prefix name
+let html_std_tag name = std_tag @@ add_html_ns name
+let f_std_tag name = std_tag @@ add_forester_ns name
+let f_text_tag name = text_tag @@ add_forester_ns name
 
-let f_std_tag name = std_tag @@ add_ns name
-let f_text_tag name = text_tag @@ add_ns name
+let f_void_tag name attrs = std_tag (add_forester_ns name) attrs []
+let html_void_tag name attrs = std_tag (add_html_ns name) attrs []
 
-let f_void_tag name attrs = std_tag (add_ns name) attrs []
 
 let info = f_std_tag "info"
 
@@ -98,13 +101,13 @@ let prim p =
     | `Figure -> "figure"
     | `Figcaption -> "figcaption"
   in
-  f_std_tag name
+  html_std_tag name
 
 let ref = f_void_tag "ref"
 
 let number_ fmt = string_attr "number" fmt
 
-let img = f_void_tag "img"
+let img = html_void_tag "img"
 let src fmt = uri_attr "src" fmt
 
 let resource = f_std_tag "resource"

@@ -6,11 +6,9 @@
 
 open Pure_html
 open Forester_core
+open Forester_xml_names
 
-val reserved_prefix : string
-val forester_xmlns : string
-
-val register_ns : std_tag -> std_tag
+val reserved_xmlnss : xmlns_attr list
 
 val conditional : bool -> node -> node
 val optional : ('a -> node) -> 'a option -> node

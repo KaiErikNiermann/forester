@@ -16,13 +16,9 @@ module X = Xml_forester
 module Xmlns = struct
   include Xmlns_effect.Make ()
 
-  let run =
-    let xmlns_prefix = {
-      prefix = X.reserved_prefix;
-      xmlns = X.forester_xmlns
-    }
-    in
-    run ~reserved: [xmlns_prefix]
+  let run (k : xmlns_attr list -> 'a) =
+    run ~reserved: X.reserved_xmlnss @@ fun () ->
+    k X.reserved_xmlnss
 end
 
 module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
@@ -126,7 +122,7 @@ let render_img = function
   | T.Remote url ->
     X.img [X.src "%s" url]
 
-let render_xmlns_prefix Xmlns.{prefix; xmlns} =
+let render_xmlns_prefix ({prefix; xmlns}: Forester_xml_names.xmlns_attr) =
   P.string_attr ("xmlns:" ^ prefix) "%s" xmlns
 
 let render_section_flags (dict : T.section_flags) = [
@@ -156,7 +152,7 @@ let have_seen_uri_opt uri_opt =
   | Some uri -> have_seen_uri uri
 
 let rec render_section forest (section : T.content T.section) : P.node =
-  let@ () = Xmlns.run in
+  let@ _ = Xmlns.run in
   X.tree
     (render_section_flags section.flags)
     [
@@ -434,15 +430,16 @@ and render_date forest (date : Human_datetime.t) =
 let render_article (forest : State.t) (article : T.content T.article) : P.node =
   let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.uri in
   let config = forest.config in
-  let xmlns_prefix = Xmlns.{prefix = X.reserved_prefix; xmlns = X.forester_xmlns} in
   let@ () = Loop_detection.run ~env: URI.Set.empty in
   let@ () = Scope.run ~env: article.frontmatter.uri in
-  let@ () = Xmlns.run in
+  let@ xmlnss = Xmlns.run in
   X.tree
-    [
-      render_xmlns_prefix xmlns_prefix;
-      X.optional_ X.root @@ Option.map (uri_is_home ~config) article.frontmatter.uri
-    ]
+    begin
+      List.map render_xmlns_prefix xmlnss @
+        [
+          X.optional_ X.root @@ Option.map (uri_is_home ~config) article.frontmatter.uri
+        ]
+    end
     [
       render_frontmatter forest article.frontmatter;
       X.mainmatter [] @@

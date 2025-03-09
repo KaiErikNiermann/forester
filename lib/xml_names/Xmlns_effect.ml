@@ -5,6 +5,7 @@
  *)
 
 open Types
+
 module String_map = Map.Make(String)
 
 module Xmlns_map = struct
@@ -53,8 +54,6 @@ module Make_writer (Elt : sig type t end) = struct
 end
 
 module Make () = struct
-  type xmlns_attr = {prefix: string; xmlns: string}
-
   module E = Algaeff.State.Make(Xmlns_map)
   module Decls = Make_writer(struct type t = xmlns_attr end)
 
@@ -98,7 +97,7 @@ module Make () = struct
 
   let run ~reserved kont =
     let init =
-      let alg env {prefix; xmlns} =
+      let alg env ({prefix; xmlns}: xmlns_attr) =
         Xmlns_map.assoc ~prefix ~xmlns env
       in
       List.fold_left alg Xmlns_map.empty reserved

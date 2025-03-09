@@ -132,7 +132,7 @@ let render_img = function
   | T.Remote url ->
     img [src "%s" url]
 
-let render_xmlns_prefix Xmlns.{prefix; xmlns} =
+let render_xmlns_prefix ({prefix; xmlns}: xmlns_attr) =
   string_attr ("xmlns:" ^ prefix) "%s" xmlns
 
 let render_date (date : Human_datetime.t) =

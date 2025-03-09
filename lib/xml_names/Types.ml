@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+type xmlns_attr = {prefix: string; xmlns: string}
+
 type xml_qname = {prefix: string; uname: string; xmlns: string option}
 [@@deriving show, repr]
 
