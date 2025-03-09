@@ -314,11 +314,11 @@ let export_publication ~env ~(forest : state) (publication : Job.publication) : 
     match vertex with
     | Content_vertex _ -> None
     | Iri_vertex iri ->
-      Option.some @@
         match Forest.find_opt forest.resources iri with
         | None ->
-          Reporter.fatalf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" Iri.pp iri
-        | Some result -> result
+          Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" Iri.pp iri;
+          None
+        | Some result -> Some result
   in
   match publication.format with
   | Json_blob ->
