@@ -110,22 +110,6 @@ let render_xml_attr
   string_attr (render_xml_qname key) "todo"
 (* "%a" render_content value *)
 
-let tag_of_prim_node : Prim.t -> attr list -> node list -> node = function
-  | `P -> p
-  | `Em -> em
-  | `Strong -> strong
-  | `Figure -> figure
-  | `Figcaption -> figcaption
-  | `Ul -> ul
-  | `Ol -> ol
-  | `Li -> li
-  | `Blockquote -> blockquote
-  | `Code -> code
-  | `Pre -> pre
-
-let render_prim_node p =
-  tag_of_prim_node p []
-
 let render_img = function
   | T.Inline {format; base64} ->
     img [src "data:image/%s;base64,%s" format base64]
@@ -544,8 +528,6 @@ and render_content_node
       attrs @ xmlns_attrs
     in
     [std_tag name attrs content]
-  | Prim (p, content) ->
-    [render_prim_node p @@ render_content forest content]
   | Transclude transclusion ->
     render_transclusion transclusion
   | Contextual_number addr ->

@@ -33,13 +33,11 @@ let optional_ kont opt =
 let add_forester_ns name = Format.sprintf "%s:%s" forester_xmlns.prefix name
 let add_html_ns name = Format.sprintf "%s:%s" html_xlmns.prefix name
 
-let html_std_tag name = std_tag @@ add_html_ns name
 let f_std_tag name = std_tag @@ add_forester_ns name
 let f_text_tag name = text_tag @@ add_forester_ns name
 
 let f_void_tag name attrs = std_tag (add_forester_ns name) attrs []
 let html_void_tag name attrs = std_tag (add_html_ns name) attrs []
-
 
 let info = f_std_tag "info"
 
@@ -85,23 +83,6 @@ let tex attrs = f_text_tag ~raw: true "tex" attrs
 let display fmt = string_attr "display" fmt
 
 let title_ fmt = string_attr "title" fmt
-
-let prim p =
-  let name =
-    match p with
-    | `P -> "p"
-    | `Ul -> "ul"
-    | `Ol -> "ol"
-    | `Li -> "li"
-    | `Em -> "em"
-    | `Strong -> "strong"
-    | `Code -> "code"
-    | `Blockquote -> "blockquote"
-    | `Pre -> "pre"
-    | `Figure -> "figure"
-    | `Figcaption -> "figcaption"
-  in
-  html_std_tag name
 
 let ref = f_void_tag "ref"
 

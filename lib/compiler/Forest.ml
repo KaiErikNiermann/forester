@@ -67,8 +67,6 @@ let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) :
   | Link link ->
     add_edge graphs Builtin_relation.links_to ~source: (Uri_vertex scope) ~target: (Uri_vertex link.href);
     analyse_content graphs scope link.content
-  | Prim (_, content) ->
-    analyse_content graphs scope content
   | KaTeX (_, content) ->
     analyse_content graphs scope content
   | Artefact artefact ->

@@ -157,7 +157,6 @@ type 'content content_node =
   | Contextual_number of URI.t
   | Results_of_query of ('content vertex, Query.dbix) Query.expr
   | Section of 'content section
-  | Prim of Prim.t * 'content
   | KaTeX of math_mode * 'content
   | TeX_cs of TeX_cs.t
   | Link of 'content link
@@ -172,6 +171,24 @@ type 'content content_node =
 type content =
   Content of content content_node list
 [@@deriving show, repr]
+
+let prim (p : Prim.t) (content : 'content) : 'content content_node =
+  let uname =
+    match p with
+    | `P -> "p"
+    | `Ol -> "ol"
+    | `Ul -> "ul"
+    | `Li -> "li"
+    | `Figure -> "figure"
+    | `Figcaption -> "figcaption"
+    | `Em -> "em"
+    | `Strong -> "strong"
+    | `Blockquote -> "blockquote"
+    | `Pre -> "pre"
+    | `Code -> "code"
+  in
+  let name = {prefix = "html"; uname; xmlns = Some "http://www.w3.org/1999/xhtml"} in
+  Xml_elt {content; name; attrs = []}
 
 let map_content f = function Content nodes -> Content (f nodes)
 let extract_content = function Content nodes -> nodes
@@ -252,7 +269,7 @@ and apply_modifier_to_content_node modifier = function
   | Transclude transclusion ->
     Transclude {transclusion with modifier = compose_modifier modifier transclusion.modifier}
   | Link link -> Link {link with content = apply_modifier_to_content modifier link.content}
-  | Prim (p, content) -> Prim (p, apply_modifier_to_content modifier content)
+  | Xml_elt elt -> Xml_elt {elt with content = apply_modifier_to_content modifier elt.content}
   | node -> node
 
 module TeX_like : sig
@@ -273,7 +290,7 @@ module TeX_like : sig
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
     | TeX_cs cs -> pp_tex_cs fmt cs
-    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Prim _ | Link _ | Img _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
+    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Link _ | Img _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
       Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
 
   let string_of_content =

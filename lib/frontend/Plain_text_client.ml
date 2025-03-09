@@ -27,7 +27,6 @@ and pp_content_node
   | Transclude trn -> pp_transclusion ~forest ~router fmt trn
   | Contextual_number addr -> Format.fprintf fmt "[%a]" URI.pp addr
   | Section section -> pp_section ~forest ~router fmt section
-  | Prim (_, content) -> pp_content ~forest ~router fmt content
   | Link link -> pp_link ~forest ~router fmt link
   | Results_of_query _ | Results_of_datalog_query _ | Img _ | Artefact _ | Datalog_script _ -> ()
 

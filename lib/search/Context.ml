@@ -32,7 +32,6 @@ let show_leaf_node
   | T.Contextual_number _
   | T.Results_of_query _
   | T.Section _
-  | T.Prim (_, _)
   | T.KaTeX (_, _)
   | T.Link _
   | T.Img _
@@ -141,13 +140,11 @@ and render_context_node
     match node with
     | T.Text s -> get_nth_word i s
     | T.CDATA _ -> raise @@ Invalid_argument "can't descend into CDATA node"
-    | T.Xml_elt _ -> assert false
+    | T.Xml_elt elt -> render_context_content path elt.content
     | T.Transclude _ -> assert false
     | T.Contextual_number _ -> assert false
     | T.Results_of_query _ -> assert false
     | T.Section _ -> assert false
-    | T.Prim (_, content) ->
-      render_context_content path content
     | T.KaTeX (_, _) -> assert false
     | T.TeX_cs _ -> assert false
     | T.Link {href; content} -> render_context_content path' content

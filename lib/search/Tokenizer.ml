@@ -88,7 +88,6 @@ let rec tokenize_content
               (int_of_field_article `frontmatter :: path)
               frontmatter @
               tokenize_content path loc mainmatter
-          | T.Prim (_, content) -> tokenize_content (i :: path) loc content
           | T.Link {content; _} -> tokenize_content (i :: path) loc content
           | T.KaTeX (_, _) ->
             (* NOTE:

@@ -232,7 +232,7 @@ and eval_node node : V.t =
     emit_content_node ~loc @@ T.Text str
   | Prim p ->
     let content = pop_content_arg ~loc |> T.extract_content |> T.trim_whitespace in
-    emit_content_node ~loc @@ Prim (p, T.Content content)
+    emit_content_node ~loc @@ T.prim p @@ T.Content content
   | Fun (xs, body) ->
     let env = Lex_env.read () in
     focus_clo ?loc env xs body

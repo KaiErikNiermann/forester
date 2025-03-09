@@ -5,7 +5,6 @@
  *)
 
 open Pure_html
-open Forester_core
 open Forester_xml_names
 
 val reserved_xmlnss : xmlns_attr list
@@ -70,8 +69,6 @@ val number_ : _ string_attr
 
 val img : void_tag
 val src : _ string_attr
-
-val prim : Prim.t -> std_tag
 
 val contextual_number : void_tag
 

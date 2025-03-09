@@ -53,69 +53,45 @@ let test () =
   Alcotest.(check @@ content_node)
     "works"
     (
-      Prim
-        (
-          `P,
-          (
-            Content
-              [
-                (
-                  Prim
-                    (
-                      `Ol,
-                      (Content [(Prim (`Li, (Content [(Text "First item")]))); (Prim (`Li, (Content [(Text "Second item")])))])
-                    )
-                );
-                (
-                  Prim
-                    (
-                      `Ul,
-                      (
-                        Content
-                          [
-                            (
-                              Prim
-                                (
-                                  `Li,
-                                  (
-                                    Content
-                                      [(Text "First item")]
-                                  )
-                                )
-                            );
-                            (Prim (`Li, (Content [(Text "Second item")])))
-                          ]
-                      )
-                    )
-                );
-                (
-                  Section
-                    {
-                      frontmatter = {uri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []; last_changed = None;};
-                      mainmatter = (Content [(Prim (`P, (Content [(Text "section")])))]);
-                      flags = {hidden_when_empty = None; included_in_toc = None; header_shown = None; metadata_shown = (Some false); numbered = None; expanded = None}
-                    }
-                );
-                (Prim (`Em, (Content [(Text "Emphasized item")])));
-                (Prim (`Strong, (Content [(Text "Strong text")])));
-                (Prim (`Code, (Content [(Text "fun _ -> ()")])));
-                (Prim (`Blockquote, (Content [(Text "blockquote")])));
-                (Prim (`Pre, (Content [(Text "pre")])));
-                (Prim (`Figure, (Content [(Text "figure")])));
-                (Prim (`Figcaption, (Content [(Text "caption")])));
-                (CDATA "cdata");
-                (Xml_elt {name = {prefix = ""; uname = "html"; xmlns = None}; attrs = []; content = (Content [])});
-                (Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter; modifier = Identity});
-                (Contextual_number (URI.of_string_exn "chapter-3"));
-                (Results_of_query (Query.Union []));
-                (KaTeX (Inline, (Content [(Text "a = b")])));
-                (TeX_cs (Word {|\begin{}|}));
-                (Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = (Content [(Text "Forester")])});
-                (Img (Remote "img.png"));
-                (Artefact {hash = ""; content = (Content [(Text "res")]); sources = []})
-              ]
-          )
-        )
+      T.prim `P @@
+        T.Content
+          [
+            T.prim `Ol @@
+              T.Content
+                [
+                  T.prim `Li @@ T.Content [Text "First item"];
+                  T.prim `Li @@ T.Content [Text "Second item"]
+                ];
+            T.prim `Ul @@
+              T.Content
+                [
+                  T.prim `Li @@ T.Content [Text "First item"];
+                  T.prim `Li @@ T.Content [Text "Second item"]
+                ];
+            Section
+              {
+                frontmatter = {uri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []; last_changed = None};
+                mainmatter = (Content [(T.prim `P ((T.Content [(Text "section")])))]);
+                flags = {hidden_when_empty = None; included_in_toc = None; header_shown = None; metadata_shown = (Some false); numbered = None; expanded = None}
+              };
+            T.prim `Em @@ T.Content [Text "Emphasized item"];
+            T.prim `Strong @@ T.Content [Text "Strong text"];
+            T.prim `Code @@ T.Content [Text "fun _ -> ()"];
+            T.prim `Blockquote @@ T.Content [Text "blockquote"];
+            T.prim `Pre @@ T.Content [Text "pre"];
+            T.prim `Figure @@ T.Content [Text "figure"];
+            T.prim `Figcaption @@ T.Content [Text "caption"];
+            CDATA "cdata";
+            Xml_elt {name = {prefix = ""; uname = "html"; xmlns = None}; attrs = []; content = (Content [])};
+            Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter; modifier = Identity};
+            Contextual_number (URI.of_string_exn "chapter-3");
+            Results_of_query (Query.Union []);
+            KaTeX (Inline, (Content [(Text "a = b")]));
+            TeX_cs (Word {|\begin{}|});
+            Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = (Content [(Text "Forester")])};
+            Img (Remote "img.png");
+            Artefact {hash = ""; content = (Content [(Text "res")]); sources = []}
+          ]
     )
     content
 
