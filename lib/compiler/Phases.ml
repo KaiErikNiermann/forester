@@ -314,7 +314,11 @@ let export_publication ~env ~(forest : state) (publication : Job.publication) : 
     match vertex with
     | Content_vertex _ -> None
     | Iri_vertex iri ->
-      Forest.find_opt forest.resources iri
+      Option.some @@
+        match Forest.find_opt forest.resources iri with
+        | None ->
+          Reporter.fatalf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" Iri.pp iri
+        | Some result -> result
   in
   match publication.format with
   | Json_blob ->
@@ -365,6 +369,7 @@ let eval_tree (forest : state) iri syn =
       Forest.plant_resource (T.Article article) forest.graphs forest.resources
     | Job.Publish publication ->
       export_publication ~env ~forest publication
+      (* TODO: This MUST be deferred until after all the trees have been evaluated. *)
   end
 
 let eval : transition = fun forest ->
