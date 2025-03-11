@@ -86,25 +86,23 @@ let resolve_iri_to_code (forest : State.t) iri =
       | None -> None
     end
 
-let rec analyse_tree roots (tree : Code.tree) =
+let rec analyse_tree (root : iri) (tree : Code.tree) =
   let env = Analysis_env.read () in
   let iri_opt = tree.iri in
   let code = tree.code in
-  let roots =
-    Option.fold
-      ~none: roots
-      ~some: (fun x -> x :: roots
-      )
-      iri_opt
-  in
   let@ iri = Option.iter @~ iri_opt in
   Forest_graph.add_vertex env.graph (T.Iri_vertex iri);
-  analyse_code roots code;
+  analyse_code root code;
 
-and analyse_code roots (code : Code.t) =
-  List.iter (analyse_node roots) code
+and analyse_tree_exn (tree : Code.tree) =
+  match tree.iri with
+  | Some iri -> analyse_tree iri tree
+  | None -> Reporter.fatalf Internal_error "Import graph: cannot analyse a tree without an address"
 
-and analyse_node roots (node : Code.node Asai.Range.located) =
+and analyse_code root (code : Code.t) =
+  List.iter (analyse_node root) code
+
+and analyse_node root (node : Code.node Asai.Range.located) =
   let env = Analysis_env.read () in
   let host = env.forest.config.host in
   match node.value with
@@ -112,8 +110,7 @@ and analyse_node roots (node : Code.node Asai.Range.located) =
     (* NOTE: Doesn't this imply we can't import like \import{forest://foo/bar}?*)
     let dep_iri = Iri_scheme.user_iri ~host dep in
     let dependency = T.Iri_vertex dep_iri in
-    let@ iri = List.iter @~ roots in
-    let target = T.Iri_vertex iri in
+    let target = T.Iri_vertex root in
     begin
       match resolve_iri_to_code env.forest dep_iri with
       | None ->
@@ -126,7 +123,7 @@ and analyse_node roots (node : Code.node Asai.Range.located) =
       | Some (tree, doc) ->
         register_document ~host: env.forest.config.host env.graph doc;
         add_edge env.graph dependency target;
-        analyse_tree [] tree
+        analyse_tree root tree
       (* | Some (_tree, None) -> *)
       (*   (* TODO: *) *)
       (*   Reporter.fatalf ?loc: node.loc Resource_not_found "could not find tree %a" pp_iri dep_iri *)
@@ -134,30 +131,30 @@ and analyse_node roots (node : Code.node Asai.Range.located) =
   | Subtree (addr, code) ->
     let iri = Option.map (Iri_scheme.user_iri ~host) addr in
     analyse_tree
-      roots
+      root
       (* Consider using the env to keep track of the current source path *)
       (* FIXME: not passing timestamp of parent tree. Need to modify Analysis_env for that *)
       {iri; code; source_path = None; timestamp = None;}
   | Scope code | Namespace (_, code) | Group (_, code) | Math (_, code) | Let (_, _, code) | Fun (_, code) | Def (_, _, code) ->
-    analyse_code roots code
+    analyse_code root code
   | Object {methods; _} | Patch {methods; _} ->
     let@ _, code = List.iter @~ methods in
-    analyse_code roots code
+    analyse_code root code
   | Dx_prop (rel, args) ->
-    analyse_code roots rel;
-    List.iter (analyse_code roots) args
+    analyse_code root rel;
+    List.iter (analyse_code root) args
   | Dx_sequent (concl, premises) ->
-    analyse_code roots concl;
-    List.iter (analyse_code roots) premises
+    analyse_code root concl;
+    List.iter (analyse_code root) premises
   | Dx_query (_, positives, negatives) ->
-    List.iter (analyse_code roots) positives;
-    List.iter (analyse_code roots) negatives
+    List.iter (analyse_code root) positives;
+    List.iter (analyse_code root) negatives
   | Text _ | Hash_ident _ | Xml_ident (_, _) | Verbatim _ | Ident _ | Open _ | Put (_, _) | Default (_, _) | Get _ | Decl_xmlns (_, _) | Call (_, _) | Alloc _ | Dx_var _ | Dx_const_content _ | Dx_const_iri _ | Comment _ | Error _ -> ()
 
 let dependencies tree forest =
   let env = {forest; follow = true; graph = Forest_graph.create ()} in
   let@ () = Analysis_env.run ~env in
-  analyse_tree [] tree;
+  analyse_tree_exn tree;
   env.graph
 
 let fixup (tree : Code.tree) (forest : State.t) =
@@ -175,7 +172,7 @@ let fixup (tree : Code.tree) (forest : State.t) =
     in
     let@ () = Analysis_env.run ~env in
     begin
-      analyse_tree [] tree;
+      analyse_tree_exn tree;
       Vertex_set.of_list @@ Forest_graph.immediate_dependencies env.graph this_vertex
     end;
   in
@@ -208,12 +205,12 @@ let run_builder ?root env =
         | None ->
           let@ () = Reporter.trace "when building import graph" in
           Reporter.fatalf Resource_not_found "could not find tree `%a'" pp_iri iri
-        | Some (tree, _) -> analyse_tree [] tree
+        | Some (tree, _) -> analyse_tree_exn tree
       end
     | None ->
       env.forest.parsed
       |> Forest.to_seq_values
-      |> Seq.iter (analyse_tree [])
+      |> Seq.iter (analyse_tree_exn)
   end;
   env.graph
 
