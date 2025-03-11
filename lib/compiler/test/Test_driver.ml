@@ -14,7 +14,7 @@ let config = Config.default
 
 let check_actions ~env () =
   let forest, history =
-    setup_forest
+    with_test_forest
       ~raw_trees: [{path = "foo.tree"; content = {|\title{hello}|}}]
       ~env
       ~config

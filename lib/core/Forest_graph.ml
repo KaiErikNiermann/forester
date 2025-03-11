@@ -34,16 +34,6 @@ let safe_pred g x =
 let immediate_dependencies = safe_pred
 
 let add_edge_safe g v w = if mem_vertex g v && mem_vertex g w then add_edge g v w
-let add_edge_exn g v w =
-  if mem_vertex g v then
-    if mem_vertex g w then add_edge g v w
-    else
-      (* We should only be adding iri vertices anyway *)
-      let iri = Option.get @@ Vertex.iri_of_vertex w in
-      Reporter.fatalf Internal_error "%a is not in the graph" Base.pp_iri iri
-  else
-    let iri = Option.get @@ Vertex.iri_of_vertex v in
-    Reporter.fatalf Internal_error "%a is not in the import graph" Base.pp_iri iri
 
 let dependencies graph vertex : t =
   let dep_graph = create () in

@@ -17,13 +17,6 @@ val render_forest :
   forest: State.t ->
   unit
 
-val render_tree :
-  env: env ->
-  config: Config.t ->
-  target: target ->
-  string ->
-  unit
-
 val copy_contents_of_dir :
   env: env ->
   dir ->

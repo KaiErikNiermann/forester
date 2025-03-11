@@ -85,44 +85,6 @@ let copy_contents_of_dir ~env dir =
     let source = EP.native_exn path in
     Eio_util.copy_to_dir ~env ~cwd ~source ~dest_dir: output_dir_name
 
-let render_tree
-  : env: env ->
-  config: Config.t ->
-  target: target ->
-  string ->
-  unit
-= fun ~env ~config ~target addr ->
-  let dev = true in
-  let iri = Iri_scheme.user_iri ~host: config.host addr in
-  let forest =
-    State.make ~env ~config ~dev ()
-    |> Driver.run_action (Build_dependency_graph iri)
-  in
-  let output =
-    match Forest.get_article iri forest.resources with
-    | None -> assert false
-    | Some article ->
-      match target with
-      | HTML -> Pure_html.to_string @@ Htmx_client.render_article forest article
-      | XML ->
-        Format.asprintf "%a" Legacy_xml_client.(pp_xml ~forest ?stylesheet: None) article
-      | JSON -> Yojson.Safe.to_string @@ snd @@ Option.get @@ Json_manifest_client.render_tree ~dev ~forest article
-      | STRING -> "TODO"
-  in
-  Format.printf "%s" output
-
-(* let result = *)
-(*   render_tree *)
-(*     ~env *)
-(*     ~config *)
-(*     ~dev *)
-(*     target *)
-(*     iri *)
-(*     in *)
-(*     Format.printf *)
-(*     "%s" *)
-(*     result *)
-
 let json_manifest ~dev ~(forest : State.t) : string =
   let render = Json_manifest_client.render_tree ~forest in
   forest.resources

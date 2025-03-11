@@ -16,9 +16,6 @@ val create : ?size: int -> unit -> t
 val add_vertex : t -> Vertex.t -> unit
 val add_edge : t -> Vertex.t -> Vertex.t -> unit
 
-(* Only adds the edge if both vertices are in g*)
-val add_edge_safe : t -> Vertex.t -> Vertex.t -> unit
-val add_edge_exn : t -> Vertex.t -> Vertex.t -> unit
 val safe_pred : t -> Vertex.t -> Vertex.t list
 val safe_succ : t -> Vertex.t -> Vertex.t list
 val immediate_dependencies : t -> Vertex.t -> Vertex.t list

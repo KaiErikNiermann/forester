@@ -60,21 +60,29 @@ let parse_string str =
 
 let with_open_tmp_dir ~env kont =
   let open Eio in
-  let dir_name = string_of_int @@ Oo.id (object end) in
+  (* let dir_name = string_of_int @@ Oo.id (object end) in *)
   let cwd = Eio.Stdenv.cwd env in
   let tmp = "_tmp" in
-  let tmp_path = Eio.Path.(cwd / tmp / dir_name) in
-  Path.rmtree ~missing_ok: true tmp_path;
-  Path.mkdirs ~exists_ok: true ~perm: 0o755 tmp_path;
+  (* Path.rmtree ~missing_ok: true tmp_path; *)
+  Path.mkdirs ~exists_ok: true ~perm: 0o755 Path.(cwd / tmp);
+  let tmp_dir =
+    Filename.temp_dir
+      ~temp_dir: tmp
+      ~perms: 0o755
+      ""
+      ""
+  in
+  Logs.app (fun m -> m "%s" tmp_dir);
+  (* Path.mkdirs ~exists_ok: true ~perm: 0o755 tmp_path; *)
+  let tmp_path = Eio.Path.(cwd / tmp_dir) in
   (* let@ p = Eio.Path.with_open_dir tmp_path in *)
   let result = kont tmp_path in
   Path.rmtree ~missing_ok: true tmp_path;
   result
 
-let setup_forest ~env ~raw_trees ~(config : Config.t) kont =
+let with_test_forest ~env ~raw_trees ~(config : Config.t) kont =
   let@ tmp = with_open_tmp_dir ~env in
   let module EP = Eio.Path in
-  (* let tree_dir = EP.(tmp / "trees") in *)
   let tree_dirs =
     List.map
       (fun dir_name ->
@@ -85,5 +93,15 @@ let setup_forest ~env ~raw_trees ~(config : Config.t) kont =
       config.trees
   in
   let create = `Exclusive 0o644 in
-  List.iter (fun tree -> EP.(save ~create (List.hd tree_dirs / tree.path) tree.content)) raw_trees;
+  let first_tree_dir = List.hd tree_dirs in
+  List.iter
+    (fun tree ->
+      EP.(
+        save
+          ~create
+          (first_tree_dir / tree.path)
+          tree.content
+      )
+    )
+    raw_trees;
   kont tmp

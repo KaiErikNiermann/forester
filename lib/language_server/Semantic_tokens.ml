@@ -302,8 +302,8 @@ let tokenize_document
 = fun {uri} ->
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let iri = Iri_scheme.uri_to_iri ~host: forest.config.host uri in
-  match Imports.resolve_iri_to_code iri forest with
-  | Some Code.{code; _} ->
+  match Imports.resolve_iri_to_code forest iri with
+  | Some (Code.{code; _}, _) ->
     let tokens = tokens code in
     Format.(
       Eio.traceln
@@ -328,9 +328,9 @@ let tokenize_document_delta
   ->
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let iri = Iri_scheme.uri_to_iri ~host: forest.config.host textDocument.uri in
-  match Imports.resolve_iri_to_code iri forest with
+  match Imports.resolve_iri_to_code forest iri with
   | None -> None
-  | Some tree ->
+  | Some (tree, _) ->
     Some (semantic_tokens_delta tree.code)
 
 let on_full_request

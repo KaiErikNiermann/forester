@@ -12,75 +12,28 @@ module T = Types
 
 type diagnostic = Reporter.Message.t Asai.Diagnostic.t
 
-(* I am currently implementing incremental compilation.
-
-   TODO:
-
-    - functions should leverage the cache by looking up relevant stuff in forest
-
-   *)
-
-let load_tree path =
-  let content = Eio.Path.load path in
-  let path_str = Eio.Path.native_exn path in
-  assert (not @@ Filename.is_relative path_str);
-  let uri = Lsp.Uri.of_path path_str in
-  Lsp.Text_document.make
-    ~position_encoding: `UTF8
-    {
-      textDocument = {
-        languageId = "forester";
-        text = content;
-        uri;
-        version = 1
-      }
-    }
-
 let load (tree_dirs : Eio.Fs.dir_ty Eio.Path.t list) =
   Logs.debug (fun m -> m "loading trees from %i directories" (List.length tree_dirs));
   Dir_scanner.scan_directories tree_dirs
-  |> Seq.map load_tree
+  |> Seq.map Imports.load_tree
 
 let parse (forest : State.t) =
   let host = forest.config.host in
-  let now = Unix.time () in
   forest.documents
   |> Hashtbl.to_seq
   |> Seq.map @@ fun (uri, doc) ->
     let iri = Iri_scheme.uri_to_iri ~host uri in
     let source_path = Lsp.Uri.to_path uri in
     let@ () = Reporter.tracef "when parsing %a (%s)" pp_iri iri source_path in
-    let@ code = Result.map @~ Parse.parse_document doc in
-    Code.{
-      code;
-      iri = Some iri;
-      timestamp = Some now;
-      source_path = Some source_path;
-    }
+    Parse.parse_document ~host doc
 
 (* Fix signature. Should not mutate the forest*)
 let reparse (doc : Lsp.Text_document.t) : State.t -> State.t * diagnostic option = fun forest ->
   Logs.debug (fun m -> m "reparsing");
   let host = forest.config.host in
   let uri = Lsp.Text_document.documentUri doc in
-  let path = Lsp.Uri.to_path uri in
-  let timestamp =
-    try
-      Some Eio.Path.(stat ~follow: true @@ forest.env#fs / path).mtime
-    with
-      | _ ->
-        None
-  in
-  match Parse.parse_document doc with
-  | Ok code ->
-    let tree =
-      Code.{
-        code;
-        iri = Option.some @@ Iri_scheme.uri_to_iri ~host uri;
-        source_path = Some path;
-        timestamp;
-      }
-    in
+  match Parse.parse_document ~host doc with
+  | Ok tree ->
     Forest.replace forest.parsed (Iri_scheme.uri_to_iri ~host uri) tree;
     Imports.fixup tree forest;
     Diagnostic_store.remove forest.diagnostics uri;
@@ -96,27 +49,14 @@ let build_import_graph (forest : State.t) =
   let@ () = Reporter.trace "when resolving imports" in
   let diagnostics = Diagnostic_store.create 100 in
   let push d = Diagnostic_store.add diagnostics [d] in
-  Reporter.run
-    ~emit: push
-    ~fatal: (
-      (* No fatal diagnostics should arise. *)
-      assert false
-    )
-    @@ fun () ->
-    Imports.build forest, diagnostics
-
-let build_import_graph_for ~(iri : iri) (forest : State.t) =
-  match Dir_scanner.find_tree (Eio_util.paths_of_dirs ~env: forest.env forest.config.trees) iri with
-  | None -> Reporter.fatalf Resource_not_found "Could not find tree %a in the configured directories." pp_iri iri
-  | Some source_path ->
-    match Parse.parse_file source_path with
-    | Ok code ->
-      let timestamp = Eio.Path.(stat ~follow: true @@ forest.env#fs / source_path).mtime in
-      let tree = Code.{code; iri = Some iri; source_path = Some source_path; timestamp = Some timestamp;} in
-      let module Graphs = (val forest.graphs) in
-      let import_graph = Imports.dependencies tree forest in
-      import_graph
-    | Error _ -> Reporter.fatalf Parse_error ""
+  let new_graph =
+    Reporter.run
+      ~emit: push
+      ~fatal: (fun d -> push d; forest.import_graph)
+      @@ fun () ->
+      Imports.build forest
+  in
+  new_graph, diagnostics
 
 let expand (forest : State.t) =
   (* This should only return the units for trees that have actually changed.
@@ -163,12 +103,12 @@ let expand_only_aux ~(addr : iri) (forest : State.t) : Expand.Env.t * Diagnostic
       (* when creating the import graph we are only adding iri vertices *)
       assert false
     | T.Iri_vertex iri ->
-      match Imports.resolve_iri_to_code iri forest with
+      match Imports.resolve_iri_to_code forest iri with
       | None ->
         (* The import graph has vertices for subtrees, which do not correspond to a source file *)
         Logs.debug (fun m -> m "failed to resolve %a" pp_iri iri);
         units, diagnostics, trees
-      | Some tree ->
+      | Some (tree, _) ->
         let ds, units, syn = Expand.expand_tree ~host: forest.config.host units tree in
         begin
           Forest.add trees iri syn.syn;

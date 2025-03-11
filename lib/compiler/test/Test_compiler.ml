@@ -7,107 +7,128 @@
 open Forester_core
 open Forester_prelude
 open Forester_compiler
+open Forester_test
+open Testables
 
 module T = Types
 
-module Mock_forest = struct
-  let languageId = "forester"
-  let mk_doc ?(version = 1) path content =
-    Lsp.Text_document.make
-      ~position_encoding: `UTF8
-      {
-        textDocument = {
-          languageId;
-          text = content;
-          uri = Lsp.Uri.of_path path;
-          version;
-        }
-      }
-  let t1 = mk_doc "/test/t1.tree" {||}
-  let t2 = mk_doc "/test/t2.tree" {||}
-  let t3 = mk_doc "/test/t3.tree" {||}
-  let t4 = mk_doc "/test/t4.tree" {||}
-  let t5 = mk_doc "/test/t5.tree" {||}
-  let t6 = mk_doc "/test/t6.tree" {||}
-  let t7 = mk_doc "/test/t7.tree" {||}
-  let t8 = mk_doc "/test/reparse.tree" {||}
+let raw_trees =
+  let t1 = {path = "t1.tree"; content = {||}} in
+  let t2 = {path = "t2.tree"; content = {||}} in
+  let t3 = {path = "t3.tree"; content = {||}} in
+  let t4 = {path = "t4.tree"; content = {||}} in
+  let t5 = {path = "t5.tree"; content = {||}} in
+  let t6 = {path = "t6.tree"; content = {||}} in
+  let t7 = {path = "t7.tree"; content = {||}} in
+  let t8 = {path = "t8.tree"; content = {||}} in
+  [t1; t2; t3; t4; t5; t6; t7; t8;]
 
-  let add_trees trees (forest : State.t) =
-    trees
-    |> List.iter (fun doc ->
-        let uri = Lsp.Text_document.documentUri doc in
-        Hashtbl.add forest.documents uri doc;
-        let path = Lsp.Uri.to_path uri in
-        let iri = Iri_scheme.uri_to_iri ~host: forest.config.host uri in
-        Iri_tbl.replace forest.resolver iri path;
-      );
-    forest
+let test_batch_run ~env () =
+  let@ () = Reporter.easy_run in
+  let config = Config.default in
+  with_test_forest ~raw_trees ~env ~config (fun path ->
+    Sys.chdir (Eio.Path.native_exn path);
+    let@ () = Reporter.easy_run in
+    let forest, history =
+      State.make ~env ~config ~dev: false ()
+      |> Driver.run_with_history Load_all_configured_dirs
+    in
+    Alcotest.(check int) "" 7 @@ List.length history;
+    Alcotest.(check int) "" 0 @@ Diagnostic_store.length forest.diagnostics;
+    Alcotest.(check int) "" 8 @@ Iri_tbl.length forest.expanded;
+    Alcotest.(check int) "" 8 @@ List.length @@ Forest.get_all_articles forest.resources
+  )
 
-  let init ~env ~config () =
-    State.make ~env ~config ~dev: true ()
-    |> add_trees [t1; t2; t3; t4; t5; t6; t7; t8]
+let test_includes_paths ~env () =
+  let@ () = Reporter.easy_run in
+  let config = Config.default in
+  with_test_forest ~raw_trees ~env ~config (fun path ->
+    Sys.chdir (Eio.Path.native_exn path);
+    let@ () = Reporter.easy_run in
+    let forest, history =
+      State.make ~env ~config ~dev: true ()
+      |> Driver.run_with_history Load_all_configured_dirs
+    in
+    Alcotest.(check int) "number of loaded documents" 8 (Hashtbl.length forest.documents);
+    Alcotest.(check int) "number of parsed trees" 8 (Iri_tbl.length forest.parsed);
+    Alcotest.(check int) "number of trees in resolver" 8 (Iri_tbl.length forest.resolver);
+    Alcotest.(check @@ list action)
+      "evaluation succeeded"
+      [
+        Load_all_configured_dirs;
+        Parse_all;
+        Build_import_graph;
+        Expand_all;
+        Eval_all;
+        (Run_jobs []);
+        Done
+      ]
+      history;
+    let iri = (Iri.of_string "forest://my-forest/t8") in
+    let path =
+      match Forest.get_article iri forest.resources with
+      | None -> Reporter.fatalf Internal_error ""
+      | Some {frontmatter = {source_path; _}; _} ->
+        source_path
+    in
+    Alcotest.(check bool)
+      "path is some"
+      true
+      (Option.is_some path)
+  )
 
-  let build ~env ~config () =
-    init ~env ~config ()
-    |> Driver.run_action Parse_all
-end
+let test_reparsing ~env () =
+  let config = Config.default in
+  with_test_forest ~raw_trees ~env ~config (fun tmp_path ->
+    Logs.app (fun m -> m "In temp dir %s" (Unix.realpath @@ Eio.Path.native_exn tmp_path));
+    let@ () = Reporter.easy_run in
+    let forest =
+      State.make ~env ~config ~dev: false ()
+      |> Driver.run_action Load_all_configured_dirs
+    in
+    let reparse_addr = "t8.tree" in
+    let reparse_iri = Iri_scheme.path_to_iri ~host: config.host reparse_addr in
+    let vtx = T.Iri_vertex reparse_iri in
+    Alcotest.(check int)
+      "Number of vertices before reparsing"
+      8
+      (Forest_graph.nb_vertex forest.import_graph);
+    Alcotest.(check int)
+      "old vertex has no import"
+      0
+      (Forest_graph.in_degree forest.import_graph vtx);
+    let proof =
+      Hashtbl.to_seq_keys forest.documents
+      |> Seq.find_map
+          (fun uri ->
+            if Lsp.Uri.to_path uri
+              |> String.ends_with ~suffix: "t8.tree" then
+              begin
+                let path = Eio.Path.(forest.env#fs / (Lsp.Uri.to_path uri)) in
+                Eio.Path.save ~create: (`Or_truncate 0o644) path {|\import{t1}|};
+                let reparsed = Driver.run_action (Load_tree (Lsp.Uri.to_path uri)) forest in
+                let import_graph = reparsed.import_graph in
+                Alcotest.(check bool)
+                  "vertex has an import"
+                  true
+                  (Forest_graph.in_degree import_graph vtx > 0);
+                Some ()
+              end
+            else None
+          )
+    in
+    Alcotest.(check bool)
+      "did run"
+      true
+      (Option.is_some proof)
+  )
 
 let () =
-  (* Logs.set_level (Some Debug); *)
+  Logs.set_level (Some Debug);
+  Logs.set_reporter (Logs_fmt.reporter ());
   let@ env = Eio_main.run in
   let@ () = Reporter.easy_run in
   let config = {Config.default with trees = []} in
-
-  (* When a tree changes, we need to recompute its dependencies and update the
-     import graph*)
-  let test_reparsing () =
-    let@ () = Reporter.test_run in
-    (*First, perform a regular batch compilation run.*)
-    let forest =
-      Mock_forest.init ~env ~config ()
-      |> Driver.run_action Parse_all
-    in
-    let path = "/test/reparse.tree" in
-    let vtx = T.Iri_vertex (Iri_scheme.path_to_iri ~host: config.host path) in
-    Format.printf "%a@." T.(pp_vertex pp_content) vtx;
-    let old_import_graph = forest.import_graph in
-    Alcotest.(check int) "old vertex has no import" 0 (Forest_graph.in_degree old_import_graph vtx);
-    let reparsed_forest, _ =
-      let open Phases in
-      let document =
-        (* Create a Text_document.t with new content.*)
-        Mock_forest.mk_doc
-          ~version: 2
-          path
-          {| \import{t1}|}
-      in
-      reparse document forest
-    in
-    let import_graph = reparsed_forest.import_graph in
-    Forest_graph.iter_vertex
-      (fun v -> Format.printf "%a@." T.(pp_vertex pp_content) v)
-      import_graph;
-    Alcotest.(check bool) "vertex has an import" true (Forest_graph.in_degree import_graph vtx > 0);
-  in
-  let test_batch_run () =
-    let forest =
-      let@ () = Reporter.easy_run in
-      Mock_forest.build ~env ~config ()
-    (* Driver.batch_run ~env ~config ~dev: false *)
-    in
-    Alcotest.(check int) "" 8 @@ List.length @@ Forest.get_all_articles forest.resources
-  in
-  let test_includes_paths () =
-    let@ () = Reporter.easy_run in
-    let forest = Mock_forest.init ~env ~config () |> Driver.run_action Parse_all in
-    let path =
-      let@ {frontmatter = {source_path; _}; _} =
-        Option.bind @@ Forest.get_article (Iri.of_string "forest://my-forest/reparse") forest.resources
-      in
-      source_path
-    in
-    Alcotest.(check bool) "" true @@ Option.is_some path
-  in
   let test_omits_paths () =
     let@ () = Reporter.easy_run in
     let forest = Driver.batch_run ~env ~config ~dev: false in
@@ -125,12 +146,12 @@ let () =
     [
       "pipeline",
       [
-        test_case "basic batch run" `Quick test_batch_run;
-        test_case "reparsing" `Quick test_reparsing
+        test_case "basic batch run" `Quick (test_batch_run ~env);
+        test_case "reparsing" `Quick (test_reparsing ~env);
       ];
       "dev mode",
       [
-        test_case "includes paths in dev mode" `Quick test_includes_paths;
+        test_case "includes paths in dev mode" `Quick (test_includes_paths ~env);
         test_case "omits paths outside dev mode" `Quick test_omits_paths;
       ]
     ]

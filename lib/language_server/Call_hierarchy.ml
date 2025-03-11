@@ -67,9 +67,9 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
   match params with
   | {position; textDocument; _} ->
     let iri = Iri_scheme.uri_to_iri ~host: forest.config.host textDocument.uri in
-    match Imports.resolve_iri_to_code iri forest with
+    match Imports.resolve_iri_to_code forest iri with
     | None -> None
-    | Some tree ->
+    | Some (tree, _) ->
       let item =
         match Analysis.node_at ~position Code.(tree.code) with
         | None -> None

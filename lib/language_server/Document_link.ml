@@ -27,9 +27,9 @@ let compute (params : L.DocumentLinkParams.t) =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let links =
       let iri = Iri_scheme.uri_to_iri ~host: config.host textDocument.uri in
-      match Imports.resolve_iri_to_code iri forest with
+      match Imports.resolve_iri_to_code forest iri with
       | None -> []
-      | Some tree ->
+      | Some (tree, _) ->
         begin
           Code.(tree.code)
           |> List.filter_map

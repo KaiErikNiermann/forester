@@ -322,58 +322,6 @@ let lsp_cmd ~env =
       $ arg_config
     )
 
-let render ~env _ target addr config =
-  let config = Config_parser.parse_forest_config_file config in
-  Forester.render_tree ~env ~target ~config addr
-
-let render_cmd ~env =
-  let open Cmdliner in
-  let man = [
-    `S Manpage.s_description;
-    `P "The $(tname) renders a tree in the specified format.";
-  ]
-  in
-  let arg_addr =
-    let doc = "the tree to render" in
-    Arg.(
-      required @@
-      opt (some string) None @@
-      info ["addr"] ~docv: "XXX" ~doc
-    )
-  in
-  let arg_format =
-    Arg.(
-      value
-      & opt
-        (
-          Arg.enum
-            [
-              "html", Forester.HTML;
-              "json", JSON;
-              "xml", XML;
-              "string", STRING
-            ]
-        )
-        ~vopt: Forester.HTML
-        HTML
-      & info ["format"]
-    )
-  in
-  let doc
-    =
-    "Render a tree"
-  in
-  let info = Cmd.info "render" ~version ~doc ~man in
-  Cmd.v
-    info
-    Term.(
-      const (render ~env)
-      $ arg_logs
-      $ arg_format
-      $ arg_addr
-      $ arg_config
-    )
-
 let server ~env _ port config =
   let config = Config_parser.parse_forest_config_file config in
   let forest = Driver.batch_run ~env ~config ~dev: true in
@@ -427,7 +375,6 @@ let cmd ~env =
       complete_cmd ~env;
       init_cmd ~env;
       query_cmd ~env;
-      render_cmd ~env;
       lsp_cmd ~env;
       app_cmd ~env;
     ]

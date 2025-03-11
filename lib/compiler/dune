@@ -2,11 +2,6 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
-(env
- (dev
-  (flags
-   (:standard -w -66-32-26-27-33))))
-
 (library
  (name Forester_compiler)
  (instrumentation

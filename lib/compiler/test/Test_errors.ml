@@ -36,13 +36,24 @@ let raw_trees = [
   }
 ]
 
+let check_diagnostic expect kont =
+  let fatal = fun d ->
+    Alcotest.(check message)
+      ""
+      expect
+      (d.message)
+  in
+  let emit = Fun.const () in
+  Reporter.run ~fatal ~emit (fun () -> kont (); ())
+
 let () =
   let@ env = Eio_main.run in
   let@ () = Reporter.easy_run in
   let config = Config.default in
   let test () =
-    let@ tmp_dir = setup_forest ~env ~raw_trees ~config in
+    let@ tmp_dir = with_test_forest ~env ~raw_trees ~config in
     Sys.chdir (Eio.Path.native_exn tmp_dir);
+    let@ () = check_diagnostic Resource_not_found in
     let forest, history =
       State.make ~env ~config ~dev: false ()
       |> Driver.run_with_history Load_all_configured_dirs
@@ -60,7 +71,7 @@ let () =
       ]
       history;
     Alcotest.(check int) "" 1 (Diagnostic_store.length forest.diagnostics);
-    Alcotest.(check bool) "" true (Iri_tbl.length forest.parsed = (Hashtbl.length forest.documents - 1));
+    Alcotest.(check bool) "" true (Iri_tbl.length forest.parsed = (Hashtbl.length forest.documents - 1))
   in
   let test_expansion () = Alcotest.(check string) "" "" "" in
   let open Alcotest in
@@ -69,7 +80,7 @@ let () =
     [
       "parsing",
       [
-        test_case "diagnostic" `Quick test;
+        test_case "nonexistent tree" `Quick test;
       ];
       "expanding",
       [

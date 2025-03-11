@@ -141,11 +141,3 @@ let lsp_run ?init_loc ?init_backtrace ~recover publish k =
     result
 
 let ignore = run ~emit: (fun _ -> ()) ~fatal: (fun _ -> fatalf Message.Internal_error "ignoring error")
-
-let () =
-  register_printer (function
-    | `Emit _
-    | `Trace
-    | `Fatal _ ->
-      Some "unhandled effect!"
-  )

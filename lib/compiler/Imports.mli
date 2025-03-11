@@ -8,11 +8,14 @@ open Forester_core
 
 type analysis_env = {
   follow: bool;
-  forest: State.t
+  forest: State.t;
+  graph: Forest_graph.t;
 }
 
+val load_tree : Eio.Fs.dir_ty Eio.Path.t -> Lsp.Text_document.t
+val register_document : host:string -> Forest_graph.t -> Lsp.Text_document.t -> unit
 val build : State.t -> Forest_graph.t
 val run_builder : ?root: iri -> analysis_env -> Forest_graph.t
 val dependencies : Code.tree -> State.t -> Forest_graph.t
-val resolve_iri_to_code : iri -> State.t -> Code.tree option
+val resolve_iri_to_code : State.t -> Forest.key -> (Code.tree * Lsp.Text_document.t) option
 val fixup : Code.tree -> State.t -> unit

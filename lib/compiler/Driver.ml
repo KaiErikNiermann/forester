@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_core
+open Forester_prelude
+
 (* TODO:
    - Come up with error hadling/merging strategy
    *)
-
-open Forester_core
-open Forester_prelude
 
 type target = HTML | JSON | XML | STRING
 
@@ -25,7 +25,6 @@ module Action = struct
   type t =
     | Quit of exit
     | Build_import_graph
-    | Build_dependency_graph of iri
     | Plant_assets
     | Plant_foreign
     | Done
@@ -33,16 +32,15 @@ module Action = struct
     | Parse_all
     | Expand_all
     | Eval_all
-    | Expand_only of iri
-    | Eval_only of iri
-    | Parse of iri
+    | Load_tree of string
+    | Parse of (Lsp.Uri.t [@printer fun fmt uri -> fprintf fmt "%s" (Lsp.Uri.to_string uri)])
+    | Expand of iri
+    | Eval of iri
     | Query of (string, Vertex.t) Datalog_expr.query
     | Cache_results of (Vertex_set.t [@opaque])
     | Run_jobs of Job.job Range.located list
   [@@deriving show]
 end
-
-module Trace = Algaeff.Sequencer.Make(Action)
 
 let update
   : Action.t -> State.t -> Action.t * State.t
@@ -65,16 +63,16 @@ let update
     let tree_dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
     List.iter (fun path -> assert (Eio.Path.is_directory path)) tree_dirs;
     let docs = Phases.load tree_dirs in
-    docs
-    |> Seq.iter (fun doc ->
+    Seq.iter
+      (fun doc ->
+        Imports.register_document ~host: forest.config.host forest.import_graph doc;
         let uri = Lsp.Text_document.documentUri doc in
-        let path = Lsp.Uri.to_path uri in
         let iri = Iri_scheme.uri_to_iri ~host: forest.config.host uri in
-        Iri_tbl.replace forest.resolver iri path;
-        Hashtbl.replace forest.documents uri doc
-      );
+        Iri_tbl.replace forest.resolver iri (Lsp.Uri.to_path uri);
+        Hashtbl.replace forest.documents uri doc;
+      )
+      docs;
     Logs.debug (fun m -> m "loaded %d trees" (Seq.length docs));
-    (* Logs.debug (fun m -> m "%d documents" (Hashtbl.length forest.documents)); *)
     Parse_all, forest
   | Parse_all ->
     let@ () = Reporter.trace "when parsing trees" in
@@ -86,15 +84,7 @@ let update
           | Error err -> Left err
         )
     in
-    Logs.debug (fun m -> m "parsed %d trees" (Seq.length trees));
-    assert (Seq.length trees <= Hashtbl.length forest.documents);
-    assert (Seq.length trees <= Iri_tbl.length forest.resolver);
-    Seq.iter
-      (fun _ ->
-        (*TODO: *)
-        ()
-      )
-      errors;
+    Seq.iter Reporter.Tty.display errors;
     Seq.iter
       (fun tree ->
         (* Every tree that comes from the filesystem has an IRI *)
@@ -105,24 +95,21 @@ let update
           tree
       )
       trees;
+    Logs.debug (fun m -> m "parsed %d trees" (Iri_tbl.length forest.parsed));
     Build_import_graph, forest
   | Build_import_graph ->
     let@ () = Reporter.trace "when building import graph" in
     let import_graph, diagnostics = Phases.build_import_graph forest in
-    assert (Forest_graph.nb_vertex import_graph >= Iri_tbl.length forest.parsed);
-    (* Logs.debug (fun m -> m "%d vertices@." (Forest_graph.nb_vertex import_graph)); *)
-    Forest_graph.iter_vertex (fun v -> Logs.debug (fun m -> m "vertex %a" T.(pp_vertex pp_content) v)) import_graph;
+    if Diagnostic_store.length diagnostics = 0 then
+      assert (Forest_graph.nb_vertex import_graph >= Iri_tbl.length forest.parsed);
+    Logs.debug (fun m -> m "%d vertices@." (Forest_graph.nb_vertex import_graph));
     Diagnostic_store.iter (fun _ d -> Diagnostic_store.add forest.diagnostics d) diagnostics;
     Expand_all, {forest with import_graph}
-  | Build_dependency_graph iri ->
-    let@ () = Reporter.tracef "when building dependency graph for %a" pp_iri iri in
-    let import_graph = Phases.build_import_graph_for ~iri forest in
-    Expand_only iri, {forest with import_graph}
   | Expand_all ->
     let@ () = Reporter.tracef "when expanding trees" in
     let units, expanded_trees = Phases.expand forest in
     Logs.debug (fun m -> m "Expand: got %d trees" (List.length expanded_trees));
-    assert (List.length expanded_trees >= Iri_tbl.length forest.parsed);
+    assert (List.length expanded_trees <= Iri_tbl.length forest.parsed);
     begin
       let@ (diagnostics, source_path, (syn : Syn.tree)) = List.iter @~ expanded_trees in
       let@ iri = Option.iter @~ syn.iri in
@@ -158,10 +145,10 @@ let update
         units
     in
     Eval_all, {forest with units = patched_units}
-  | Expand_only iri ->
+  | Expand iri ->
     let@ () = Reporter.tracef "when expanding %a" pp_iri iri in
     let result, _err = Phases.expand_only iri forest in
-    Eval_only iri, result
+    Eval iri, result
   | Eval_all ->
     let@ () = Reporter.tracef "when evaluating" in
     let trees, _errors = Phases.eval forest in
@@ -179,7 +166,7 @@ let update
           )
     in
     Run_jobs jobs, forest
-  | Eval_only iri ->
+  | Eval iri ->
     let@ () = Reporter.tracef "when evaluating %a" pp_iri iri in
     let result, _err = Phases.eval_only iri forest in
     Done, result
@@ -203,12 +190,42 @@ let update
   | Plant_foreign ->
     let@ () = Reporter.tracef "when planting foreign forest" in
     let result, err = Phases.implant_foreign forest in
-    let _ = Option.map Reporter.Tty.display err in
+    Option.iter Reporter.Tty.display err;
     Done, result
   | Run_jobs jobs ->
     Phases.run_jobs forest jobs;
     Done, forest
-  | Parse _
+  | Load_tree path ->
+    begin
+      let@ () = Reporter.tracef "when loading %s" path in
+      let tree_dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
+      let iri = Iri_scheme.path_to_iri ~host: forest.config.host path in
+      match Dir_scanner.find_tree tree_dirs iri with
+      | None ->
+        Reporter.fatalf Resource_not_found "could not find tree %a in the configured directories" pp_iri iri
+      | Some path ->
+        let doc = Imports.load_tree path in
+        let uri = Lsp.Text_document.documentUri doc in
+        Imports.register_document ~host: forest.config.host forest.import_graph doc;
+        Hashtbl.replace forest.documents uri doc;
+        Parse uri, forest
+    end
+  | Parse uri ->
+    let@ () = Reporter.tracef "when parsing %s" (Lsp.Uri.to_string uri) in
+    Logs.debug (fun m -> m "Reparsing");
+    begin
+      match Hashtbl.find_opt forest.documents uri with
+      | None -> assert false
+      | Some doc ->
+        match Parse.parse_document ~host: forest.config.host doc with
+        | Ok tree ->
+          Logs.debug (fun m -> m "doc has content %s" @@ Lsp.Text_document.text doc);
+          Imports.fixup tree forest;
+          Iri_tbl.replace forest.parsed (Option.get tree.iri) tree;
+          Done, forest
+        | Error _ ->
+          Done, forest
+    end
   | Cache_results _
   | Done ->
     Done, forest

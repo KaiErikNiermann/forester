@@ -64,7 +64,7 @@ let find_tree dirs iri =
     let first_match = List.hd @@ List.of_seq matches in
     let native = Eio.Path.native_exn first_match in
     if Filename.is_relative native then raise (Is_relative native);
-    Some native
+    Some first_match
   with
     | Is_relative _ -> assert false
     | Failure _ -> None

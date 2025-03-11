@@ -43,7 +43,7 @@ let next_iri
       (0, default_dir)
       keys
   in
-  let next, dest_dir =
+  let next, _ =
     match mode with
     | `Sequential ->
       last_sequential + 1, dir
@@ -52,23 +52,6 @@ let next_iri
       dir
   in
   (match prefix with None -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
-
-(* Reporting diagnostics requires a document URI to publish *)
-let guess_uri (d : Reporter.diagnostic) =
-  match d with
-  | {explanation; _} ->
-    match explanation.loc with
-    | None -> None
-    | Some loc ->
-      match Range.view loc with
-      | `End_of_file {source; _}
-      | `Range ({source; _}, _) ->
-        match source with
-        | `String _ -> None
-        | `File path ->
-          if path <> "" then
-            Some (Lsp.Uri.of_path path)
-          else None
 
 let start_of_file =
   let beginning = L.Position.create ~character: 0 ~line: 0 in
