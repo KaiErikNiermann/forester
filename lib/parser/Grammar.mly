@@ -69,7 +69,6 @@ let textual_expr == list(locate(textual_node))
 let head_node :=
 | DEF; (~,~,~) = fun_spec; <Code.Def>
 | ALLOC; ~ = ident; <Code.Alloc>
-| IMPORT; ~ = txt_arg; <Code.import_private>
 | EXPORT; ~ = txt_arg; <Code.import_public>
 | NAMESPACE; ~ = ident; ~ = braces(code_expr); <Code.Namespace>
 | SUBTREE; ~ = option(squares(wstext)); ~ = braces(ws_list(locate(head_node))); <Code.Subtree>
@@ -125,8 +124,12 @@ let arg :=
 let txt_arg == braces(wstext)
 let fun_spec == ~ = ident; ~ = binder; ~ = arg; <>
 
+let head_node_or_import :=
+| head_node
+| IMPORT; ~ = txt_arg; <Code.import_private>
+
 let main :=
-| ~ = ws_list(locate(head_node)); EOF; <>
+| ~ = ws_list(locate(head_node_or_import)); EOF; <>
 
 let dx_rel :=
 | x = locate(ident); { [Range.{x with value = Code.Ident x.value}] }

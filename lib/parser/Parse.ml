@@ -31,18 +31,6 @@ let lexer =
   | Ident_fragments -> Lexer.ident_fragments lexbuf
   | Verbatim (herald, buffer) -> Lexer.verbatim herald buffer lexbuf
 
-let _get_parse_error env =
-  let open Asai in
-  match I.stack env with
-  | lazy(Nil) -> Diagnostic.loctext "Did not expect text here."
-  | lazy(Cons (I.Element (state, _, start, end_), _)) ->
-    let loc = Range.of_lex_range (start, end_) in
-    try
-      let msg = (Grammar_messages.message (I.number state)) in
-      Diagnostic.loctext ~loc msg
-    with
-      | Not_found -> Diagnostic.loctext ~loc "invalid syntax (no specific message for this eror)"
-
 let _get_range
   : I.element option -> (position * position) option
 = fun el ->
