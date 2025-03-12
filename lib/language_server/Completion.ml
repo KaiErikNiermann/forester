@@ -134,12 +134,12 @@ let compute
               let insertText =
                 (* TODO if host = current_host insert shortform else insert fully qualified iri*)
                 match triggerCharacter with
-                | Some "{" -> Iri_scheme.name iri ^ "}"
-                | Some "(" -> Iri_scheme.name iri ^ ")"
-                | Some "[" -> Iri_scheme.name iri ^ "]"
+                | Some "{" -> URI_scheme.name iri ^ "}"
+                | Some "(" -> URI_scheme.name iri ^ ")"
+                | Some "[" -> URI_scheme.name iri ^ "]"
                 | _ -> ""
               in
-              Some (L.CompletionItem.create ?documentation ~label: (Iri_scheme.name iri) ~insertText ())
+              Some (L.CompletionItem.create ?documentation ~label: (URI_scheme.name iri) ~insertText ())
           end
       |> List.of_seq
     in

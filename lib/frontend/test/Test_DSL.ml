@@ -105,12 +105,12 @@ let test () =
                 (Prim (`Figcaption, (Content [(Text "caption")])));
                 (CDATA "cdata");
                 (Xml_elt {name = {prefix = ""; uname = "html"; xmlns = None}; attrs = []; content = (Content [])});
-                (Transclude {href = Iri.of_string "foo-001"; target = Mainmatter; modifier = Identity});
-                (Contextual_number (Iri.of_string "chapter-3"));
+                (Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter; modifier = Identity});
+                (Contextual_number (URI.of_string_exn "chapter-3"));
                 (Results_of_query (Query.Union []));
                 (KaTeX (Inline, (Content [(Text "a = b")])));
                 (TeX_cs (Word {|\begin{}|}));
-                (Link {href = Iri.of_string "https://git.sr.ht/~jonsterling/ocaml-forester"; content = (Content [(Text "Forester")])});
+                (Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = (Content [(Text "Forester")])});
                 (Img (Remote "img.png"));
                 (Artefact {hash = ""; content = (Content [(Text "res")]); sources = []})
               ]

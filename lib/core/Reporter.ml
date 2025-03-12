@@ -8,8 +8,8 @@ open Base
 
 module Message = struct
   type t =
-    | Tree_not_found of iri
-    | Duplicate_tree of iri
+    | Tree_not_found of URI.t
+    | Duplicate_tree of URI.t
     | Parse_error
     | Type_error
     | Type_warning

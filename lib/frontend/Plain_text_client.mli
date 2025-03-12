@@ -11,13 +11,13 @@ module T := Types
 
 val string_of_content :
   forest: T.content T.resource Forest.t ->
-  router: (iri -> string) ->
+  router: (URI.t -> string) ->
   Types.content ->
   string
 
 val pp_content :
   forest: T.content T.resource Forest.t ->
-  router: (iri -> string) ->
+  router: (URI.t -> string) ->
   Format.formatter ->
   Types.content ->
   unit

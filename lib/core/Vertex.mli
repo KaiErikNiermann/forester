@@ -14,4 +14,4 @@ val hash : t -> int
 val pp : Format.formatter -> t -> unit
 val show : t -> string
 
-val iri_of_vertex : t -> iri option
+val iri_of_vertex : t -> URI.t option

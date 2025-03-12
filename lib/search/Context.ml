@@ -26,7 +26,7 @@ let show_leaf_node
     end
   | T.Iri i
   | T.Route_of_iri i ->
-    Format.asprintf "%a" pp_iri i
+    Format.asprintf "%a" URI.pp i
   | T.Xml_elt _
   | T.Transclude _
   | T.Contextual_number _
@@ -69,7 +69,7 @@ let rec render_context_frontmatter
   match path with
   | [] -> raise (Invalid_argument "stopped on non-leaf node")
   | 0 :: path ->
-    Format.(asprintf "%a" (pp_print_option pp_iri) frontmatter.iri)
+    Format.(asprintf "%a" (pp_print_option URI.pp) frontmatter.iri)
   | 1 :: path' ->
     begin
       match path' with

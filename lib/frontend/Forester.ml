@@ -8,7 +8,7 @@ open Forester_prelude
 open Forester_core
 open Forester_compiler
 
-module M = Iri_map
+module M = URI.Map
 module T = Types
 module EP = Eio.Path
 
@@ -59,8 +59,8 @@ let complete ~(forest : State.t) prefix =
   let config = forest.config in
   let@ article = Seq.filter_map @~ List.to_seq @@ Forest.get_all_articles forest.resources in
   let@ iri = Option.bind article.frontmatter.iri in
-  let@ iri = Option.bind @@ Option_util.guard Iri_scheme.is_named_iri iri in
-  let iri = Iri_scheme.relativise_iri ~host: config.host iri in
+  let@ iri = Option.bind @@ Option_util.guard URI_scheme.is_named_iri iri in
+  let iri = URI.relativise ~host: config.host iri in
   let@ title = Option.bind article.frontmatter.title in
   let title =
     Plain_text_client.string_of_content
@@ -135,7 +135,7 @@ let export ~(forest : State.t) : unit =
     let@ resource = List.filter @~ Forest.get_all_resources forest.resources in
     match resource with
     | T.Article {frontmatter = {iri = Some iri; _}; _} ->
-      Iri.host iri = Some forest.config.host
+      URI.host iri = Some forest.config.host
     | T.Asset asset -> asset.host = forest.config.host
     | _ -> false
   in

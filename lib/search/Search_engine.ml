@@ -26,7 +26,7 @@ let test_ranked (forest : State.t) =
     (fun (iri, score) ->
       match Forest.get_article iri forest.resources with
       | Some article ->
-        Format.printf "%a, %f@." pp_iri iri score;
+        Format.printf "%a, %f@." URI.pp iri score;
       | None -> assert false
     )
     ranked_results

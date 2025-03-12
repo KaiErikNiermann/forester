@@ -7,8 +7,8 @@
 module Message :
 sig
   type t =
-    | Tree_not_found of Base.iri
-    | Duplicate_tree of Base.iri
+    | Tree_not_found of URI.t
+    | Duplicate_tree of URI.t
     | Parse_error
     | Type_error
     | Type_warning

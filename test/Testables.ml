@@ -47,7 +47,7 @@ let diagnostic =
   let pp = pp_diagnostic Reporter.Message.pp in
   testable pp (=)
 
-let iri = testable Iri.pp (=)
+let uri = testable URI.pp URI.equal
 
 let config = Alcotest.testable Config.pp (=)
 

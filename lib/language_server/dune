@@ -1,5 +1,5 @@
 ;;; SPDX-FileCopyrightText: 2024 The Forester Project Contributors
-;;; 
+;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 WITH LLVM-exception
 
 (library
@@ -23,7 +23,6 @@
   jsonrpc
   yojson
   bwd
-  iri
   yuujinchou
   fmt
   str

@@ -86,7 +86,7 @@ let handler
         let headers = Http.Header.of_list ["Content-Type", "image/x-icon"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.favicon ()
       | Tree s ->
-        let href = Iri_scheme.user_iri ~host: State.(forest.config.host) s in
+        let href = URI_scheme.user_iri ~host: State.(forest.config.host) s in
         let request_headers = Http.Request.headers request in
         let is_htmx =
           (*If it is an HTMX request, we just send a fragment.
@@ -180,7 +180,7 @@ let handler
           | None ->
             Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
           | Some home ->
-            let home = Iri_scheme.user_iri ~host: forest.config.host home in
+            let home = URI_scheme.user_iri ~host: forest.config.host home in
             match Forest.get_article home forest.resources with
             | None ->
               Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
@@ -194,7 +194,7 @@ let handler
         let response =
           q
           |> Option.get
-          |> Iri_types.pct_decode
+          |> Uri.pct_decode
           |> Repr.of_json_string
               Datalog_expr.(query_t Repr.string (T.vertex_t T.content_t)) |> function
             | Ok _q ->

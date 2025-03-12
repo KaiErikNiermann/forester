@@ -26,7 +26,7 @@ let compute (params : L.DocumentLinkParams.t) =
   | {textDocument; _} ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let links =
-      let iri = Iri_scheme.uri_to_iri ~host: config.host textDocument.uri in
+      let iri = URI_scheme.lsp_uri_to_iri ~host: config.host textDocument.uri in
       match Imports.resolve_iri_to_code forest iri with
       | None -> []
       | Some (tree, _) ->
@@ -40,8 +40,8 @@ let compute (params : L.DocumentLinkParams.t) =
                 | Code.Group (Braces, [{value = Text addr; _}]) ->
                   (* TODO: Need to analyse syn *)
                   let range = (Lsp_shims.Loc.lsp_range_of_range node.loc) in
-                  let iri = (Iri_scheme.user_iri ~host: config.host addr) in
-                  let* target = Option.map Lsp.Uri.of_path @@ Iri_tbl.find_opt forest.resolver iri in
+                  let iri = (URI_scheme.user_iri ~host: config.host addr) in
+                  let* target = Option.map Lsp.Uri.of_path @@ URI.Tbl.find_opt forest.resolver iri in
                   let* {frontmatter; _} = Forest.get_article iri forest.resources in
                   let* tooltip = Option.map (fun c -> render c) frontmatter.title in
                   let link =

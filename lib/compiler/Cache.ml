@@ -20,7 +20,7 @@ module Item = struct
   }
 
   type t = (* Key *)
-  | Tree of iri
+  | Tree of URI.t
   | Path of Trie.path
   | Asset of string
 
@@ -95,7 +95,7 @@ let get_changed_paths
   |> Seq.filter_map
       (fun path ->
         let path_str = Eio.Path.native_exn path in
-        let iri = Iri_scheme.path_to_iri ~host path_str in
+        let iri = URI_scheme.path_to_iri ~host path_str in
         let last_modified = Eio.Path.(stat ~follow: true path).mtime in
         (* "flipped" bind, by default returns the current path. IDK, I am being lazy. *)
         let (let*) o f = match o with None -> Some path | Some v -> f v in

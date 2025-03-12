@@ -33,7 +33,7 @@ let load_tree path =
 let _add_vertex (forest : State.t) g v =
   try
     let iri_v = Option.get (Vertex.iri_of_vertex v) in
-    assert (Iri_tbl.mem forest.parsed iri_v);
+    assert (URI.Tbl.mem forest.parsed iri_v);
     Forest_graph.add_vertex g v
   with
     | exn -> Reporter.fatalf Internal_error "%a" Eio.Exn.pp exn
@@ -49,14 +49,14 @@ let add_edge g v w =
 
 let register_document ~host g doc =
   let uri = Lsp.Text_document.documentUri doc in
-  let iri = Iri_scheme.uri_to_iri ~host uri in
+  let iri = URI_scheme.lsp_uri_to_iri ~host uri in
   Forest_graph.add_vertex g (T.Iri_vertex iri)
 
 module Analysis_env = Algaeff.Reader.Make(struct type t = analysis_env end)
 
 let resolve_iri_to_code (forest : State.t) iri =
   let dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
-  match Forest.find_opt forest.parsed iri, Iri_tbl.find_opt forest.resolver iri with
+  match Forest.find_opt forest.parsed iri, URI.Tbl.find_opt forest.resolver iri with
   | Some tree, Some path ->
     let doc = load_tree Eio.Path.(forest.env#fs / path) in
     Some (tree, doc)
@@ -75,7 +75,7 @@ let resolve_iri_to_code (forest : State.t) iri =
       match Dir_scanner.find_tree dirs iri with
       | Some path ->
         let native = Eio.Path.native_exn path in
-        Iri_tbl.add forest.resolver iri native;
+        URI.Tbl.add forest.resolver iri native;
         begin
           let doc = load_tree path in
           match Parse.parse_document ~host: forest.config.host doc with
@@ -86,7 +86,7 @@ let resolve_iri_to_code (forest : State.t) iri =
       | None -> None
     end
 
-let rec analyse_tree (root : iri) (tree : Code.tree) =
+let rec analyse_tree (root : URI.t) (tree : Code.tree) =
   let env = Analysis_env.read () in
   let iri_opt = tree.iri in
   let code = tree.code in
@@ -108,7 +108,7 @@ and analyse_node root (node : Code.node Asai.Range.located) =
   match node.value with
   | Import (_, dep) ->
     (* NOTE: Doesn't this imply we can't import like \import{forest://foo/bar}?*)
-    let dep_iri = Iri_scheme.user_iri ~host dep in
+    let dep_iri = URI_scheme.user_iri ~host dep in
     let dependency = T.Iri_vertex dep_iri in
     let target = T.Iri_vertex root in
     begin
@@ -118,7 +118,7 @@ and analyse_node root (node : Code.node Asai.Range.located) =
           ?loc: node.loc
           Resource_not_found
           "could not find tree %a"
-          pp_iri
+          URI.pp
           dep_iri
       | Some (tree, doc) ->
         register_document ~host: env.forest.config.host env.graph doc;
@@ -126,10 +126,10 @@ and analyse_node root (node : Code.node Asai.Range.located) =
         analyse_tree root tree
       (* | Some (_tree, None) -> *)
       (*   (* TODO: *) *)
-      (*   Reporter.fatalf ?loc: node.loc Resource_not_found "could not find tree %a" pp_iri dep_iri *)
+      (*   Reporter.fatalf ?loc: node.loc Resource_not_found "could not find tree %a" URI.pp dep_iri *)
     end
   | Subtree (addr, code) ->
-    let iri = Option.map (Iri_scheme.user_iri ~host) addr in
+    let iri = Option.map (URI_scheme.user_iri ~host) addr in
     analyse_tree
       root
       (* Consider using the env to keep track of the current source path *)
@@ -183,7 +183,7 @@ let fixup (tree : Code.tree) (forest : State.t) =
   Vertex_set.iter (fun v -> Forest_graph.add_edge graph v this_vertex) added_deps
 
 let _minimal_dependency_graph
-  : addr: iri -> Forest_graph.t
+  : addr: URI.t -> Forest_graph.t
 = fun ~addr ->
   let dep_graph = Forest_graph.create () in
   let rec f v =
@@ -204,7 +204,7 @@ let run_builder ?root env =
         match resolve_iri_to_code env.forest iri with
         | None ->
           let@ () = Reporter.trace "when building import graph" in
-          Reporter.fatalf Resource_not_found "could not find tree `%a'" pp_iri iri
+          Reporter.fatalf Resource_not_found "could not find tree `%a'" URI.pp iri
         | Some (tree, _) -> analyse_tree_exn tree
       end
     | None ->

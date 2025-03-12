@@ -22,7 +22,7 @@ let () =
         source_path = None;
         timestamp = None;
         (* If tree has no address, exports are not added *)
-        iri = Some (Iri_scheme.user_iri ~host "test-tree");
+        iri = Some (URI_scheme.user_iri ~host "test-tree");
         code = let open DSL.Code in
         [
           def
@@ -61,9 +61,9 @@ let () =
                     path
                 )
           );
-          Alcotest.(check iri)
+          Alcotest.(check uri)
             "addr"
-            (Iri.of_string "forest://test/test-tree")
+            (URI.of_string_exn "forest://test/test-tree")
             (this_iri)
         )
   in

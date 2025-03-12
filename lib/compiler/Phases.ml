@@ -22,9 +22,9 @@ let parse (forest : State.t) =
   forest.documents
   |> Hashtbl.to_seq
   |> Seq.map @@ fun (uri, doc) ->
-    let iri = Iri_scheme.uri_to_iri ~host uri in
+    let iri = URI_scheme.lsp_uri_to_iri ~host uri in
     let source_path = Lsp.Uri.to_path uri in
-    let@ () = Reporter.tracef "when parsing %a (%s)" pp_iri iri source_path in
+    let@ () = Reporter.tracef "when parsing %a (%s)" URI.pp iri source_path in
     Parse.parse_document ~host doc
 
 (* Fix signature. Should not mutate the forest*)
@@ -34,7 +34,7 @@ let reparse (doc : Lsp.Text_document.t) : State.t -> State.t * diagnostic option
   let uri = Lsp.Text_document.documentUri doc in
   match Parse.parse_document ~host doc with
   | Ok tree ->
-    Forest.replace forest.parsed (Iri_scheme.uri_to_iri ~host uri) tree;
+    Forest.replace forest.parsed (URI_scheme.lsp_uri_to_iri ~host uri) tree;
     Imports.fixup tree forest;
     Diagnostic_store.remove forest.diagnostics uri;
     forest, None
@@ -94,10 +94,10 @@ let expand (forest : State.t) =
 (* There is some duplicated code here. The only significant difference is the
    fact that we are using a different graph builder, one that only traverses
    the dependencies of a specific tree*)
-let expand_only_aux ~(addr : iri) (forest : State.t) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
+let expand_only_aux ~(addr : URI.t) (forest : State.t) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
   let import_graph = Forest_graph.dependencies forest.import_graph (T.Iri_vertex addr) in
   assert (Forest_graph.nb_vertex import_graph >= Forest.length forest.parsed);
-  let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t Iri_tbl.t))) =
+  let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t URI.Tbl.t))) =
     match addr with
     | T.Content_vertex _ ->
       (* when creating the import graph we are only adding iri vertices *)
@@ -106,7 +106,7 @@ let expand_only_aux ~(addr : iri) (forest : State.t) : Expand.Env.t * Diagnostic
       match Imports.resolve_iri_to_code forest iri with
       | None ->
         (* The import graph has vertices for subtrees, which do not correspond to a source file *)
-        Logs.debug (fun m -> m "failed to resolve %a" pp_iri iri);
+        Logs.debug (fun m -> m "failed to resolve %a" URI.pp iri);
         units, diagnostics, trees
       | Some (tree, _) ->
         let ds, units, syn = Expand.expand_tree ~host: forest.config.host units tree in
@@ -130,7 +130,7 @@ let expand_only_aux ~(addr : iri) (forest : State.t) : Expand.Env.t * Diagnostic
 
 (* The purpose of this function is to update the exported units when a tree has
    been changed when running with the lsp.*)
-let expand_only (iri : iri) : State.t -> State.t * diagnostic option = fun forest ->
+let expand_only (iri : URI.t) : State.t -> State.t * diagnostic option = fun forest ->
   let units, new_diagnostics, trees =
     expand_only_aux
       ~addr: iri
@@ -141,9 +141,9 @@ let expand_only (iri : iri) : State.t -> State.t * diagnostic option = fun fores
     trees
     |> Forest.iter @@ fun iri tree ->
       Forest.replace forest.expanded iri tree;
-      match Iri_tbl.find_opt forest.resolver iri with
+      match URI.Tbl.find_opt forest.resolver iri with
       | None ->
-        Logs.debug (fun m -> m "resolver knows about %i paths" (Iri_tbl.length forest.resolver));
+        Logs.debug (fun m -> m "resolver knows about %i paths" (URI.Tbl.length forest.resolver));
         assert false
       | Some path ->
         Logs.debug (fun m -> m "clearing diagnostics for %s" path);
@@ -170,7 +170,7 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
     | Iri_vertex iri ->
       match Forest.find_opt forest.resources iri with
       | None ->
-        Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" Iri.pp iri;
+        Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" URI.pp iri;
         None
       | Some result -> Some result
   in
@@ -194,7 +194,7 @@ let run_jobs (forest : State.t) jobs =
     | Job.LaTeX_to_svg job ->
       let@ () = Reporter.easy_run in
       let svg = Build_latex.latex_to_svg ~env: forest.env ?loc job.source in
-      let iri = Iri_scheme.hash_iri ~host: forest.config.host job.hash in
+      let iri = URI_scheme.hash_iri ~host: forest.config.host job.hash in
       let frontmatter = T.default_frontmatter ~iri () in
       let mainmatter = job.content ~svg in
       let backmatter = T.Content [] in
@@ -218,9 +218,9 @@ let run_jobs (forest : State.t) jobs =
 let eval (forest : State.t) =
   let host = forest.config.host in
   let trees, diagnostics =
-    Iri_tbl.to_seq forest.expanded
+    URI.Tbl.to_seq forest.expanded
     |> Seq.map (fun (iri, syn) ->
-        let source_path = if forest.dev then Iri_tbl.find_opt forest.resolver iri else None in
+        let source_path = if forest.dev then URI.Tbl.find_opt forest.resolver iri else None in
         Eval.eval_tree
           ~host
           ~source_path
@@ -247,7 +247,7 @@ let eval (forest : State.t) =
   trees, diags
 
 let eval_only
-  (iri : iri)
+  (iri : URI.t)
   : State.t -> State.t * diagnostic option
 = fun forest ->
   match Forest.find_opt forest.expanded iri with
@@ -294,8 +294,6 @@ let implant_foreign
       List.iter (fun r -> Forest.plant_resource r state.graphs state.resources) foreign_forest
     | Error (`Msg err) ->
       Reporter.fatalf Parse_error "Could not parse foreign forest blob: %s" err
-    | exception (Iri.Error err) ->
-      Reporter.fatalf Parse_error "Encountered error while decoding foreign forest blob: %s" (Iri.string_of_error err)
     | exception exn ->
       Reporter.fatalf Parse_error "Encountered unknown error while decoding foreign forest blob: %s" (Printexc.to_string exn)
   end;

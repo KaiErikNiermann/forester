@@ -11,9 +11,9 @@ open Spelll
 module T = Forester_core.Types
 
 module Ocurrences = Set.Make(struct
-  type t = int list list * iri
+  type t = int list list * URI.t
   (* FIXME: *)
-  let compare (_i, x) (_j, y) = Iri.compare ?normalize: None x y
+  let compare (_i, x) (_j, y) = URI.compare x y
 end)
 
 type t = {
@@ -66,7 +66,7 @@ let add
   List.fold_right add_one
 
 let search
-  : ?fuzz: int -> t -> string -> (int list list * iri) list
+  : ?fuzz: int -> t -> string -> (int list list * URI.t) list
 = fun ?(fuzz = 0) index term ->
   Tokenizer.tokenize term
   |> List.concat_map
@@ -115,7 +115,7 @@ module BM_25 = struct
 end
 
 let ranked_search
-  : ?fuzz: int -> t -> T.content T.resource Iri_tbl.t -> string -> (iri * float) list
+  : ?fuzz: int -> t -> T.content T.resource URI.Tbl.t -> string -> (URI.t * float) list
 = fun ?fuzz index forest terms ->
   Tokenizer.tokenize terms |> function
     | tokens ->
@@ -127,7 +127,7 @@ let ranked_search
       let iris =
         List.filter_map
           (fun (_, iri) ->
-            match Iri_tbl.find_opt forest iri with
+            match URI.Tbl.find_opt forest iri with
             | Some (T.Article a) ->
               Some (iri, BM_25.score a terms index)
             | None -> assert false

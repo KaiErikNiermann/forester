@@ -71,7 +71,7 @@ let () =
       ]
       history;
     Alcotest.(check int) "" 1 (Diagnostic_store.length forest.diagnostics);
-    Alcotest.(check bool) "" true (Iri_tbl.length forest.parsed = (Hashtbl.length forest.documents - 1))
+    Alcotest.(check bool) "" true (URI.Tbl.length forest.parsed = (Hashtbl.length forest.documents - 1))
   in
   let test_expansion () = Alcotest.(check string) "" "" "" in
   let open Alcotest in

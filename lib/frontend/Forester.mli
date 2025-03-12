@@ -43,6 +43,6 @@ val json_manifest :
 val complete :
   forest: State.t ->
   string ->
-  (iri * string) Seq.t
+  (URI.t * string) Seq.t
 
 val export : forest: State.t -> unit

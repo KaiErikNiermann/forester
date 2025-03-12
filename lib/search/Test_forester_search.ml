@@ -13,7 +13,7 @@ let doc1 =
   T.{
     frontmatter =
     default_frontmatter
-      ~iri: (Iri.of_string "forest://doc1")
+      ~iri: (URI.of_string_exn "forest://doc1")
       ~title: (T.Content [T.Text "Title of tremendous importance"])
       ();
     mainmatter =
@@ -23,7 +23,7 @@ let doc1 =
 
 let doc2 =
   T.{
-    frontmatter = default_frontmatter ~iri: (Iri.of_string "forest://doc2") ();
+    frontmatter = default_frontmatter ~iri: (URI.of_string_exn "forest://doc2") ();
     mainmatter =
     T.Content [T.Text "donut is a donut"];
     backmatter = T.Content [];
@@ -105,18 +105,18 @@ let test_render_context_frontmatter () =
   let open Forester_frontend.DSL in
   let frontmatter =
     T.default_frontmatter
-      ~iri: (Iri.of_string "forest://test/asdf")
+      ~iri: (URI.of_string_exn "forest://test/asdf")
       ~source_path: "/foo/bar"
       ~taxon: (T.Content [T.Text "Hello"])
       ~title: (T.Content [txt "title"; katex Display [txt "a=b"]])
       ~attributions: [
         {
           role = T.Author;
-          vertex = Iri_vertex (Iri.of_string "forest://test/kentookura");
+          vertex = Iri_vertex (URI.of_string_exn "forest://test/kentookura");
         };
         {
           role = T.Contributor;
-          vertex = Iri_vertex (Iri.of_string "forest://test/jonmsterling")
+          vertex = Iri_vertex (URI.of_string_exn "forest://test/jonmsterling")
         }
       ]
       ()
@@ -161,7 +161,7 @@ let () =
 (*           Format.( *)
 (*             asprintf *)
 (*               "%a %a@." *)
-(*               pp_iri *)
+(*               URI.pp *)
 (*               T.(Option.get doc.frontmatter.iri) *)
 (*               ( *)
 (*                 pp_print_list *)
@@ -193,7 +193,7 @@ let () =
 (*                 ~pp_sep: (fun out () -> fprintf out ", ") *)
 (*                 ( *)
 (*                   pp_pair *)
-(*                     pp_iri *)
+(*                     URI.pp *)
 (*                     (pp_print_list @@ pp_print_list ~pp_sep: (fun out () -> fprintf out "->") pp_print_int) *)
 (*                 ) *)
 (*             ) *)
@@ -203,6 +203,6 @@ let () =
 (*   (* Format.printf "\nSearch for donus:@."; *) *)
 (*   (* List.concat_map Index.Ocurrences.to_list @@ *) *)
 (*   (*   Spelll.Index.retrieve_l ~limit: 1 index "donus" *) *)
-(*   (* |> List.iter (fun (_, iri) -> Format.printf "%a@." pp_iri iri); *) *)
+(*   (* |> List.iter (fun (_, iri) -> Format.printf "%a@." URI.pp iri); *) *)
 (*   test_context [0; 1; 0; 2;] doc1; *)
 (*   test_context [1; 0; 0;] doc2; *)

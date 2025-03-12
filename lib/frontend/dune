@@ -33,7 +33,6 @@
   algaeff
   str
   unix
-  iri
   lsp
   pure-html
   logs))

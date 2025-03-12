@@ -19,7 +19,6 @@
   eio
   eio.unix
   logs
-  iri
   pure-html
   forester.prelude
   forester.core
@@ -37,5 +36,4 @@
   forester.frontend
   pure-html
   eio_main
-  logs
-  iri))
+  logs))

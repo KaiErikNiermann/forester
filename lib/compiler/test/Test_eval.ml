@@ -25,7 +25,7 @@ let () =
   Logs.set_level (Some Debug);
   let config = Config.default in
   let host = config.host in
-  let iri = Iri_scheme.user_iri ~host "test" in
+  let iri = URI_scheme.user_iri ~host "test" in
   let open Forester_frontend.DSL in
   let test_eval str res =
     Alcotest.(check Testables.content)

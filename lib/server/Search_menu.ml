@@ -61,7 +61,7 @@ let v =
   in
   Pure_html.to_string markup
 
-let results (forest : State.t) (links : iri list) =
+let results (forest : State.t) (links : URI.t list) =
   Pure_html.to_string @@
     ul
       [id "search-results"]
@@ -74,7 +74,7 @@ let results (forest : State.t) (links : iri list) =
                 a
                   [
                     class_ "search-result-item";
-                    href "/trees%s" (Iri.path_string iri);
+                    href "/trees%s" (URI.path_string iri);
                     Hx.target "#tree-container";
                     Hx.swap "outerHTML";
                   ] @@

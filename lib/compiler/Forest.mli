@@ -6,7 +6,7 @@
 
 open Forester_core
 
-include module type of Iri_tbl
+include module type of URI.Tbl
 
 (**/**)
 module T = Forester_core.Types
@@ -28,7 +28,7 @@ val analyse_resource : (module Forest_graphs.S) -> T.content T.resource -> unit
 
 val iri_for_resource :
   'a T.resource ->
-  iri option
+  URI.t option
 
 val get_article :
   key ->
@@ -54,7 +54,9 @@ val get_expanded_title :
   T.content
 
 val get_content_of_transclusion :
-  T.transclusion -> T.content T.resource t -> T.content option
+  T.transclusion ->
+  T.content T.resource t ->
+  T.content option
 
 val get_title_or_content_of_vertex :
   ?not_found: (key -> T.content option) ->

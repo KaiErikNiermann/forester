@@ -17,7 +17,7 @@ module HTML = Pure_html.HTML
 let config = {Config.default with trees = ["transclude"]; host = "test"}
 let host = config.host
 
-let href = Iri_scheme.user_iri ~host "transcludee"
+let href = URI_scheme.user_iri ~host "transcludee"
 
 module Transclusions = struct
   (* It would be cool to use quickcheck here, but no good way to test the result*)
@@ -38,9 +38,9 @@ let () =
   let@ env = Eio_main.run in
   Logs.set_level (Some Debug);
   let@ () = Reporter.easy_run in
-  let iri = Iri_scheme.user_iri ~host "transcludee" in
-  let resources = Iri_tbl.create 10 in
-  Iri_tbl.add
+  let iri = URI_scheme.user_iri ~host "transcludee" in
+  let resources = URI.Tbl.create 10 in
+  URI.Tbl.add
     resources
     iri
     (
@@ -49,7 +49,7 @@ let () =
           {
             frontmatter =
             default_frontmatter
-              ~iri: (Iri.of_string "forest://test/transcludee")
+              ~iri: (URI.of_string_exn "forest://test/transcludee")
               ~title: (Content [Text "I am being transcluded"])
               ();
             mainmatter = Content [Text "Hello"];

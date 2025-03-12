@@ -23,7 +23,6 @@
   bwd
   algaeff
   base64
-  iri
   eio
   eio.core
   eio.unix

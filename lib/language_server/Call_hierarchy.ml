@@ -26,7 +26,7 @@ let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
     in
     match item with
     | {uri; _} ->
-      let iri = Iri_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
+      let iri = URI_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
       let vertex = T.Iri_vertex iri in
       let run_query = Forest.run_datalog_query forest.graphs in
       let fwdlinks = run_query @@ Builtin_queries.fwdlinks_datalog vertex in
@@ -52,7 +52,7 @@ let outgoing (params : L.CallHierarchyOutgoingCallsParams.t) =
     in
     match item with
     | {uri; _} ->
-      let iri = Iri_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
+      let iri = URI_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
       let vertex = T.Iri_vertex iri in
       let run_query = Forest.run_datalog_query forest.graphs in
       let backlinks = run_query @@ Builtin_queries.backlinks_datalog vertex in
@@ -66,7 +66,7 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   match params with
   | {position; textDocument; _} ->
-    let iri = Iri_scheme.uri_to_iri ~host: forest.config.host textDocument.uri in
+    let iri = URI_scheme.lsp_uri_to_iri ~host: forest.config.host textDocument.uri in
     match Imports.resolve_iri_to_code forest iri with
     | None -> None
     | Some (tree, _) ->

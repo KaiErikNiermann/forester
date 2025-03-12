@@ -25,8 +25,8 @@ module Xmlns = struct
     run ~reserved: [xmlns_prefix]
 end
 
-module Scope = Algaeff.Reader.Make(struct type t = iri option end)
-module Loop_detection = Algaeff.Reader.Make(struct type t = Iri_set.t end)
+module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
+module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
 
 (* It's fine to have a global transclusion cache since iris fully qualify a tree*)
 let transclusion_cache = Hashtbl.create 1000
@@ -34,30 +34,21 @@ let transclusion_cache = Hashtbl.create 1000
 (* This would be nice, but it is interfering with the stupid breadcrumb titles! Need to make that stuff stateless. *)
 (* let frontmatter_cache = Hashtbl.create 1000 *)
 
-let forester_iri_to_string ~host ~path ~(config : Config.t) =
-  if host = config.host then
-    String.concat "/" @@
-      match path with
-      | Iri.Absolute xs -> xs
-      | Iri.Relative xs -> xs
-  else
-    Iri.to_string ~pctencode: false @@
-      Iri.iri ~host ~path ()
-
-let iri_to_string ~config iri =
-  match Iri.host iri with
-  | Some host when Iri.scheme iri = Iri_scheme.scheme ->
-    let path = Iri.path iri in
-    forester_iri_to_string ~host ~path ~config
-  | _ ->
-    Iri.to_string ~pctencode: false iri
+let iri_to_string ~(config : Config.t) iri =
+  match URI.host iri with
+  | Some host when URI.scheme iri = URI_scheme.scheme ->
+    if host = config.host then
+      URI.path_string @@ URI.relativise ~host iri
+    else
+      URI.to_string iri
+  | _ -> URI.to_string iri (* used to be not percent-encoded; does it matter? *)
 
 let home_iri ~(config : Config.t) =
   (* let config = State.get_config forest in *)
   let@ root = Option.bind config.home in
-  let base = Iri_scheme.base_iri ~host: config.host in
+  let base = URI_scheme.base_iri ~host: config.host in
   try
-    Option.some @@ Iri.resolve ~base @@ Iri.of_string root
+    Option.some @@ URI.resolve ~base @@ URI.of_string_exn root
   with
     | _ -> None
 
@@ -65,18 +56,13 @@ let iri_is_home ~config iri =
   match home_iri ~config with
   | Some home_iri ->
     (* By this point, any IRI should be in normal form. *)
-    Iri.equal ~normalize: false home_iri iri
+    URI.equal home_iri iri
   | None -> false
 
 let route_resource_iri ~suffix (forest : State.t) iri =
   let config = forest.config in
-  let host = Option.value ~default: "" @@ Iri.host iri in
-  let bare_route =
-    String.concat "-" @@
-      match Iri.path iri with
-      | Iri.Absolute xs -> xs
-      | Iri.Relative xs -> xs (* impossible? *)
-  in
+  let host = Option.value ~default: "" @@ URI.host iri in
+  let bare_route = String.concat "-" @@ URI.path_components iri in
   begin
     if host = config.host then
       if iri_is_home ~config iri then "index.xml"
@@ -95,11 +81,11 @@ let route (forest : State.t) iri =
       | T.Asset _ -> ""
     in
     route_resource_iri ~suffix forest iri
-  | None when Iri.scheme iri = Iri_scheme.scheme ->
-    Reporter.emitf Broken_link "Could not route link to resource %a" pp_iri iri;
-    Iri.to_uri iri
+  | None when URI.scheme iri = URI_scheme.scheme ->
+    Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp iri;
+    URI.to_string iri
   | None ->
-    Iri.to_uri iri
+    URI.to_string iri
 
 let get_sorted_articles (forest : State.t) addrs =
   let module C = Types.Comparators(struct
@@ -152,7 +138,7 @@ let render_section_flags (dict : T.section_flags) = [
 ]
 
 let add_seen_iri iri kont =
-  let@ () = Loop_detection.scope @@ Iri_set.add iri in
+  let@ () = Loop_detection.scope @@ URI.Set.add iri in
   kont ()
 
 let add_seen_iri_opt iri_opt kont =
@@ -161,7 +147,7 @@ let add_seen_iri_opt iri_opt kont =
   | Some iri -> add_seen_iri iri kont
 
 let have_seen_iri iri =
-  Iri_set.mem iri @@ Loop_detection.read ()
+  URI.Set.mem iri @@ Loop_detection.read ()
 
 let have_seen_iri_opt iri_opt =
   match iri_opt with
@@ -238,8 +224,8 @@ and render_content_node
   | CDATA str ->
     [P.txt ~raw: true "<![CDATA[%s]]>" str]
   | Iri iri ->
-    let relativised = Iri_scheme.relativise_iri ~host: config.host iri in
-    let str = Format.asprintf "%a" pp_iri relativised in
+    let relativised = URI.relativise ~host: config.host iri in
+    let str = Format.asprintf "%a" URI.pp relativised in
     [P.txt "%s" str]
   | Route_of_iri iri ->
     [P.txt "%s" (route forest iri)]
@@ -343,7 +329,7 @@ and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.n
   | None ->
     match Forest.get_content_of_transclusion transclusion forest.resources with
     | None ->
-      Reporter.fatalf Resource_not_found "Could not find tree %a" pp_iri transclusion.href
+      Reporter.fatalf Resource_not_found "Could not find tree %a" URI.pp transclusion.href
     | Some content ->
       let nodes = render_content forest content in
       Hashtbl.add transclusion_cache transclusion nodes;
@@ -430,8 +416,8 @@ and render_date forest (date : Human_datetime.t) =
   let config = forest.config in
   let href_attr =
     let str = Format.asprintf "%a" Human_datetime.pp (Human_datetime.drop_time date) in
-    let base = Iri_scheme.base_iri ~host: config.host in
-    let iri = Iri.resolve ~base (Iri.of_string str) in
+    let base = URI_scheme.base_iri ~host: config.host in
+    let iri = URI.resolve ~base (URI.of_string_exn str) in
     match Forest.get_article iri forest.resources with
     | None -> X.null_
     | Some _ -> X.href "%s" @@ route forest iri
@@ -445,10 +431,10 @@ and render_date forest (date : Human_datetime.t) =
     ]
 
 let render_article (forest : State.t) (article : T.content T.article) : P.node =
-  let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option Iri.pp) article.frontmatter.iri in
+  let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.iri in
   let config = forest.config in
   let xmlns_prefix = Xmlns.{prefix = X.reserved_prefix; xmlns = X.forester_xmlns} in
-  let@ () = Loop_detection.run ~env: Iri_set.empty in
+  let@ () = Loop_detection.run ~env: URI.Set.empty in
   let@ () = Scope.run ~env: article.frontmatter.iri in
   let@ () = Xmlns.run in
   X.tree

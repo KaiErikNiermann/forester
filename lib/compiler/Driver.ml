@@ -34,8 +34,8 @@ module Action = struct
     | Eval_all
     | Load_tree of string
     | Parse of (Lsp.Uri.t [@printer fun fmt uri -> fprintf fmt "%s" (Lsp.Uri.to_string uri)])
-    | Expand of iri
-    | Eval of iri
+    | Expand of URI.t
+    | Eval of URI.t
     | Query of (string, Vertex.t) Datalog_expr.query
     | Cache_results of (Vertex_set.t [@opaque])
     | Run_jobs of Job.job Range.located list
@@ -67,8 +67,8 @@ let update
       (fun doc ->
         Imports.register_document ~host: forest.config.host forest.import_graph doc;
         let uri = Lsp.Text_document.documentUri doc in
-        let iri = Iri_scheme.uri_to_iri ~host: forest.config.host uri in
-        Iri_tbl.replace forest.resolver iri (Lsp.Uri.to_path uri);
+        let iri = URI_scheme.lsp_uri_to_iri ~host: forest.config.host uri in
+        URI.Tbl.replace forest.resolver iri (Lsp.Uri.to_path uri);
         Hashtbl.replace forest.documents uri doc;
       )
       docs;
@@ -89,19 +89,19 @@ let update
       (fun tree ->
         (* Every tree that comes from the filesystem has an IRI *)
         let iri = Option.get Code.(tree.iri) in
-        Iri_tbl.add
+        URI.Tbl.add
           forest.parsed
           iri
           tree
       )
       trees;
-    Logs.debug (fun m -> m "parsed %d trees" (Iri_tbl.length forest.parsed));
+    Logs.debug (fun m -> m "parsed %d trees" (URI.Tbl.length forest.parsed));
     Build_import_graph, forest
   | Build_import_graph ->
     let@ () = Reporter.trace "when building import graph" in
     let import_graph, diagnostics = Phases.build_import_graph forest in
     if Diagnostic_store.length diagnostics = 0 then
-      assert (Forest_graph.nb_vertex import_graph >= Iri_tbl.length forest.parsed);
+      assert (Forest_graph.nb_vertex import_graph >= URI.Tbl.length forest.parsed);
     Logs.debug (fun m -> m "%d vertices@." (Forest_graph.nb_vertex import_graph));
     Diagnostic_store.iter (fun _ d -> Diagnostic_store.add forest.diagnostics d) diagnostics;
     Expand_all, {forest with import_graph}
@@ -109,14 +109,14 @@ let update
     let@ () = Reporter.tracef "when expanding trees" in
     let units, expanded_trees = Phases.expand forest in
     Logs.debug (fun m -> m "Expand: got %d trees" (List.length expanded_trees));
-    assert (List.length expanded_trees <= Iri_tbl.length forest.parsed);
+    assert (List.length expanded_trees <= URI.Tbl.length forest.parsed);
     begin
       let@ (diagnostics, source_path, (syn : Syn.tree)) = List.iter @~ expanded_trees in
       let@ iri = Option.iter @~ syn.iri in
       Forest.replace forest.expanded iri syn.syn;
       match source_path with
       | None ->
-        Logs.warn (fun m -> m "tree at %a has no source path." pp_iri iri);
+        Logs.warn (fun m -> m "tree at %a has no source path." URI.pp iri);
         (* There is an implicit assumption here that diagnostics are only
             emitted for trees that have a source path. I should think about
             this.*)
@@ -146,7 +146,7 @@ let update
     in
     Eval_all, {forest with units = patched_units}
   | Expand iri ->
-    let@ () = Reporter.tracef "when expanding %a" pp_iri iri in
+    let@ () = Reporter.tracef "when expanding %a" URI.pp iri in
     let result, _err = Phases.expand_only iri forest in
     Eval iri, result
   | Eval_all ->
@@ -167,7 +167,7 @@ let update
     in
     Run_jobs jobs, forest
   | Eval iri ->
-    let@ () = Reporter.tracef "when evaluating %a" pp_iri iri in
+    let@ () = Reporter.tracef "when evaluating %a" URI.pp iri in
     let result, _err = Phases.eval_only iri forest in
     Done, result
   | Plant_assets ->
@@ -183,7 +183,7 @@ let update
       let content = EP.load path in
       let source_path = EP.native_exn path in
       let iri = Asset_router.install ~host: forest.config.host ~source_path ~content in
-      Logs.debug (fun m -> m "Installed %s at %a" source_path pp_iri iri);
+      Logs.debug (fun m -> m "Installed %s at %a" source_path URI.pp iri);
       Forest.plant_resource (T.Asset {iri; host = forest.config.host; content}) forest.graphs forest.resources;
     end;
     Done, forest
@@ -199,10 +199,10 @@ let update
     begin
       let@ () = Reporter.tracef "when loading %s" path in
       let tree_dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
-      let iri = Iri_scheme.path_to_iri ~host: forest.config.host path in
+      let iri = URI_scheme.path_to_iri ~host: forest.config.host path in
       match Dir_scanner.find_tree tree_dirs iri with
       | None ->
-        Reporter.fatalf Resource_not_found "could not find tree %a in the configured directories" pp_iri iri
+        Reporter.fatalf Resource_not_found "could not find tree %a in the configured directories" URI.pp iri
       | Some path ->
         let doc = Imports.load_tree path in
         let uri = Lsp.Text_document.documentUri doc in
@@ -221,7 +221,7 @@ let update
         | Ok tree ->
           Logs.debug (fun m -> m "doc has content %s" @@ Lsp.Text_document.text doc);
           Imports.fixup tree forest;
-          Iri_tbl.replace forest.parsed (Option.get tree.iri) tree;
+          URI.Tbl.replace forest.parsed (Option.get tree.iri) tree;
           Done, forest
         | Error _ ->
           Done, forest

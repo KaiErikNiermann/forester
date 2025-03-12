@@ -65,7 +65,7 @@ let compute
     forest.units
     |> Unit_map.to_seq
     |> Seq.concat_map
-        (fun ((iri, exports): iri * _) ->
+        (fun ((iri, exports): URI.t * _) ->
           exports
           |> Trie.to_seq
           |> Seq.filter_map

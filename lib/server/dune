@@ -16,7 +16,6 @@
   forester.compiler
   forester.frontend
   forester.search
-  iri
   pure-html
   logs
   eio

@@ -21,7 +21,6 @@
   asai
   bwd
   fmt
-  iri
   lsp
   jsonrpc
   yojson))

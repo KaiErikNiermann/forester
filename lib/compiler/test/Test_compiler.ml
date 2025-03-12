@@ -35,7 +35,7 @@ let test_batch_run ~env () =
     in
     Alcotest.(check int) "" 7 @@ List.length history;
     Alcotest.(check int) "" 0 @@ Diagnostic_store.length forest.diagnostics;
-    Alcotest.(check int) "" 8 @@ Iri_tbl.length forest.expanded;
+    Alcotest.(check int) "" 8 @@ URI.Tbl.length forest.expanded;
     Alcotest.(check int) "" 8 @@ List.length @@ Forest.get_all_articles forest.resources
   )
 
@@ -50,8 +50,8 @@ let test_includes_paths ~env () =
       |> Driver.run_with_history Load_all_configured_dirs
     in
     Alcotest.(check int) "number of loaded documents" 8 (Hashtbl.length forest.documents);
-    Alcotest.(check int) "number of parsed trees" 8 (Iri_tbl.length forest.parsed);
-    Alcotest.(check int) "number of trees in resolver" 8 (Iri_tbl.length forest.resolver);
+    Alcotest.(check int) "number of parsed trees" 8 (URI.Tbl.length forest.parsed);
+    Alcotest.(check int) "number of trees in resolver" 8 (URI.Tbl.length forest.resolver);
     Alcotest.(check @@ list action)
       "evaluation succeeded"
       [
@@ -64,7 +64,7 @@ let test_includes_paths ~env () =
         Done
       ]
       history;
-    let iri = (Iri.of_string "forest://my-forest/t8") in
+    let iri = (URI.of_string_exn "forest://my-forest/t8") in
     let path =
       match Forest.get_article iri forest.resources with
       | None -> Reporter.fatalf Internal_error ""
@@ -87,7 +87,7 @@ let test_reparsing ~env () =
       |> Driver.run_action Load_all_configured_dirs
     in
     let reparse_addr = "t8.tree" in
-    let reparse_iri = Iri_scheme.path_to_iri ~host: config.host reparse_addr in
+    let reparse_iri = URI_scheme.path_to_iri ~host: config.host reparse_addr in
     let vtx = T.Iri_vertex reparse_iri in
     Alcotest.(check int)
       "Number of vertices before reparsing"
@@ -134,7 +134,7 @@ let () =
     let forest = Driver.batch_run ~env ~config ~dev: false in
     let path =
       let@ {frontmatter = {source_path; _}; _} =
-        Option.bind @@ Forest.get_article (Iri.of_string "forest://my-forest/index") forest.resources
+        Option.bind @@ Forest.get_article (URI.of_string_exn "forest://my-forest/index") forest.resources
       in
       source_path
     in

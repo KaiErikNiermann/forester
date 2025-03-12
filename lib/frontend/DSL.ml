@@ -24,7 +24,7 @@ let pre content = T.Prim (`Pre, T.Content content)
 let figure content = T.Prim (`Figure, T.Content content)
 let figcaption content = T.Prim (`Figcaption, T.Content content)
 let cdata content = T.CDATA content
-let contextual_number href = T.Contextual_number (Iri.of_string href)
+let contextual_number href = T.Contextual_number (URI.of_string_exn href)
 let results_of_query query = T.Results_of_query query
 let katex m content = T.KaTeX (m, T.Content content)
 let tex content = T.TeX_cs (Word content)
@@ -66,7 +66,7 @@ let xml_elt (prefix, uname) content =
 let transclude href =
   T.Transclude
     T.{
-      href = Iri.of_string href;
+      href = URI.of_string_exn href;
       target = Mainmatter;
       modifier = Identity
     }
@@ -82,7 +82,7 @@ let artefact content =
 let link href content =
   T.Link
     {
-      href = Iri.of_string href;
+      href = URI.of_string_exn href;
       content = T.Content content;
     }
 

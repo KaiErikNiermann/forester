@@ -22,7 +22,7 @@ type t = {
   graphs: (module Forest_graphs.S);
   import_graph: Forest_graph.t;
   dependency_cache: Cache.t;
-  resolver: string Iri_tbl.t;
+  resolver: string URI.Tbl.t;
   search_index: Forester_search.Index.t;
 }
 
@@ -34,7 +34,7 @@ let make
   ?(import_graph = Forest_graph.create ~size: 1000 ())
   ?(parsed = Forest.create 1000)
   ?(documents = Hashtbl.create 1000)
-  ?(resolver = Iri_tbl.create 1000)
+  ?(resolver = URI.Tbl.create 1000)
   ?(expanded = Forest.create 1000)
   ?(resources = Forest.create 1000)
   ?(diagnostics = Diagnostic_store.create 100)
@@ -86,8 +86,8 @@ let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
     (* let graphs = Forest_graphs.init dl_db in *)
     paths
     |> Seq.iter (fun _path ->
-        (* let iri = Iri_scheme.path_to_iri ~host: config.host (Eio.Path.native_exn path) in *)
-        (* match Iri_tbl.find_opt forest iri with *)
+        (* let iri = URI_scheme.path_to_iri ~host: config.host (Eio.Path.native_exn path) in *)
+        (* match URI.Tbl.find_opt forest iri with *)
         (* | None -> () *)
         (* | Some tree -> *)
         (*   match check_timestamp path tree.timestamp with *)

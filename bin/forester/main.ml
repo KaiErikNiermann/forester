@@ -73,7 +73,7 @@ let complete ~env config_filename title =
   let config = Config_parser.parse_forest_config_file config_filename in
   let forest = Driver.batch_run ~env ~dev: true ~config in
   let@ iri, title = Seq.iter @~ Forester.complete ~forest title in
-  Format.printf "%a, %s\n" pp_iri iri title
+  Format.printf "%a, %s\n" URI.pp iri title
 
 let query_all ~env config_filename =
   let@ () = Reporter.silence in

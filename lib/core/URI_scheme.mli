@@ -12,40 +12,33 @@ val scheme : string
 
 val base_iri :
   host: string ->
-  iri
+  URI.t
 
 val user_iri :
   host: string ->
   string ->
-  iri
+  URI.t
 
 val hash_iri :
   host: string ->
   string ->
-  iri
+  URI.t
 
-val is_named_iri : iri -> bool
+val is_named_iri : URI.t -> bool
 
-val relativise_iri :
-  host: string ->
-  iri ->
-  iri
-
-val uri_to_iri :
+val lsp_uri_to_iri :
   host: string ->
   Lsp.Uri.t ->
-  Iri.t
+  URI.t
 
 val split_addr :
-  Iri.t ->
+  URI.t ->
   (string option * int) option
 
 val path_to_iri :
   host: string ->
   string ->
-  Iri.t
+  URI.t
 
-val last_segment :
-  string -> string
-
-val name : Iri.t -> string
+val last_segment : string -> string
+val name : URI.t -> string

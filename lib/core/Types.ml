@@ -11,7 +11,7 @@ open Base
 type xml_qname = Forester_xml_names.xml_qname = {prefix: string; uname: string; xmlns: string option}
 
 type 'content vertex =
-  | Iri_vertex of iri
+  | Iri_vertex of URI.t
   | Content_vertex of 'content
 [@@deriving show, repr]
 
@@ -61,13 +61,13 @@ type 'content attribution = {
 [@@deriving show, repr]
 
 type 'content frontmatter = {
-  iri: iri option;
+  iri: URI.t option;
   title: 'content option;
   dates: Human_datetime.t list;
   attributions: 'content attribution list;
   taxon: 'content option;
   number: string option;
-  designated_parent: iri option;
+  designated_parent: URI.t option;
   source_path: string option;
   tags: 'content vertex list;
   metas: (string * 'content) list;
@@ -89,7 +89,7 @@ type 'content article = {
 }
 [@@deriving show, repr]
 
-type asset = {iri: iri; host: string; content: string}
+type asset = {iri: URI.t; host: string; content: string}
 [@@deriving show, repr]
 
 type 'content resource =
@@ -112,14 +112,14 @@ type modifier =
 [@@deriving show, repr]
 
 type transclusion = {
-  href: iri;
+  href: URI.t;
   target: content_target;
   modifier: modifier
 }
 [@@deriving show, repr]
 
 type 'content link = {
-  href: iri;
+  href: URI.t;
   content: 'content
 }
 [@@deriving show, repr]
@@ -154,7 +154,7 @@ type 'content content_node =
   | CDATA of string
   | Xml_elt of 'content xml_elt
   | Transclude of transclusion
-  | Contextual_number of iri
+  | Contextual_number of URI.t
   | Results_of_query of ('content vertex, Query.dbix) Query.expr
   | Section of 'content section
   | Prim of Prim.t * 'content
@@ -163,8 +163,8 @@ type 'content content_node =
   | Link of 'content link
   | Img of img
   | Artefact of 'content artefact
-  | Iri of iri
-  | Route_of_iri of iri
+  | Iri of URI.t
+  | Route_of_iri of URI.t
   | Datalog_script of (string, 'content vertex) Datalog_expr.script
   | Results_of_datalog_query of (string, 'content vertex) Datalog_expr.query
 [@@deriving show, repr]

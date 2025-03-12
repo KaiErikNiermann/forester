@@ -25,7 +25,7 @@ let get_sorted_articles (forest : State.t) iris =
     let string_of_content =
       Plain_text_client.string_of_content
         ~forest: forest.resources
-        ~router: Iri.to_uri (* TODO *)
+        ~router: URI.to_string (* TODO *)
   end) in
   iris
   |> Vertex_set.to_seq
@@ -37,9 +37,9 @@ let get_sorted_articles (forest : State.t) iris =
 let home_iri ~(config : Config.t) =
   (* let config = State.get_config forest in *)
   let@ root = Option.bind config.home in
-  let base = Iri_scheme.base_iri ~host: config.host in
+  let base = URI_scheme.base_iri ~host: config.host in
   try
-    Option.some @@ Iri.resolve ~base @@ Iri.of_string root
+    Option.some @@ URI.resolve ~base @@ URI.of_string_exn root
   with
     | _ -> None
 
@@ -47,15 +47,15 @@ let iri_is_home ~config iri =
   match home_iri ~config with
   | Some home_iri ->
     (* By this point, any IRI should be in normal form. *)
-    Iri.equal ~normalize: false home_iri iri
+    URI.equal home_iri iri
   | None -> false
 
 let route (forest : State.t) addr =
   let config = forest.config in
-  if Some addr = Option.map (Iri_scheme.user_iri ~host: config.host) config.home then
+  if Some addr = Option.map (URI_scheme.user_iri ~host: config.host) config.home then
     "index.html"
   else
-    Format.asprintf "%s" (Iri.path_string addr)
+    Format.asprintf "%s" (URI.path_string addr)
 
 let title_flags_to_http_header (flags : T.title_flags) =
   match flags with
@@ -365,10 +365,10 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
     | None -> null []
     | Some iri ->
       let iri_str =
-        if Iri.host iri = Some forest.config.host then
-          Scanf.(sscanf (Iri.path_string iri) "/%s") Fun.id
+        if URI.host iri = Some forest.config.host then
+          Scanf.(sscanf (URI.path_string iri) "/%s") Fun.id
         else
-          Format.asprintf "%a" pp_iri iri
+          Format.asprintf "%a" URI.pp iri
       in
       a
         [
@@ -512,13 +512,13 @@ and render_transclusion transclusion =
       span
         [
           Hx.trigger "load";
-          Hx.get "/trees%s" (Iri.path_string href);
+          Hx.get "/trees%s" (URI.path_string href);
           Hx.target "this";
           Hx.swap "outerHTML";
           (* TODO: Update dream-html: https://github.com/yawaramin/dream-html/commit/2f358cc25ef34a590937b1f1e2740141ad06efa9 *)
           attr (Format.asprintf "data-hx-headers='%s'" headers)
         ]
-        [txt "transclusion: %s" (Format.asprintf "%a" pp_iri href)]
+        [txt "transclusion: %s" (Format.asprintf "%a" URI.pp href)]
     ]
 
 and render_content (forest : State.t) (Content content: T.content) : node list =
@@ -565,7 +565,7 @@ and render_content_node
   (* in *)
   (* let num = *)
   (*   match custom_number with *)
-  (*   | None -> Format.asprintf "[%a]" Iri.pp addr *)
+  (*   | None -> Format.asprintf "[%a]" URI.pp addr *)
   (*   | Some num -> num *)
   (* in *)
   (* [txt "%s" num] *)
@@ -580,7 +580,7 @@ and render_content_node
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->
-    let body = Plain_text_client.string_of_content ~forest: forest.resources ~router: Iri.to_uri content in
+    let body = Plain_text_client.string_of_content ~forest: forest.resources ~router: URI.to_string content in
     (* [txt ~raw: true "%s%s%s" l body r] *)
     begin
       match mode with
@@ -626,7 +626,7 @@ and render_link (forest : State.t) (link : T.content T.link) : node list =
     | None ->
       (* TODO: rendering of hrefs is suboptimal... *)
       [
-        href "%s" (Format.asprintf "%a" Iri.pp link.href);
+        href "%s" (Format.asprintf "%a" URI.pp link.href);
       ]
     | Some article ->
       begin
@@ -642,7 +642,7 @@ and render_link (forest : State.t) (link : T.content T.link) : node list =
                   ~router: (Legacy_xml_client.route forest)
               )
               article.frontmatter.title;
-            href "/trees%s" (Format.asprintf "%s" (Iri.path_string link.href));
+            href "/trees%s" (Format.asprintf "%s" (URI.path_string link.href));
             Hx.target "#tree-container";
             Hx.swap "innerHTML";
           ]
@@ -713,7 +713,7 @@ and _render_toc_item (forest : State.t) (item : T.content T.section) =
                   (
                     Format.asprintf
                       "[%a]"
-                      pp_iri
+                      URI.pp
                   )
                   item.frontmatter.iri
             )

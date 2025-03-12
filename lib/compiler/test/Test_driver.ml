@@ -37,7 +37,7 @@ let check_actions ~env () =
       Done;
     ]
     history;
-  Alcotest.(check @@ int) "" 1 (Iri_tbl.length forest.resources)
+  Alcotest.(check @@ int) "" 1 (URI.Tbl.length forest.resources)
 
 let () =
   let@ env = Eio_main.run in

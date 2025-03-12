@@ -19,13 +19,13 @@ and pp_content_node
   : 'a T.content_node -> unit
 = function
   | Text txt | CDATA txt -> Format.pp_print_string fmt txt
-  | Iri iri -> pp_iri fmt iri
+  | Iri iri -> URI.pp fmt iri
   | Route_of_iri iri -> Format.fprintf fmt "%s" (router iri)
   | KaTeX (_, content) -> pp_content ~forest ~router fmt content
   | TeX_cs cs -> Format.fprintf fmt "\\%a" TeX_cs.pp cs
   | Xml_elt elt -> pp_content ~forest ~router fmt elt.content
   | Transclude trn -> pp_transclusion ~forest ~router fmt trn
-  | Contextual_number addr -> Format.fprintf fmt "[%a]" pp_iri addr
+  | Contextual_number addr -> Format.fprintf fmt "[%a]" URI.pp addr
   | Section section -> pp_section ~forest ~router fmt section
   | Prim (_, content) -> pp_content ~forest ~router fmt content
   | Link link -> pp_link ~forest ~router fmt link
@@ -33,7 +33,7 @@ and pp_content_node
 
 and pp_transclusion ~forest ~router fmt (transclusion : T.transclusion) =
   match Forest.get_content_of_transclusion transclusion forest with
-  | None -> Format.fprintf fmt "<could not resolve transclusion of %a>" pp_iri transclusion.href
+  | None -> Format.fprintf fmt "<could not resolve transclusion of %a>" URI.pp transclusion.href
   | Some content -> pp_content ~forest ~router fmt content
 
 and pp_link ~forest ~router fmt (link : T.content T.link) =

@@ -19,7 +19,7 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
   let route = Legacy_xml_client.route forest iri in
   let title_string =
     String_util.sentence_case @@
-    PT.string_of_content ~forest: forest.resources ~router: Iri.to_uri @@
+    PT.string_of_content ~forest: forest.resources ~router: URI.to_string @@
     Forest.get_expanded_title doc.frontmatter forest.resources
   in
   let title = `String title_string in
@@ -28,19 +28,19 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
     | None -> `Null
     | Some vertex ->
       let content = T.apply_modifier_to_content Sentence_case vertex in
-      `String (PT.string_of_content ~forest: forest.resources ~router: Iri.to_uri content)
+      `String (PT.string_of_content ~forest: forest.resources ~router: URI.to_string content)
   in
   let tags =
     `List
       begin
         let@ tag = List.filter_map @~ doc.frontmatter.tags in
         let@ content = Option.map @~ Forest.get_title_or_content_of_vertex ~modifier: Identity tag forest.resources in
-        `String (PT.string_of_content ~forest: forest.resources ~router: Iri.to_uri content)
+        `String (PT.string_of_content ~forest: forest.resources ~router: URI.to_string content)
       end
   in
   let route = `String route in
   let metas =
-    let meta_string meta = String.trim @@ PT.string_of_content ~forest: forest.resources ~router: Iri.to_uri meta in
+    let meta_string meta = String.trim @@ PT.string_of_content ~forest: forest.resources ~router: URI.to_string meta in
     let meta_assoc (s, meta) = (s, `String (meta_string meta)) in
     `Assoc (List.map meta_assoc doc.frontmatter.metas)
   in
@@ -63,7 +63,7 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
           ("metas", metas)
         ]
     in
-    (Iri.to_string ~pctencode: false (Iri_scheme.relativise_iri ~host iri), `Assoc fm)
+    (URI.to_string (URI.relativise ~host iri), `Assoc fm)
 
 let render_trees
     ~(dev : bool)

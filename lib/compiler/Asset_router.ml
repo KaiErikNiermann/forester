@@ -6,7 +6,7 @@
 
 open Forester_core
 
-let router : (string, iri) Hashtbl.t = Hashtbl.create 100
+let router : (string, URI.t) Hashtbl.t = Hashtbl.create 100
 
 let normalize source_path =
   try
@@ -25,7 +25,7 @@ let install ~host ~source_path ~content =
     let cid_str = Cid.to_string cid in
     let ext = Filename.extension normalized in
     let filename = cid_str ^ ext in
-    let iri = Iri_scheme.hash_iri ~host filename in
+    let iri = URI_scheme.hash_iri ~host filename in
     Hashtbl.add router normalized iri;
     iri
 

@@ -19,7 +19,6 @@
   forester.prelude
   forester.core
   str
-  iri
   eio.core
   eio
   eio.unix
@@ -36,7 +35,6 @@
   forester.core
   logs.fmt
   asai
-  iri
   logs
   eio
   eio_main
@@ -53,7 +51,6 @@
   alcotest
   spelll
   yuujinchou
-  iri
   forester.search
   forester.core
   forester.frontend

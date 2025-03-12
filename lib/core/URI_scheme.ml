@@ -9,33 +9,26 @@ open Forester_prelude
 let scheme = "forest"
 
 let base_iri ~host =
-  Iri.iri ~scheme ~host ()
+  URI.make ~scheme ~host ()
 
 let user_iri ~host str =
-  Iri.iri
+  URI.make
     ~host
     ~scheme
-    ~path: (Absolute [str])
+    ~path: [str]
     ()
 
 let hash_iri ~host hash_str =
-  Iri.iri
+  URI.make
     ~host
     ~scheme
-    ~path: (Absolute ["hash"; hash_str])
+    ~path: ["hash"; hash_str]
     ()
 
 let is_named_iri iri =
-  match Iri.scheme iri, Iri.path iri with
-  | sch, Absolute ("hash" :: _) when sch = scheme -> false
+  match URI.scheme iri, URI.path_components iri with
+  | sch, "hash" :: _ when sch = scheme -> false
   | _ -> true
-
-let relativise_iri ~host iri =
-  if Iri.scheme iri = scheme && Iri.host iri = Some host then
-    let (Iri.Absolute components | Iri.Relative components) = Iri.path iri in
-    Iri.iri ~path: (Iri.Relative components) ()
-  else
-    iri
 
 let last_segment str =
   str
@@ -44,17 +37,13 @@ let last_segment str =
   |> List.hd
 (* |> Filename.chop_extension *)
 
-let name
-  : Iri.t -> string
-= fun iri ->
+let name (iri : URI.t) : string =
   iri
-  |> Iri.path_string
-  |> last_segment
+  |> URI.path_string
+  |> last_segment (* this is dodgy!*)
 
-let split_addr
-  : Iri.t -> (string option * int) option
-= fun iri ->
-  let name = last_segment @@ Iri.path_string iri in
+let split_addr (iri : URI.t) : (string option * int) option =
+  let name = last_segment @@ URI.path_string iri in
   (* primitively check for address of form YYYY-MM-DD *)
   let date_regex = Str.regexp {|^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$|} in
   if Str.string_match date_regex name 0 then
@@ -74,16 +63,8 @@ let split_addr
       let@ key = Option.map @~ BaseN.Base36.int_of_string name in
       None, key
 
-let path_to_iri ~host str =
-  str
-  |> last_segment
-  |> user_iri ~host
-
-(* Badly named. This is not a general conversion but the forester-specific way
-   we convert a path into an iri, namely keeping only the filename and chopping
-   the extension*)
-let uri_to_iri
-  : host: string -> Lsp.Uri.t -> Iri.t
+let lsp_uri_to_iri
+  : host: string -> Lsp.Uri.t -> URI.t
 = fun ~host uri ->
   let iri =
     uri
@@ -92,7 +73,7 @@ let uri_to_iri
     |> last_segment
     |> user_iri ~host
   in
-  assert ((Filename.extension @@ Iri.path_string iri) = "");
+  assert ((Filename.extension @@ URI.path_string iri) = "");
   iri
 
 let path_to_iri ~host str =
@@ -102,10 +83,3 @@ let path_to_iri ~host str =
   |> user_iri ~host
 
 let source_path_to_addr p = Filename.(chop_extension @@ basename p)
-
-let () =
-  let@ exn = Printexc.register_printer in
-  match exn with
-  | Iri.Error err ->
-    Option.some @@ Format.sprintf "Iri.error (%s)" (Iri.string_of_error err)
-  | _ -> None

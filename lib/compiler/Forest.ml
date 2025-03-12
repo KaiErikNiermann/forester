@@ -10,7 +10,7 @@ open Forester_core
 module T = Types
 module Q = Query
 
-include Iri_tbl
+include URI.Tbl
 
 type resource = T.content T.resource
 
@@ -51,7 +51,7 @@ let add_edge graphs rel ~source ~target =
   execute_datalog_script graphs [{conclusion; premises}];
   Graphs.add_edge rel ~source ~target
 
-let rec analyse_content_node graphs (scope : Iri.t) (node : 'a T.content_node) : unit =
+let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) : unit =
   match node with
   | Text _ | CDATA _ | Route_of_iri _ | Iri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Img _ | Contextual_number _ -> ()
   | Transclude transclusion ->
@@ -79,16 +79,16 @@ let rec analyse_content_node graphs (scope : Iri.t) (node : 'a T.content_node) :
 and analyse_artefact graphs scope artefact =
   analyse_content graphs scope artefact.content
 
-and analyse_transclusion graphs (scope : Iri.t) (transclusion : T.transclusion) : unit =
+and analyse_transclusion graphs (scope : URI.t) (transclusion : T.transclusion) : unit =
   match transclusion.target with
   | Full _ | Mainmatter ->
     add_edge graphs Builtin_relation.transcludes ~source: (Iri_vertex scope) ~target: (Iri_vertex transclusion.href)
   | Title _ | Taxon -> ()
 
-and analyse_content (graphs : env) (scope : Iri.t) (content : T.content) : unit =
+and analyse_content (graphs : env) (scope : URI.t) (content : T.content) : unit =
   T.extract_content content |> List.iter @@ (analyse_content_node graphs scope)
 
-and analyse_attribution graphs (scope : Iri.t) (attr : _ T.attribution) =
+and analyse_attribution graphs (scope : URI.t) (attr : _ T.attribution) =
   let rel =
     match attr.role with
     | Author -> Builtin_relation.has_author
@@ -102,19 +102,19 @@ and analyse_vertex graphs scope vtx =
   | Iri_vertex _ -> ()
   | Content_vertex content -> analyse_content graphs scope content
 
-and analyse_tag graphs (scope : Iri.t) (tag : _ T.vertex) =
+and analyse_tag graphs (scope : URI.t) (tag : _ T.vertex) =
   analyse_vertex graphs scope tag;
   add_edge graphs Builtin_relation.has_tag ~source: (Iri_vertex scope) ~target: tag
 
-and analyse_taxon graphs (scope : Iri.t) (taxon_opt : T.content option) =
+and analyse_taxon graphs (scope : URI.t) (taxon_opt : T.content option) =
   let@ taxon = Option.iter @~ taxon_opt in
   analyse_content graphs scope taxon;
   add_edge graphs Builtin_relation.has_taxon ~source: (Iri_vertex scope) ~target: (Content_vertex taxon)
 
-and analyse_attributions graphs (scope : Iri.t) (attrs : _ T.attribution list) =
+and analyse_attributions graphs (scope : URI.t) (attrs : _ T.attribution list) =
   attrs |> List.iter @@ analyse_attribution graphs scope
 
-and analyse_tags graphs (scope : Iri.t) (tags : _ T.vertex list) =
+and analyse_tags graphs (scope : URI.t) (tags : _ T.vertex list) =
   tags |> List.iter @@ analyse_tag graphs scope
 
 and analyse_frontmatter graphs (fm : T.content T.frontmatter) : unit =
@@ -125,13 +125,13 @@ and analyse_frontmatter graphs (fm : T.content T.frontmatter) : unit =
   analyse_tags graphs scope fm.tags;
   analyse_metas graphs scope fm.metas
 
-and analyse_metas graphs (scope : Iri.t) (metas : (string * T.content) list) : unit =
+and analyse_metas graphs (scope : URI.t) (metas : (string * T.content) list) : unit =
   metas |> List.iter @@ analyse_meta graphs scope
 
-and analyse_meta graphs (scope : Iri.t) (_, content) : unit =
+and analyse_meta graphs (scope : URI.t) (_, content) : unit =
   analyse_content graphs scope content
 
-and analyse_section graphs (scope : Iri.t) (section : T.content T.section) : unit =
+and analyse_section graphs (scope : URI.t) (section : T.content T.section) : unit =
   begin
     let@ target = Option.iter @~ section.frontmatter.iri in
     add_edge graphs Builtin_relation.transcludes ~source: (Iri_vertex scope) ~target: (Iri_vertex target)
@@ -150,12 +150,12 @@ let analyse_resource graphs = function
   | T.Asset _ -> ()
 
 let get_article
-  : iri -> _ t -> T.content T.article option
+  : URI.t -> _ t -> T.content T.article option
 = fun iri forest ->
   match find_opt forest iri with
   | None -> None
   | Some (T.Asset _) ->
-    Logs.debug (fun m -> m "%a is an asset, not an article" pp_iri iri);
+    Logs.debug (fun m -> m "%a is an asset, not an article" URI.pp iri);
     None
   | Some (T.Article article) -> Some article
 
@@ -163,9 +163,9 @@ let plant_resource (resource : resource) (graphs : (module Forest_graphs.S)) (re
   let module Graphs = (val graphs) in
   analyse_resource graphs resource;
   let@ iri = Option.iter @~ iri_for_resource resource in
-  let iri = Iri.normalize iri in
+  let iri = URI.canonicalise iri in
   Graphs.register_iri iri;
-  match Iri_tbl.mem resources iri with
+  match URI.Tbl.mem resources iri with
   | false ->
     (* Graphs.register_iri iri; *)
     add resources iri resource
@@ -186,7 +186,7 @@ let rec get_expanded_title ?scope ?(flags = T.{empty_when_untitled = false}) (fr
   in
   Option.value ~default: short_title @@
     match frontmatter.designated_parent with
-    | Some parent_iri when not (Option.equal Iri.equal scope frontmatter.designated_parent) ->
+    | Some parent_iri when not (Option.equal URI.equal scope frontmatter.designated_parent) ->
       let@ parent = Option.map @~ get_article parent_iri forest in
       let parent_title = get_expanded_title parent.frontmatter forest in
       let parent_link = T.Link {href = parent_iri; content = parent_title} in

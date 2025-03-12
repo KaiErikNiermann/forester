@@ -105,7 +105,7 @@ module V = struct
     | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected boolean but got %a" pp x.value
 end
 
-let default_backmatter ~(iri : iri) : T.content =
+let default_backmatter ~(iri : URI.t) : T.content =
   let vtx = T.Iri_vertex iri in
   let make_section title query =
     let section =
@@ -155,10 +155,10 @@ let get_transclusion_flags ~loc =
   }
 
 let resolve_iri ~loc: _ str =
-  let base = let host = Host_env.read () in Iri_scheme.base_iri ~host in
-  match Iri.of_string str with
-  | iri -> Ok (Iri.resolve ~base iri)
-  | exception (Iri.Error err) -> Error err
+  let base = let host = Host_env.read () in URI_scheme.base_iri ~host in
+  match URI.of_string_exn str with
+  | iri -> Ok (URI.resolve ~base iri)
+  | exception _ -> Error "Invalid IRI"
 
 let extract_iri (node : V.located) =
   let text = V.extract_text node in
@@ -201,12 +201,7 @@ let anon_iri base =
   let ix' = ix + 1 in
   Anon_subtree_ix.set ix';
   let segment = Format.sprintf "%i" ix in
-  let path =
-    match Iri.path base with
-    | Absolute p -> Iri.Absolute (p @ [segment])
-    | Relative _ -> assert false
-  in
-  Iri.with_path base path
+  URI.with_path_components (URI.path_components base @ [segment]) base
 
 let rec process_tape () =
   match Tape.pop_node_opt () with
@@ -244,7 +239,7 @@ and eval_node node : V.t =
   | Ref ->
     begin
       match eval_pop_arg ~loc |> extract_iri with
-      | Ok href when Iri.scheme href = Iri_scheme.scheme ->
+      | Ok href when URI.scheme href = URI_scheme.scheme ->
         let content =
           T.Content
             [
@@ -255,7 +250,7 @@ and eval_node node : V.t =
         in
         emit_content_node ~loc @@ Link {href; content}
       | Ok iri ->
-        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester IRI %a" pp_iri iri
+        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester IRI %a" URI.pp iri
       | Error _ ->
         Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in ref"
     end
@@ -361,9 +356,9 @@ and eval_node node : V.t =
     let href_arg = eval_pop_arg ~loc in
     let href =
       match extract_iri href_arg with
-      | Ok iri when Iri.scheme iri = Iri_scheme.scheme -> iri
+      | Ok iri when URI.scheme iri = URI_scheme.scheme -> iri
       | Ok iri ->
-        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester IRI %a" pp_iri iri
+        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester IRI %a" URI.pp iri
       | Error _ ->
         Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in transclusion"
     in
@@ -373,7 +368,7 @@ and eval_node node : V.t =
     let host = Host_env.read () in
     let iri =
       match addr_opt with
-      | Some addr -> Iri_scheme.user_iri ~host addr
+      | Some addr -> URI_scheme.user_iri ~host addr
       | None ->
         let fm = Frontmatter.get () in
         match fm.iri with
@@ -431,7 +426,7 @@ and eval_node node : V.t =
     Jobs.modify (List.cons (Range.locate_opt loc job));
     let transclusion =
       let host = Host_env.read () in
-      let href = Iri_scheme.hash_iri ~host hash in
+      let href = URI_scheme.hash_iri ~host hash in
       let target = T.Mainmatter in
       T.{href; target; modifier = Identity}
     in
@@ -647,8 +642,8 @@ and eval_node node : V.t =
         begin
           match extract_iri arg with
           | Ok iri -> T.Iri_vertex iri
-          | Error err ->
-            Reporter.fatalf ?loc: node.loc Type_error "Expected valid RFC 3987 IRI in datalog constant expression. %s" (Iri.string_of_error err)
+          | Error _ ->
+            Reporter.fatalf ?loc: node.loc Type_error "Expected valid RFC 3987 IRI in datalog constant expression."
         end
     in
     focus ?loc: node.loc @@ V.Dx_const const
@@ -719,7 +714,7 @@ and emit_content_nodes ~loc content =
 and emit_content_node ~loc content =
   emit_content_nodes ~loc [content]
 
-and eval_tree_inner ~(iri : iri) (syn : Syn.t) : T.content T.article =
+and eval_tree_inner ~(iri : URI.t) (syn : Syn.t) : T.content T.article =
   let attribution_is_author attr =
     match T.(attr.role) with
     | T.Author -> true
@@ -751,7 +746,7 @@ let recover_tree _d = empty_result
 
 let eval_tree
     ~(host : string)
-    ~(iri : iri)
+    ~(iri : URI.t)
     ~(source_path : string option)
     (tree : Syn.t)
     : result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t
