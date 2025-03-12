@@ -51,11 +51,12 @@ val test_run : (unit -> 'a) -> 'a
 val guess_uri : diagnostic -> Lsp.Uri.t option
 
 val lsp_run :
-  ?init_loc:Range.t ->
-  ?init_backtrace:Asai.Diagnostic.backtrace ->
+  ?init_loc: Range.t ->
+  ?init_backtrace: Asai.Diagnostic.backtrace ->
   recover: (diagnostic -> 'a) ->
   ((Lsp.Uri.t, diagnostic list) Hashtbl.t -> unit) ->
-  (unit -> 'a) -> 'a
+  (unit -> 'a) ->
+  'a
 
 val ignore :
   ?init_loc: Asai.Range.t ->

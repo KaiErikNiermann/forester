@@ -14,7 +14,8 @@ type result = {
 [@@deriving show]
 
 val eval_tree :
-  host:string ->
-  iri:iri ->
-  source_path:string option ->
-  Syn.t -> result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t
+  host: string ->
+  iri: iri ->
+  source_path: string option ->
+  Syn.t ->
+  result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t

@@ -13,7 +13,7 @@ type analysis_env = {
 }
 
 val load_tree : Eio.Fs.dir_ty Eio.Path.t -> Lsp.Text_document.t
-val register_document : host:string -> Forest_graph.t -> Lsp.Text_document.t -> unit
+val register_document : host: string -> Forest_graph.t -> Lsp.Text_document.t -> unit
 val build : State.t -> Forest_graph.t
 val run_builder : ?root: iri -> analysis_env -> Forest_graph.t
 val dependencies : Code.tree -> State.t -> Forest_graph.t
