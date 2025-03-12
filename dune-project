@@ -103,4 +103,4 @@
   spelll
   (odoc
    (>= 2.4.4 :with-doc))
-  (alcotest :with-test)))
+  alcotest))
