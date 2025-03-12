@@ -37,19 +37,19 @@ module Basics = struct
   let resolve ~base x =
     dehydrate @@ Uri.resolve "" (hydrate base) (hydrate x)
 
-  let canonicalise iri = dehydrate @@ Uri.canonicalize @@ hydrate iri
-  let hash (iri : t) = Hashtbl.hash iri
+  let canonicalise uri = dehydrate @@ Uri.canonicalize @@ hydrate uri
+  let hash (uri : t) = Hashtbl.hash uri
 
-  let with_path_components xs iri =
+  let with_path_components xs uri =
     dehydrate @@
     Uri.canonicalize @@
-    Uri.with_path (hydrate iri) @@ String.concat "/" xs
+    Uri.with_path (hydrate uri) @@ String.concat "/" xs
 
   let t = Repr.map Repr.string (Fun.compose dehydrate Uri.of_string) (Fun.compose Uri.to_string hydrate)
 
-  let pp (fmt : Format.formatter) (iri : t) =
+  let pp (fmt : Format.formatter) (uri : t) =
     Format.fprintf fmt "%s" @@
-    Uri.to_string @@ hydrate iri (* wanted it not pct-encoded, but we'll see*)
+    Uri.to_string @@ hydrate uri (* wanted it not pct-encoded, but we'll see*)
 
   let to_string x = Uri.to_string @@ hydrate x
 
@@ -60,11 +60,11 @@ module Basics = struct
     let path = Option.map (String.concat "/") path in
     dehydrate @@ Uri.canonicalize @@ Uri.make ?scheme ?userinfo: user ?host ?port ?path ()
 
-  let relativise ~(host : string) iri =
-    if scheme iri = Some "forest" && iri.host = Some host then
-      dehydrate @@ Uri.make ?scheme: (scheme iri) ~path: iri.path ()
+  let relativise ~(host : string) uri =
+    if scheme uri = Some "forest" && uri.host = Some host then
+      dehydrate @@ Uri.make ?scheme: (scheme uri) ~path: uri.path ()
     else
-      iri
+      uri
 end
 
 module Set = Set.Make(Basics)

@@ -41,7 +41,7 @@ type node =
   | Dx_prop of t * t list
   | Dx_var of string
   | Dx_const_content of t
-  | Dx_const_iri of t
+  | Dx_const_uri of t
   | Comment of string
   | Error of string
 
@@ -63,7 +63,7 @@ val pp : Format.formatter -> t -> unit
 
 type tree = {
   source_path: string option;
-  iri: URI.t option;
+  uri: URI.t option;
   timestamp: float option;
   code: t;
 }

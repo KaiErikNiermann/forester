@@ -60,7 +60,7 @@ module Phases = Phases
 module Driver = Driver
 module Asset_router = Asset_router
 
-module Iri_util = Iri_util
+module URI_util = URI_util
 
 module Diagnostic_store = Diagnostic_store
 

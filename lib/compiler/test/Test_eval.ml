@@ -10,14 +10,14 @@ open Forester_compiler
 
 module T = Types
 
-let eval_string ~iri ~host str =
+let eval_string ~uri ~host str =
   str
   |> parse_string
   |> Result.get_ok
-  |> (fun code -> Code.{code; source_path = None; iri = None; timestamp = None;})
+  |> (fun code -> Code.{code; source_path = None; uri = None; timestamp = None;})
   |> Expand.expand_tree ~host Expand.Env.empty
   |> (fun (_, _, tree) ->
-      Eval.eval_tree ~host ~iri ~source_path: None tree.syn
+      Eval.eval_tree ~host ~uri ~source_path: None tree.syn
     )
   |> (fun (Eval.{articles; _}, _) -> ((List.hd articles).mainmatter))
 
@@ -25,12 +25,12 @@ let () =
   Logs.set_level (Some Debug);
   let config = Config.default in
   let host = config.host in
-  let iri = URI_scheme.user_iri ~host "test" in
+  let uri = URI_scheme.user_uri ~host "test" in
   let open Forester_frontend.DSL in
   let test_eval str res =
     Alcotest.(check Testables.content)
       ""
-      (eval_string ~iri ~host str)
+      (eval_string ~uri ~host str)
       res
   in
   let test_verbatim () = test_eval {|\verb<<|asdf<<|} (T.Content [cdata "asdf"]) in

@@ -58,8 +58,8 @@ module Graphviz = Graph.Graphviz.Dot(struct
   module V = Vertex
 
   let vertex_name v =
-    match Vertex.iri_of_vertex v with
-    | Some iri -> "\"" ^ URI.to_string iri ^ "\""
+    match Vertex.uri_of_vertex v with
+    | Some uri -> "\"" ^ URI.to_string uri ^ "\""
     | None -> ""
 
   let graph_attributes _ = []

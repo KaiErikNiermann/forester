@@ -19,7 +19,7 @@ let test_baseN () =
 let () =
   let open Alcotest in
   run
-    "Iri_util"
+    "URI_util"
     [
       "BaseN", [test_case "" `Quick test_baseN];
     ]

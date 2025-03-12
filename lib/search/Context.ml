@@ -25,7 +25,7 @@ let show_leaf_node
       | TeX_cs.Symbol c -> "\\" ^ String.init 0 (Fun.const c)
     end
   | T.Iri i
-  | T.Route_of_iri i ->
+  | T.Route_of_uri i ->
     Format.asprintf "%a" URI.pp i
   | T.Xml_elt _
   | T.Transclude _
@@ -69,7 +69,7 @@ let rec render_context_frontmatter
   match path with
   | [] -> raise (Invalid_argument "stopped on non-leaf node")
   | 0 :: path ->
-    Format.(asprintf "%a" (pp_print_option URI.pp) frontmatter.iri)
+    Format.(asprintf "%a" (pp_print_option URI.pp) frontmatter.uri)
   | 1 :: path' ->
     begin
       match path' with
@@ -154,7 +154,7 @@ and render_context_node
     | T.Img _ -> assert false
     | T.Artefact _ -> assert false
     | T.Iri _ -> assert false
-    | T.Route_of_iri _ -> assert false
+    | T.Route_of_uri _ -> assert false
     | T.Datalog_script _ -> assert false
     | T.Results_of_datalog_query _ -> assert false
 

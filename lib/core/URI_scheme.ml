@@ -8,25 +8,25 @@ open Forester_prelude
 
 let scheme = "forest"
 
-let base_iri ~host =
+let base_uri ~host =
   URI.make ~scheme ~host ()
 
-let user_iri ~host str =
+let user_uri ~host str =
   URI.make
     ~host
     ~scheme
     ~path: [str]
     ()
 
-let hash_iri ~host hash_str =
+let hash_uri ~host hash_str =
   URI.make
     ~host
     ~scheme
     ~path: ["hash"; hash_str]
     ()
 
-let is_named_iri iri =
-  match URI.scheme iri, URI.path_components iri with
+let is_named_uri uri =
+  match URI.scheme uri, URI.path_components uri with
   | sch, "hash" :: _ when sch = Some scheme -> false
   | _ -> true
 
@@ -37,13 +37,13 @@ let last_segment str =
   |> List.hd
 (* |> Filename.chop_extension *)
 
-let name (iri : URI.t) : string =
-  iri
+let name (uri : URI.t) : string =
+  uri
   |> URI.path_string
   |> last_segment (* this is dodgy!*)
 
-let split_addr (iri : URI.t) : (string option * int) option =
-  let name = last_segment @@ URI.path_string iri in
+let split_addr (uri : URI.t) : (string option * int) option =
+  let name = last_segment @@ URI.path_string uri in
   (* primitively check for address of form YYYY-MM-DD *)
   let date_regex = Str.regexp {|^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$|} in
   if Str.string_match date_regex name 0 then
@@ -63,23 +63,23 @@ let split_addr (iri : URI.t) : (string option * int) option =
       let@ key = Option.map @~ BaseN.Base36.int_of_string name in
       None, key
 
-let lsp_uri_to_iri
+let lsp_uri_to_uri
   : host: string -> Lsp.Uri.t -> URI.t
 = fun ~host uri ->
-  let iri =
+  let uri =
     uri
     |> Lsp.Uri.to_path
     |> Filename.chop_extension
     |> last_segment
-    |> user_iri ~host
+    |> user_uri ~host
   in
-  assert ((Filename.extension @@ URI.path_string iri) = "");
-  iri
+  assert ((Filename.extension @@ URI.path_string uri) = "");
+  uri
 
-let path_to_iri ~host str =
+let path_to_uri ~host str =
   str
   |> last_segment
   |> Filename.chop_extension
-  |> user_iri ~host
+  |> user_uri ~host
 
 let source_path_to_addr p = Filename.(chop_extension @@ basename p)

@@ -21,10 +21,10 @@ let parse (forest : State.t) =
   let host = forest.config.host in
   forest.documents
   |> Hashtbl.to_seq
-  |> Seq.map @@ fun (uri, doc) ->
-    let iri = URI_scheme.lsp_uri_to_iri ~host uri in
-    let source_path = Lsp.Uri.to_path uri in
-    let@ () = Reporter.tracef "when parsing %a (%s)" URI.pp iri source_path in
+  |> Seq.map @@ fun (lsp_uri, doc) ->
+    let uri = URI_scheme.lsp_uri_to_uri ~host lsp_uri in
+    let source_path = Lsp.Uri.to_path lsp_uri in
+    let@ () = Reporter.tracef "when parsing %a (%s)" URI.pp uri source_path in
     Parse.parse_document ~host doc
 
 (* Fix signature. Should not mutate the forest*)
@@ -34,7 +34,7 @@ let reparse (doc : Lsp.Text_document.t) : State.t -> State.t * diagnostic option
   let uri = Lsp.Text_document.documentUri doc in
   match Parse.parse_document ~host doc with
   | Ok tree ->
-    Forest.replace forest.parsed (URI_scheme.lsp_uri_to_iri ~host uri) tree;
+    Forest.replace forest.parsed (URI_scheme.lsp_uri_to_uri ~host uri) tree;
     Imports.fixup tree forest;
     Diagnostic_store.remove forest.diagnostics uri;
     forest, None
@@ -66,10 +66,10 @@ let expand (forest : State.t) =
   let task (addr : Vertex.t) (units, trees) =
     match addr with
     | T.Content_vertex _ ->
-      (* when creating the import graph we are only adding iri vertices *)
+      (* when creating the import graph we are only adding uri vertices *)
       assert false
-    | T.Iri_vertex iri ->
-      match Forest.find_opt parsed iri with
+    | T.Iri_vertex uri ->
+      match Forest.find_opt parsed uri with
       | None ->
         (* The import graph has subtrees for vertices, which do not correspond to a source file *)
         units, trees
@@ -100,18 +100,18 @@ let expand_only_aux ~(addr : URI.t) (forest : State.t) : Expand.Env.t * Diagnost
   let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t URI.Tbl.t))) =
     match addr with
     | T.Content_vertex _ ->
-      (* when creating the import graph we are only adding iri vertices *)
+      (* when creating the import graph we are only adding uri vertices *)
       assert false
-    | T.Iri_vertex iri ->
-      match Imports.resolve_iri_to_code forest iri with
+    | T.Iri_vertex uri ->
+      match Imports.resolve_uri_to_code forest uri with
       | None ->
         (* The import graph has vertices for subtrees, which do not correspond to a source file *)
-        Logs.debug (fun m -> m "failed to resolve %a" URI.pp iri);
+        Logs.debug (fun m -> m "failed to resolve %a" URI.pp uri);
         units, diagnostics, trees
       | Some (tree, _) ->
         let ds, units, syn = Expand.expand_tree ~host: forest.config.host units tree in
         begin
-          Forest.add trees iri syn.syn;
+          Forest.add trees uri syn.syn;
           match ds with
           | [] -> ()
           | ds -> Diagnostic_store.add diagnostics ds
@@ -130,18 +130,18 @@ let expand_only_aux ~(addr : URI.t) (forest : State.t) : Expand.Env.t * Diagnost
 
 (* The purpose of this function is to update the exported units when a tree has
    been changed when running with the lsp.*)
-let expand_only (iri : URI.t) : State.t -> State.t * diagnostic option = fun forest ->
+let expand_only (uri : URI.t) : State.t -> State.t * diagnostic option = fun forest ->
   let units, new_diagnostics, trees =
     expand_only_aux
-      ~addr: iri
+      ~addr: uri
       forest
   in
   assert (Forest.length trees > 0);
   begin
     trees
-    |> Forest.iter @@ fun iri tree ->
-      Forest.replace forest.expanded iri tree;
-      match URI.Tbl.find_opt forest.resolver iri with
+    |> Forest.iter @@ fun uri tree ->
+      Forest.replace forest.expanded uri tree;
+      match URI.Tbl.find_opt forest.resolver uri with
       | None ->
         Logs.debug (fun m -> m "resolver knows about %i paths" (URI.Tbl.length forest.resolver));
         assert false
@@ -167,10 +167,10 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
     let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
     match vertex with
     | Content_vertex _ -> None
-    | Iri_vertex iri ->
-      match Forest.find_opt forest.resources iri with
+    | Iri_vertex uri ->
+      match Forest.find_opt forest.resources uri with
       | None ->
-        Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" URI.pp iri;
+        Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" URI.pp uri;
         None
       | Some result -> Some result
   in
@@ -194,8 +194,8 @@ let run_jobs (forest : State.t) jobs =
     | Job.LaTeX_to_svg job ->
       let@ () = Reporter.easy_run in
       let svg = Build_latex.latex_to_svg ~env: forest.env ?loc job.source in
-      let iri = URI_scheme.hash_iri ~host: forest.config.host job.hash in
-      let frontmatter = T.default_frontmatter ~iri () in
+      let uri = URI_scheme.hash_uri ~host: forest.config.host job.hash in
+      let frontmatter = T.default_frontmatter ~uri () in
       let mainmatter = job.content ~svg in
       let backmatter = T.Content [] in
       Some T.{frontmatter; mainmatter; backmatter}
@@ -219,12 +219,12 @@ let eval (forest : State.t) =
   let host = forest.config.host in
   let trees, diagnostics =
     URI.Tbl.to_seq forest.expanded
-    |> Seq.map (fun (iri, syn) ->
-        let source_path = if forest.dev then URI.Tbl.find_opt forest.resolver iri else None in
+    |> Seq.map (fun (uri, syn) ->
+        let source_path = if forest.dev then URI.Tbl.find_opt forest.resolver uri else None in
         Eval.eval_tree
           ~host
           ~source_path
-          ~iri
+          ~uri
           syn
       )
     |> Seq.split
@@ -236,9 +236,9 @@ let eval (forest : State.t) =
       List.iter
         (fun tbl ->
           Hashtbl.to_seq tbl
-          |> Seq.iter (fun (iri, diags) ->
-              assert (not @@ Hashtbl.mem hd iri);
-              Hashtbl.add hd iri diags
+          |> Seq.iter (fun (uri, diags) ->
+              assert (not @@ Hashtbl.mem hd uri);
+              Hashtbl.add hd uri diags
             )
         )
         rest;
@@ -247,10 +247,10 @@ let eval (forest : State.t) =
   trees, diags
 
 let eval_only
-  (iri : URI.t)
+  (uri : URI.t)
   : State.t -> State.t * diagnostic option
 = fun forest ->
-  match Forest.find_opt forest.expanded iri with
+  match Forest.find_opt forest.expanded uri with
   | None -> assert false
   | Some syn ->
     (* NOTE: Not running jobs. *)
@@ -258,7 +258,7 @@ let eval_only
       Eval.eval_tree
         ~host: forest.config.host
         ~source_path: None
-        ~iri
+        ~uri
         syn
     in
     begin
@@ -269,7 +269,7 @@ let eval_only
     forest, None
 
 let check_status
-  _iri
+  _uri
   : State.t -> State.t * diagnostic option
 = fun state ->
   match state with

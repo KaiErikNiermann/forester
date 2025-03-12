@@ -138,7 +138,7 @@ let dx_rel :=
 let dx_term_node :=
 | ~ = DX_VAR; <Code.Dx_var>
 | TICK; ~ = arg; <Code.Dx_const_content>
-| AT_SIGN; ~ = arg; <Code.Dx_const_iri>
+| AT_SIGN; ~ = arg; <Code.Dx_const_uri>
 
 let dx_term :=
 | x = locate(dx_term_node); { [x] }

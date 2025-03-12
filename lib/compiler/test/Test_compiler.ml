@@ -64,9 +64,9 @@ let test_includes_paths ~env () =
         Done
       ]
       history;
-    let iri = (URI.of_string_exn "forest://my-forest/t8") in
+    let uri = (URI.of_string_exn "forest://my-forest/t8") in
     let path =
-      match Forest.get_article iri forest.resources with
+      match Forest.get_article uri forest.resources with
       | None -> Reporter.fatalf Internal_error ""
       | Some {frontmatter = {source_path; _}; _} ->
         source_path
@@ -87,8 +87,8 @@ let test_reparsing ~env () =
       |> Driver.run_action Load_all_configured_dirs
     in
     let reparse_addr = "t8.tree" in
-    let reparse_iri = URI_scheme.path_to_iri ~host: config.host reparse_addr in
-    let vtx = T.Iri_vertex reparse_iri in
+    let reparse_uri = URI_scheme.path_to_uri ~host: config.host reparse_addr in
+    let vtx = T.Iri_vertex reparse_uri in
     Alcotest.(check int)
       "Number of vertices before reparsing"
       8

@@ -77,7 +77,7 @@ let empty = {
   db = Datalog_engine.db_create ();
 }
 
-let find_opt t iri = Dependency_tbl.find_opt t.tbl iri
+let find_opt t uri = Dependency_tbl.find_opt t.tbl uri
 
 let add_vertex t v color =
   ignore @@ Dependecy_graph.add_vertex t.graph v;
@@ -95,11 +95,11 @@ let get_changed_paths
   |> Seq.filter_map
       (fun path ->
         let path_str = Eio.Path.native_exn path in
-        let iri = URI_scheme.path_to_iri ~host path_str in
+        let uri = URI_scheme.path_to_uri ~host path_str in
         let last_modified = Eio.Path.(stat ~follow: true path).mtime in
         (* "flipped" bind, by default returns the current path. IDK, I am being lazy. *)
         let (let*) o f = match o with None -> Some path | Some v -> f v in
-        let* {timestamp; _} = Dependency_tbl.find_opt cache.tbl (Tree iri) in
+        let* {timestamp; _} = Dependency_tbl.find_opt cache.tbl (Tree uri) in
         let* last_seen = timestamp in
         if last_modified > last_seen then
           Some path

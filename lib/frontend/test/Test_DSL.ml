@@ -91,7 +91,7 @@ let test () =
                 (
                   Section
                     {
-                      frontmatter = {iri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []; last_changed = None;};
+                      frontmatter = {uri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []; last_changed = None;};
                       mainmatter = (Content [(Prim (`P, (Content [(Text "section")])))]);
                       flags = {hidden_when_empty = None; included_in_toc = None; header_shown = None; metadata_shown = (Some false); numbered = None; expanded = None}
                     }

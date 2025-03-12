@@ -15,7 +15,7 @@ let rec random_not_in keys =
   else
     attempt
 
-let next_iri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(config : Config.t) (addrs : (URI.t * string) list) : string * string option =
+let next_uri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(config : Config.t) (addrs : (URI.t * string) list) : string * string option =
   let default_dir = List.nth_opt config.trees 0 in
   let keys =
     let@ (addr, uri) = List.filter_map @~ addrs in

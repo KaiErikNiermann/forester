@@ -61,7 +61,7 @@ type 'content attribution = {
 [@@deriving show, repr]
 
 type 'content frontmatter = {
-  iri: URI.t option;
+  uri: URI.t option;
   title: 'content option;
   dates: Human_datetime.t list;
   attributions: 'content attribution list;
@@ -89,7 +89,7 @@ type 'content article = {
 }
 [@@deriving show, repr]
 
-type asset = {iri: URI.t; host: string; content: string}
+type asset = {uri: URI.t; host: string; content: string}
 [@@deriving show, repr]
 
 type 'content resource =
@@ -164,7 +164,7 @@ type 'content content_node =
   | Img of img
   | Artefact of 'content artefact
   | Iri of URI.t
-  | Route_of_iri of URI.t
+  | Route_of_uri of URI.t
   | Datalog_script of (string, 'content vertex) Datalog_expr.script
   | Results_of_datalog_query of (string, 'content vertex) Datalog_expr.query
 [@@deriving show, repr]
@@ -197,11 +197,11 @@ let trim_whitespace xs =
   in
   trim_back @@ trim_front xs
 
-let default_frontmatter ?iri ?source_path ?designated_parent ?(dates = []) ?(attributions = []) ?taxon ?number ?(metas = []) ?(tags = []) ?title ?last_changed () = {iri; source_path; designated_parent; dates; attributions; taxon; number; metas; tags; title; last_changed}
+let default_frontmatter ?uri ?source_path ?designated_parent ?(dates = []) ?(attributions = []) ?taxon ?number ?(metas = []) ?(tags = []) ?title ?last_changed () = {uri; source_path; designated_parent; dates; attributions; taxon; number; metas; tags; title; last_changed}
 
 let article_to_section ?(flags = default_section_flags) (article : 'a article) =
   let mainmatter =
-    match article.frontmatter.iri with
+    match article.frontmatter.uri with
     | Some href -> Content [Transclude {href; target = Mainmatter; modifier = Identity}]
     | None -> article.mainmatter
   in
@@ -273,7 +273,7 @@ module TeX_like : sig
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
     | TeX_cs cs -> pp_tex_cs fmt cs
-    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Prim _ | Link _ | Img _ | Artefact _ | Iri _ | Route_of_iri _ | Datalog_script _ | Results_of_datalog_query _ ->
+    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Prim _ | Link _ | Img _ | Artefact _ | Iri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
       Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
 
   let string_of_content =

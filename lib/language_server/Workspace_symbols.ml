@@ -27,9 +27,9 @@ let compute
     forest.parsed
     |> Forest.to_seq_keys
     |> Seq.filter_map
-        (fun iri ->
+        (fun uri ->
           let title =
-            match Forest.get_article iri forest.resources with
+            match Forest.get_article uri forest.resources with
             | None -> "untitled"
             | Some {frontmatter; _} ->
               begin
@@ -40,7 +40,7 @@ let compute
           in
           let uri =
             let (let*) = Option.bind in
-            let* tree = Forest.find_opt forest.parsed iri in
+            let* tree = Forest.find_opt forest.parsed uri in
             let* source_path = tree.source_path in
             Some (Lsp.Uri.of_path source_path)
           in
@@ -65,7 +65,7 @@ let compute
     forest.units
     |> Unit_map.to_seq
     |> Seq.concat_map
-        (fun ((iri, exports): URI.t * _) ->
+        (fun ((uri, exports): URI.t * _) ->
           exports
           |> Trie.to_seq
           |> Seq.filter_map
@@ -77,7 +77,7 @@ let compute
                   in
                   let uri =
                     let (let*) = Option.bind in
-                    let* tree = Forest.find_opt forest.parsed iri in
+                    let* tree = Forest.find_opt forest.parsed uri in
                     let* source_path = tree.source_path in
                     Some (Lsp.Uri.of_path source_path)
                   in

@@ -17,7 +17,7 @@ let compute (params : L.DocumentHighlightParams.t) =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     match Forest.find_opt
       forest.parsed
-      (URI_scheme.lsp_uri_to_iri ~host: forest.config.host textDocument.uri) with
+      (URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri) with
     | None -> None
     | Some tree ->
       let highlights =
@@ -57,7 +57,7 @@ let compute (params : L.DocumentHighlightParams.t) =
                 | Code.Dx_prop (_, _)
                 | Code.Dx_var _
                 | Code.Dx_const_content _
-                | Code.Dx_const_iri _
+                | Code.Dx_const_uri _
                 | Code.Comment _
                 | Code.Error _ ->
                   None

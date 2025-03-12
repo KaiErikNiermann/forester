@@ -19,8 +19,8 @@ and pp_content_node
   : 'a T.content_node -> unit
 = function
   | Text txt | CDATA txt -> Format.pp_print_string fmt txt
-  | Iri iri -> URI.pp fmt iri
-  | Route_of_iri iri -> Format.fprintf fmt "%s" (router iri)
+  | Iri uri -> URI.pp fmt uri
+  | Route_of_uri uri -> Format.fprintf fmt "%s" (router uri)
   | KaTeX (_, content) -> pp_content ~forest ~router fmt content
   | TeX_cs cs -> Format.fprintf fmt "\\%a" TeX_cs.pp cs
   | Xml_elt elt -> pp_content ~forest ~router fmt elt.content

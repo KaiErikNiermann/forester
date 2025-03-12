@@ -23,10 +23,10 @@ let test_ranked (forest : State.t) =
   in
   Format.printf "got %i ranked results.@." (List.length ranked_results);
   List.iter
-    (fun (iri, score) ->
-      match Forest.get_article iri forest.resources with
+    (fun (uri, score) ->
+      match Forest.get_article uri forest.resources with
       | Some article ->
-        Format.printf "%a, %f@." URI.pp iri score;
+        Format.printf "%a, %f@." URI.pp uri score;
       | None -> assert false
     )
     ranked_results

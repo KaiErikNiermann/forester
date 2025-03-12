@@ -10,23 +10,23 @@ open Base
 
 val scheme : string
 
-val base_iri :
+val base_uri :
   host: string ->
   URI.t
 
-val user_iri :
-  host: string ->
-  string ->
-  URI.t
-
-val hash_iri :
+val user_uri :
   host: string ->
   string ->
   URI.t
 
-val is_named_iri : URI.t -> bool
+val hash_uri :
+  host: string ->
+  string ->
+  URI.t
 
-val lsp_uri_to_iri :
+val is_named_uri : URI.t -> bool
+
+val lsp_uri_to_uri :
   host: string ->
   Lsp.Uri.t ->
   URI.t
@@ -35,7 +35,7 @@ val split_addr :
   URI.t ->
   (string option * int) option
 
-val path_to_iri :
+val path_to_uri :
   host: string ->
   string ->
   URI.t

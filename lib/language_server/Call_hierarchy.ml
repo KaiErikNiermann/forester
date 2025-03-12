@@ -26,8 +26,8 @@ let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
     in
     match item with
     | {uri; _} ->
-      let iri = URI_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
-      let vertex = T.Iri_vertex iri in
+      let uri = URI_scheme.path_to_uri ~host: config.host (Lsp.Uri.to_path uri) in
+      let vertex = T.Iri_vertex uri in
       let run_query = Forest.run_datalog_query forest.graphs in
       let fwdlinks = run_query @@ Builtin_queries.fwdlinks_datalog vertex in
       Eio.traceln "got %i link items" (Vertex_set.cardinal fwdlinks);
@@ -52,8 +52,8 @@ let outgoing (params : L.CallHierarchyOutgoingCallsParams.t) =
     in
     match item with
     | {uri; _} ->
-      let iri = URI_scheme.path_to_iri ~host: config.host (Lsp.Uri.to_path uri) in
-      let vertex = T.Iri_vertex iri in
+      let uri = URI_scheme.path_to_uri ~host: config.host (Lsp.Uri.to_path uri) in
+      let vertex = T.Iri_vertex uri in
       let run_query = Forest.run_datalog_query forest.graphs in
       let backlinks = run_query @@ Builtin_queries.backlinks_datalog vertex in
       Eio.traceln "got %i link items" (Vertex_set.cardinal backlinks);
@@ -66,8 +66,8 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   match params with
   | {position; textDocument; _} ->
-    let iri = URI_scheme.lsp_uri_to_iri ~host: forest.config.host textDocument.uri in
-    match Imports.resolve_iri_to_code forest iri with
+    let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri in
+    match Imports.resolve_uri_to_code forest uri with
     | None -> None
     | Some (tree, _) ->
       let item =
@@ -104,7 +104,7 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
           | Code.Dx_prop (_, _)
           | Code.Dx_var _
           | Code.Dx_const_content _
-          | Code.Dx_const_iri _
+          | Code.Dx_const_uri _
           | Code.Comment _
           | Code.Error _ ->
             None

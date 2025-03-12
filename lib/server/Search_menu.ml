@@ -67,14 +67,14 @@ let results (forest : State.t) (links : URI.t list) =
       [id "search-results"]
       (
         List.filter_map
-          (fun iri ->
-            let title = Forest.get_content_of_transclusion {href = iri; target = Title {empty_when_untitled = false}; modifier = Sentence_case;} forest.resources in
+          (fun uri ->
+            let title = Forest.get_content_of_transclusion {href = uri; target = Title {empty_when_untitled = false}; modifier = Sentence_case;} forest.resources in
             Option.map
               (fun t ->
                 a
                   [
                     class_ "search-result-item";
-                    href "/trees%s" (URI.path_string iri);
+                    href "/trees%s" (URI.path_string uri);
                     Hx.target "#tree-container";
                     Hx.swap "outerHTML";
                   ] @@

@@ -20,7 +20,7 @@ let compute (params : L.DocumentSymbolParams.t) =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     match Forest.find_opt
       forest.parsed
-      (URI_scheme.lsp_uri_to_iri ~host: forest.config.host textDocument.uri) with
+      (URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri) with
     | None -> None
     | Some {code; _} ->
       let symbols =
@@ -108,7 +108,7 @@ let compute (params : L.DocumentSymbolParams.t) =
             | Dx_prop (_, _)
             | Dx_var _
             | Dx_const_content _
-            | Dx_const_iri _
+            | Dx_const_uri _
             | Comment _
             | Error _ ->
               None

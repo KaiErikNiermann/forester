@@ -17,7 +17,7 @@ module HTML = Pure_html.HTML
 let config = {Config.default with trees = ["transclude"]; host = "test"}
 let host = config.host
 
-let href = URI_scheme.user_iri ~host "transcludee"
+let href = URI_scheme.user_uri ~host "transcludee"
 
 module Transclusions = struct
   (* It would be cool to use quickcheck here, but no good way to test the result*)
@@ -38,18 +38,18 @@ let () =
   let@ env = Eio_main.run in
   Logs.set_level (Some Debug);
   let@ () = Reporter.easy_run in
-  let iri = URI_scheme.user_iri ~host "transcludee" in
+  let uri = URI_scheme.user_uri ~host "transcludee" in
   let resources = URI.Tbl.create 10 in
   URI.Tbl.add
     resources
-    iri
+    uri
     (
       T.(
         Article
           {
             frontmatter =
             default_frontmatter
-              ~iri: (URI.of_string_exn "forest://test/transcludee")
+              ~uri: (URI.of_string_exn "forest://test/transcludee")
               ~title: (Content [Text "I am being transcluded"])
               ();
             mainmatter = Content [Text "Hello"];
@@ -65,7 +65,7 @@ let () =
       Legacy_xml_client.(pp_xml ~forest ?stylesheet: None)
       (
         T.{
-          frontmatter = default_frontmatter ~iri: href ();
+          frontmatter = default_frontmatter ~uri: href ();
           mainmatter = content;
           backmatter = Content []
         }
@@ -78,7 +78,7 @@ let () =
   let test_title_default () =
     print_transclusion
       {
-        href = iri;
+        href = uri;
         target = Title {empty_when_untitled = false};
         modifier = Identity
       }
@@ -86,7 +86,7 @@ let () =
   let test_full_metadata () =
     print_transclusion
       {
-        href = iri;
+        href = uri;
         target = Full Transclusions.metadata_shown;
         modifier = Identity
       }

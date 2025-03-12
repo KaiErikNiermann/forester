@@ -28,65 +28,65 @@ end
 module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
 module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
 
-(* It's fine to have a global transclusion cache since iris fully qualify a tree*)
+(* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
 let transclusion_cache = Hashtbl.create 1000
 
 (* This would be nice, but it is interfering with the stupid breadcrumb titles! Need to make that stuff stateless. *)
 (* let frontmatter_cache = Hashtbl.create 1000 *)
 
-let iri_to_string ~(config : Config.t) iri =
-  match URI.host iri with
-  | Some host when URI.scheme iri = Some URI_scheme.scheme ->
+let uri_to_string ~(config : Config.t) uri =
+  match URI.host uri with
+  | Some host when URI.scheme uri = Some URI_scheme.scheme ->
     if host = config.host then
-      URI.path_string @@ URI.relativise ~host iri
+      URI.path_string @@ URI.relativise ~host uri
     else
-      URI.to_string iri
-  | _ -> URI.to_string iri (* used to be not percent-encoded; does it matter? *)
+      URI.to_string uri
+  | _ -> URI.to_string uri (* used to be not percent-encoded; does it matter? *)
 
-let home_iri ~(config : Config.t) =
+let home_uri ~(config : Config.t) =
   (* let config = State.get_config forest in *)
   let@ root = Option.bind config.home in
-  let base = URI_scheme.base_iri ~host: config.host in
+  let base = URI_scheme.base_uri ~host: config.host in
   try
     Option.some @@ URI.resolve ~base @@ URI.of_string_exn root
   with
     | _ -> None
 
-let iri_is_home ~config iri =
-  match home_iri ~config with
-  | Some home_iri ->
+let uri_is_home ~config uri =
+  match home_uri ~config with
+  | Some home_uri ->
     (* By this point, any IRI should be in normal form. *)
-    URI.equal home_iri iri
+    URI.equal home_uri uri
   | None -> false
 
-let route_resource_iri ~suffix (forest : State.t) iri =
+let route_resource_uri ~suffix (forest : State.t) uri =
   let config = forest.config in
-  let host = Option.value ~default: "" @@ URI.host iri in
-  let components = URI.path_components iri in
+  let host = Option.value ~default: "" @@ URI.host uri in
+  let components = URI.path_components uri in
   let bare_route = String.concat "-" components in
   begin
     if host = config.host then
-      if iri_is_home ~config iri then "index.xml"
+      if uri_is_home ~config uri then "index.xml"
       else
         bare_route ^ suffix
     else
       "foreign-" ^ host ^ "-" ^ bare_route ^ suffix
   end
 
-let route (forest : State.t) iri =
-  match Forest.find_opt forest.resources iri with
+let route (forest : State.t) uri =
+  match Forest.find_opt forest.resources uri with
   | Some resource ->
     let suffix =
       match resource with
       | T.Article _ -> ".xml"
       | T.Asset _ -> ""
     in
-    route_resource_iri ~suffix forest iri
-  | None when URI.scheme iri = Some URI_scheme.scheme ->
-    Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp iri;
-    URI.to_string iri
+    route_resource_uri ~suffix forest uri
+  | None when URI.scheme uri = Some URI_scheme.scheme ->
+    Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp uri;
+    URI.to_string uri
   | None ->
-    URI.to_string iri
+    URI.to_string uri
 
 let get_sorted_articles (forest : State.t) addrs =
   let module C = Types.Comparators(struct
@@ -97,8 +97,8 @@ let get_sorted_articles (forest : State.t) addrs =
   end) in
   addrs
   |> Vertex_set.to_seq
-  |> Seq.filter_map Vertex.iri_of_vertex
-  |> Seq.filter_map (fun iri -> Forest.get_article iri forest.resources)
+  |> Seq.filter_map Vertex.uri_of_vertex
+  |> Seq.filter_map (fun uri -> Forest.get_article uri forest.resources)
   |> List.of_seq
   |> List.sort C.compare_article
 
@@ -138,22 +138,22 @@ let render_section_flags (dict : T.section_flags) = [
   X.optional_ X.numbered dict.numbered
 ]
 
-let add_seen_iri iri kont =
-  let@ () = Loop_detection.scope @@ URI.Set.add iri in
+let add_seen_uri uri kont =
+  let@ () = Loop_detection.scope @@ URI.Set.add uri in
   kont ()
 
-let add_seen_iri_opt iri_opt kont =
-  match iri_opt with
+let add_seen_uri_opt uri_opt kont =
+  match uri_opt with
   | None -> kont ()
-  | Some iri -> add_seen_iri iri kont
+  | Some uri -> add_seen_uri uri kont
 
-let have_seen_iri iri =
-  URI.Set.mem iri @@ Loop_detection.read ()
+let have_seen_uri uri =
+  URI.Set.mem uri @@ Loop_detection.read ()
 
-let have_seen_iri_opt iri_opt =
-  match iri_opt with
+let have_seen_uri_opt uri_opt =
+  match uri_opt with
   | None -> false
-  | Some iri -> have_seen_iri iri
+  | Some uri -> have_seen_uri uri
 
 let rec render_section forest (section : T.content T.section) : P.node =
   let@ () = Xmlns.run in
@@ -161,12 +161,12 @@ let rec render_section forest (section : T.content T.section) : P.node =
     (render_section_flags section.flags)
     [
       render_frontmatter forest section.frontmatter;
-      let@ () = Scope.run ~env: section.frontmatter.iri in
+      let@ () = Scope.run ~env: section.frontmatter.uri in
       X.mainmatter [] @@
-        if have_seen_iri_opt section.frontmatter.iri then
+        if have_seen_uri_opt section.frontmatter.uri then
           [X.info [] [P.txt "Transclusion loop detected, rendering stopped."]]
         else
-          let@ () = add_seen_iri_opt section.frontmatter.iri in
+          let@ () = add_seen_uri_opt section.frontmatter.uri in
           render_content forest section.mainmatter
     ]
 
@@ -179,11 +179,11 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
     X.frontmatter
       []
       [
-        render_attributions forest frontmatter.iri frontmatter.attributions;
+        render_attributions forest frontmatter.uri frontmatter.attributions;
         render_dates forest frontmatter.dates;
         X.conditional forest.dev (X.optional (X.source_path [] "%s") frontmatter.source_path);
-        X.optional (fun iri -> X.addr [] "%s" @@ iri_to_string ~config iri) frontmatter.iri;
-        X.optional (X.route [] "%s") @@ Option.map (route forest) frontmatter.iri;
+        X.optional (fun uri -> X.addr [] "%s" @@ uri_to_string ~config uri) frontmatter.uri;
+        X.optional (X.route [] "%s") @@ Option.map (route forest) frontmatter.uri;
         begin
           let title = get_expanded_title frontmatter forest.resources in
           X.title [X.text_ "%s" @@ Plain_text_client.string_of_content ~forest: forest.resources ~router: (route forest) title] @@
@@ -224,12 +224,12 @@ and render_content_node
     [P.txt "%s" str]
   | CDATA str ->
     [P.txt ~raw: true "<![CDATA[%s]]>" str]
-  | Iri iri ->
-    let relativised = URI.relativise ~host: config.host iri in
+  | Iri uri ->
+    let relativised = URI.relativise ~host: config.host uri in
     let str = Format.asprintf "%a" URI.pp relativised in
     [P.txt "%s" str]
-  | Route_of_iri iri ->
-    [P.txt "%s" (route forest iri)]
+  | Route_of_uri uri ->
+    [P.txt "%s" (route forest uri)]
   | Xml_elt elt ->
     let prefixes_to_add, (name, attrs, content) =
       let@ () = Xmlns.within_scope in
@@ -256,7 +256,7 @@ and render_content_node
     in
     begin
       match custom_number with
-      | None -> [X.contextual_number [X.addr_ "%s" @@ iri_to_string ~config addr]]
+      | None -> [X.contextual_number [X.addr_ "%s" @@ uri_to_string ~config addr]]
       | Some num -> [P.txt "%s" num]
     end
   | Link link ->
@@ -348,11 +348,11 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
       ]
     | Some article ->
       [
-        X.optional_ (X.href "%s") @@ Option.map (route forest) article.frontmatter.iri;
+        X.optional_ (X.href "%s") @@ Option.map (route forest) article.frontmatter.uri;
         X.title_ "%s" @@
         Plain_text_client.string_of_content ~forest: forest.resources ~router: (route forest) @@
         get_expanded_title article.frontmatter forest.resources;
-        X.optional_ (X.addr_ "%s") @@ Option.map (iri_to_string ~config) article.frontmatter.iri;
+        X.optional_ (X.addr_ "%s") @@ Option.map (uri_to_string ~config) article.frontmatter.uri;
         X.type_ "local"
       ]
   in
@@ -379,8 +379,8 @@ and render_attributions =
               |> get_sorted_articles forest
             in
             let@ biotree = List.filter_map @~ articles in
-            let@ iri = Option.map @~ biotree.frontmatter.iri in
-            T.{vertex = T.Iri_vertex iri; role = Contributor}
+            let@ uri = Option.map @~ biotree.frontmatter.uri in
+            T.{vertex = T.Iri_vertex uri; role = Contributor}
           in
           let all_attributions =
             attributions @
@@ -417,11 +417,11 @@ and render_date forest (date : Human_datetime.t) =
   let config = forest.config in
   let href_attr =
     let str = Format.asprintf "%a" Human_datetime.pp (Human_datetime.drop_time date) in
-    let base = URI_scheme.base_iri ~host: config.host in
-    let iri = URI.resolve ~base (URI.of_string_exn str) in
-    match Forest.get_article iri forest.resources with
+    let base = URI_scheme.base_uri ~host: config.host in
+    let uri = URI.resolve ~base (URI.of_string_exn str) in
+    match Forest.get_article uri forest.resources with
     | None -> X.null_
-    | Some _ -> X.href "%s" @@ route forest iri
+    | Some _ -> X.href "%s" @@ route forest uri
   in
   X.date
     [href_attr]
@@ -432,22 +432,22 @@ and render_date forest (date : Human_datetime.t) =
     ]
 
 let render_article (forest : State.t) (article : T.content T.article) : P.node =
-  let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.iri in
+  let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.uri in
   let config = forest.config in
   let xmlns_prefix = Xmlns.{prefix = X.reserved_prefix; xmlns = X.forester_xmlns} in
   let@ () = Loop_detection.run ~env: URI.Set.empty in
-  let@ () = Scope.run ~env: article.frontmatter.iri in
+  let@ () = Scope.run ~env: article.frontmatter.uri in
   let@ () = Xmlns.run in
   X.tree
     [
       render_xmlns_prefix xmlns_prefix;
-      X.optional_ X.root @@ Option.map (iri_is_home ~config) article.frontmatter.iri
+      X.optional_ X.root @@ Option.map (uri_is_home ~config) article.frontmatter.uri
     ]
     [
       render_frontmatter forest article.frontmatter;
       X.mainmatter [] @@
         begin
-          let@ () = add_seen_iri_opt article.frontmatter.iri in
+          let@ () = add_seen_uri_opt article.frontmatter.uri in
           render_content forest article.mainmatter
         end;
       X.backmatter [] @@ render_content forest article.backmatter

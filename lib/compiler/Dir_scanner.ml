@@ -54,11 +54,11 @@ let scan_asset_directories dirs =
 
 exception Is_relative of string
 
-let find_tree dirs iri =
+let find_tree dirs uri =
   let matches =
     let@ () = S.run in
     let@ fp = List.iter @~ dirs in
-    process_dir (matching_basename (URI_scheme.name iri)) fp
+    process_dir (matching_basename (URI_scheme.name uri)) fp
   in
   try
     let first_match = List.hd @@ List.of_seq matches in

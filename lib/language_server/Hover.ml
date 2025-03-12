@@ -34,17 +34,17 @@ let compute
   let content =
     match Forest.find_opt
       forest.parsed
-      (URI_scheme.lsp_uri_to_iri ~host: forest.config.host textDocument.uri) with
+      (URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri) with
     | None -> "code of current tree is not stored. this is a bug"
     | Some tree ->
       (* TODO: use node_at and provide hover for things other than links.*)
       match Analysis.addr_at ~position tree.code with
       | None -> Format.asprintf "character: %i, line: %i." position.character position.line;
       | Some addr_at_cursor ->
-        let iri_under_cursor = URI_scheme.user_iri ~host addr_at_cursor in
-        match Forest.get_article iri_under_cursor forest.resources with
+        let uri_under_cursor = URI_scheme.user_uri ~host addr_at_cursor in
+        match Forest.get_article uri_under_cursor forest.resources with
         | None ->
-          Format.asprintf "Could not get article %a." URI.pp iri_under_cursor
+          Format.asprintf "Could not get article %a." URI.pp uri_under_cursor
         | Some {mainmatter; frontmatter; _} ->
           let main = render mainmatter in
           if main = "" then (Format.asprintf "%a" T.(pp_frontmatter pp_content) frontmatter)

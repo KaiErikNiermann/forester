@@ -13,7 +13,7 @@ let doc1 =
   T.{
     frontmatter =
     default_frontmatter
-      ~iri: (URI.of_string_exn "forest://doc1")
+      ~uri: (URI.of_string_exn "forest://doc1")
       ~title: (T.Content [T.Text "Title of tremendous importance"])
       ();
     mainmatter =
@@ -23,7 +23,7 @@ let doc1 =
 
 let doc2 =
   T.{
-    frontmatter = default_frontmatter ~iri: (URI.of_string_exn "forest://doc2") ();
+    frontmatter = default_frontmatter ~uri: (URI.of_string_exn "forest://doc2") ();
     mainmatter =
     T.Content [T.Text "donut is a donut"];
     backmatter = T.Content [];
@@ -105,7 +105,7 @@ let test_render_context_frontmatter () =
   let open Forester_frontend.DSL in
   let frontmatter =
     T.default_frontmatter
-      ~iri: (URI.of_string_exn "forest://test/asdf")
+      ~uri: (URI.of_string_exn "forest://test/asdf")
       ~source_path: "/foo/bar"
       ~taxon: (T.Content [T.Text "Hello"])
       ~title: (T.Content [txt "title"; katex Display [txt "a=b"]])
@@ -162,7 +162,7 @@ let () =
 (*             asprintf *)
 (*               "%a %a@." *)
 (*               URI.pp *)
-(*               T.(Option.get doc.frontmatter.iri) *)
+(*               T.(Option.get doc.frontmatter.uri) *)
 (*               ( *)
 (*                 pp_print_list *)
 (*                   ~pp_sep: (fun out () -> fprintf out ", ") *)
@@ -178,11 +178,11 @@ let () =
 (*   let index = Index.of_list forest in *)
 (*   index *)
 (*   |> Spelll.Index.iter *)
-(*       (fun term iris -> *)
+(*       (fun term uris -> *)
 (*         let ocurrences = *)
 (*           List.map *)
 (*             (fun (x, y) -> y, x) *)
-(*             (Index.Ocurrences.to_list iris) *)
+(*             (Index.Ocurrences.to_list uris) *)
 (*         in *)
 (*         Format.( *)
 (*           printf *)
@@ -203,6 +203,6 @@ let () =
 (*   (* Format.printf "\nSearch for donus:@."; *) *)
 (*   (* List.concat_map Index.Ocurrences.to_list @@ *) *)
 (*   (*   Spelll.Index.retrieve_l ~limit: 1 index "donus" *) *)
-(*   (* |> List.iter (fun (_, iri) -> Format.printf "%a@." URI.pp iri); *) *)
+(*   (* |> List.iter (fun (_, uri) -> Format.printf "%a@." URI.pp uri); *) *)
 (*   test_context [0; 1; 0; 2;] doc1; *)
 (*   test_context [1; 0; 0;] doc2; *)

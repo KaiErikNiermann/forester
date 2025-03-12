@@ -161,7 +161,7 @@ let rec expand : Code.t -> Syn.t = function
     {value = Syn.Group (d, expand xs); loc} :: expand rest
   | {value = Subtree (addr, nodes); loc} :: rest ->
     let host = H.read () in
-    let subtree = expand_tree_inner @@ Code.{source_path = None; timestamp = None; iri = Option.map (URI_scheme.user_iri ~host) addr; code = nodes} in
+    let subtree = expand_tree_inner @@ Code.{source_path = None; timestamp = None; uri = Option.map (URI_scheme.user_uri ~host) addr; code = nodes} in
     {value = Syn.Subtree (addr, subtree); loc} :: expand rest
   | {value = Math (m, xs); loc} :: rest ->
     {value = Syn.Math (m, expand xs); loc} :: expand rest
@@ -232,8 +232,8 @@ let rec expand : Code.t -> Syn.t = function
   | {value = Import (vis, dep); loc} :: rest ->
     let units = U.get () in
     let host = H.read () in
-    let dep_iri = URI_scheme.user_iri ~host dep in
-    let import = Unit_map.find_opt dep_iri units in
+    let dep_uri = URI_scheme.user_uri ~host dep in
+    let import = Unit_map.find_opt dep_uri units in
     begin
       match import with
       | None ->
@@ -250,7 +250,7 @@ let rec expand : Code.t -> Syn.t = function
     {value = Syn.Dx_var name; loc} :: expand rest
   | {value = Dx_const_content arg; loc} :: rest ->
     {value = Syn.Dx_const (`Content, expand arg); loc} :: expand rest
-  | {value = Dx_const_iri arg; loc} :: rest ->
+  | {value = Dx_const_uri arg; loc} :: rest ->
     {value = Syn.Dx_const (`Iri, expand arg); loc} :: expand rest
   | {value = Let (a, bs, def); loc} :: rest ->
     let lam = expand_lambda loc (bs, def) in
@@ -357,8 +357,8 @@ and expand_xml_ident loc (prefix, uname) =
 
 and expand_tree_inner (tree : Code.tree) : Syn.tree =
   let trace f =
-    match tree.iri with
-    | Some iri -> Reporter.tracef "when expanding tree `%a`" URI.pp iri f
+    match tree.uri with
+    | Some uri -> Reporter.tracef "when expanding tree `%a`" URI.pp uri f
     | None -> f ()
   in
   let@ () = trace in
@@ -367,12 +367,12 @@ and expand_tree_inner (tree : Code.tree) : Syn.tree =
   let syn = expand tree.code in
   let exports = Sc.get_export () in
   let units =
-    match tree.iri with
+    match tree.uri with
     | None -> units
-    | Some iri -> Unit_map.add iri exports units
+    | Some uri -> Unit_map.add uri exports units
   in
   U.set units;
-  Syn.{syn; iri = tree.iri}
+  Syn.{syn; uri = tree.uri}
 
 let builtins = [
   ["p"], Syn.Prim `P;
@@ -458,7 +458,7 @@ let expand_tree
         push d;
         (*Return `units` here?*)
         Unit_map.empty,
-        Syn.{syn = []; iri = tree.iri}
+        Syn.{syn = []; uri = tree.uri}
       )
       @@ fun () ->
       let@ () = U.run ~init: units in

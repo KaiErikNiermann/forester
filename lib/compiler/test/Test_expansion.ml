@@ -22,7 +22,7 @@ let () =
         source_path = None;
         timestamp = None;
         (* If tree has no address, exports are not added *)
-        iri = Some (URI_scheme.user_iri ~host "test-tree");
+        uri = Some (URI_scheme.user_uri ~host "test-tree");
         code = let open DSL.Code in
         [
           def
@@ -49,7 +49,7 @@ let () =
     env
     |> Expand.Unit_map.to_seq
     |> Seq.iter
-        (fun (this_iri, export) ->
+        (fun (this_uri, export) ->
           (
             export
             |> Yuujinchou.Trie.to_seq
@@ -64,7 +64,7 @@ let () =
           Alcotest.(check uri)
             "addr"
             (URI.of_string_exn "forest://test/test-tree")
-            (this_iri)
+            (this_uri)
         )
   in
   let test_suggestions () =

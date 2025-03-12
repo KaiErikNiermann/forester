@@ -29,7 +29,7 @@ let results_of_query query = T.Results_of_query query
 let katex m content = T.KaTeX (m, T.Content content)
 let tex content = T.TeX_cs (Word content)
 let img href = T.(Img (Remote href))
-let route_of_iri iri = T.Route_of_iri iri
+let route_of_uri uri = T.Route_of_uri uri
 
 module Datalog = struct
   open Datalog_expr

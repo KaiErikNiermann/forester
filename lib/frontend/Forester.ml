@@ -24,11 +24,11 @@ let output_dir_name = "output"
 let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.t) =
   let addrs =
     let@ article = List.filter_map @~ Forest.get_all_articles forest.resources in
-    let@ iri = Option.bind article.frontmatter.iri in
+    let@ uri = Option.bind article.frontmatter.uri in
     let* path = article.frontmatter.source_path in
-    Some (iri, path)
+    Some (uri, path)
   in
-  let next, next_dir = Iri_util.next_iri addrs ~prefix ~mode ~config in
+  let next, next_dir = URI_util.next_uri addrs ~prefix ~mode ~config in
   let fname = next ^ ".tree" in
   let now = Human_datetime.now () in
   let template_content =
@@ -58,9 +58,9 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
 let complete ~(forest : State.t) prefix =
   let config = forest.config in
   let@ article = Seq.filter_map @~ List.to_seq @@ Forest.get_all_articles forest.resources in
-  let@ iri = Option.bind article.frontmatter.iri in
-  let@ iri = Option.bind @@ Option_util.guard URI_scheme.is_named_iri iri in
-  let iri = URI.relativise ~host: config.host iri in
+  let@ uri = Option.bind article.frontmatter.uri in
+  let@ uri = Option.bind @@ Option_util.guard URI_scheme.is_named_uri uri in
+  let uri = URI.relativise ~host: config.host uri in
   let@ title = Option.bind article.frontmatter.title in
   let title =
     Plain_text_client.string_of_content
@@ -69,7 +69,7 @@ let complete ~(forest : State.t) prefix =
       title
   in
   if String.starts_with ~prefix title then
-    Some (iri, title)
+    Some (uri, title)
   else
     None
 
@@ -110,13 +110,13 @@ let render_forest ~dev ~(forest : State.t) : unit =
     let@ resource = List.filter_map @~ all_resources in
     match resource with
     | T.Article article ->
-      let@ iri = Option.map @~ article.frontmatter.iri in
-      let route = Legacy_xml_client.route forest iri in
+      let@ uri = Option.map @~ article.frontmatter.uri in
+      let route = Legacy_xml_client.route forest uri in
       let content = Format.asprintf "%a" Legacy_xml_client.(pp_xml ~forest ~stylesheet: "default.xsl") article in
       route, content
     | T.Asset asset ->
       Option.some @@
-        let route = Legacy_xml_client.route forest asset.iri in
+        let route = Legacy_xml_client.route forest asset.uri in
         route, asset.content
   in
   Logs.debug (fun m -> m "Writing %i files to output" (List.length jobs));
@@ -134,8 +134,8 @@ let export ~(forest : State.t) : unit =
   let local_resources =
     let@ resource = List.filter @~ Forest.get_all_resources forest.resources in
     match resource with
-    | T.Article {frontmatter = {iri = Some iri; _}; _} ->
-      URI.host iri = Some forest.config.host
+    | T.Article {frontmatter = {uri = Some uri; _}; _} ->
+      URI.host uri = Some forest.config.host
     | T.Asset asset -> asset.host = forest.config.host
     | _ -> false
   in

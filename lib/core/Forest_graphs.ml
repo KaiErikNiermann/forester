@@ -13,7 +13,7 @@ module type S = sig
 
   val dl_db : Dl.db
 
-  val register_iri : URI.t -> unit
+  val register_uri : URI.t -> unit
   val get_all_vertices : unit -> Vertex_set.t
   val get_rel : Query.mode -> Query.rel -> Forest_graph.t
   val add_edge : Query.rel -> source: Vertex.t -> target: Vertex.t -> unit
@@ -60,11 +60,11 @@ let init : Dl.db -> (module S) = fun db ->
       | Query.Edges -> get_graph
       | Query.Paths -> get_preorder
 
-    let register_iri iri =
-      let vtx : Vertex.t = T.Iri_vertex iri in
+    let register_uri uri =
+      let vtx : Vertex.t = T.Iri_vertex uri in
       Dl.db_add_fact dl_db @@ Dl.mk_literal Builtin_relation.is_node [Dl.mk_const vtx];
       begin
-        let@ host = Option.iter @~ URI.host iri in
+        let@ host = Option.iter @~ URI.host uri in
         let host_vtx = T.Content_vertex (T.Content [T.Text host]) in
         Dl.db_add_fact dl_db @@ Dl.mk_literal Builtin_relation.in_host [Dl.mk_const vtx; Dl.mk_const host_vtx];
       end;

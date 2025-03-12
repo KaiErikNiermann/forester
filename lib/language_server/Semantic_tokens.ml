@@ -223,7 +223,7 @@ let tokens
           | Code.Dx_prop (_, _)
           | Code.Dx_var _
           | Code.Dx_const_content _
-          | Code.Dx_const_iri _
+          | Code.Dx_const_uri _
           | Code.Error _
           | Code.Comment _
           | Code.Namespace (_, _) ->
@@ -301,8 +301,8 @@ let tokenize_document
   L.SemanticTokens.t option
 = fun {uri} ->
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let iri = URI_scheme.lsp_uri_to_iri ~host: forest.config.host uri in
-  match Imports.resolve_iri_to_code forest iri with
+  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
+  match Imports.resolve_uri_to_code forest uri with
   | Some (Code.{code; _}, _) ->
     let tokens = tokens code in
     Format.(
@@ -327,8 +327,8 @@ let tokenize_document_delta
     textDocument
   ->
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let iri = URI_scheme.lsp_uri_to_iri ~host: forest.config.host textDocument.uri in
-  match Imports.resolve_iri_to_code forest iri with
+  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri in
+  match Imports.resolve_uri_to_code forest uri with
   | None -> None
   | Some (tree, _) ->
     Some (semantic_tokens_delta tree.code)

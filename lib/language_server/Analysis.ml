@@ -67,7 +67,7 @@ let nodes_within (node : Code.node Range.located) =
   | Code.Default (_, t)
   | Code.Def (_, _, t)
   | Code.Namespace (_, t)
-  | Code.Dx_const_iri t
+  | Code.Dx_const_uri t
   | Code.Dx_const_content t
   | Code.Call (t, _)
   | Code.Subtree (_, t) ->

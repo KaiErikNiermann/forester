@@ -70,8 +70,8 @@ let batch_write : t -> _ = function
           | T.Content_vertex _ ->
             (*Import graph has no content vertices*)
             assert false
-          | T.Iri_vertex iri ->
-            let item = Item.Tree iri in
+          | T.Iri_vertex uri ->
+            let item = Item.Tree uri in
             Dependency_tbl.add tbl item Item.{timestamp = Some now; color = Green};
             item
         )
@@ -86,8 +86,8 @@ let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
     (* let graphs = Forest_graphs.init dl_db in *)
     paths
     |> Seq.iter (fun _path ->
-        (* let iri = URI_scheme.path_to_iri ~host: config.host (Eio.Path.native_exn path) in *)
-        (* match URI.Tbl.find_opt forest iri with *)
+        (* let uri = URI_scheme.path_to_uri ~host: config.host (Eio.Path.native_exn path) in *)
+        (* match URI.Tbl.find_opt forest uri with *)
         (* | None -> () *)
         (* | Some tree -> *)
         (*   match check_timestamp path tree.timestamp with *)

@@ -21,7 +21,7 @@ and strip_loc_node : Code.node -> Code.node = fun node ->
   | Math (m, t) -> Math (m, strip_loc t)
   | Namespace (p, t) -> Namespace (p, strip_loc t)
   | Dx_const_content t -> Dx_const_content (strip_loc t)
-  | Dx_const_iri t -> Dx_const_iri (strip_loc t)
+  | Dx_const_uri t -> Dx_const_uri (strip_loc t)
   | Def (p, b, t) -> Def (p, b, strip_loc t)
   | Dx_sequent (t, ts) -> Dx_sequent (strip_loc t, List.map strip_loc ts)
   | Dx_query (s, ts, rs) -> Dx_query (s, List.map strip_loc ts, List.map strip_loc rs)

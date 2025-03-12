@@ -105,8 +105,8 @@ module V = struct
     | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected boolean but got %a" pp x.value
 end
 
-let default_backmatter ~(iri : URI.t) : T.content =
-  let vtx = T.Iri_vertex iri in
+let default_backmatter ~(uri : URI.t) : T.content =
+  let vtx = T.Iri_vertex uri in
   let make_section title query =
     let section =
       let frontmatter = T.default_frontmatter ~title: (T.Content [T.Text title]) () in
@@ -154,15 +154,15 @@ let get_transclusion_flags ~loc =
     metadata_shown = override (get_bool S.show_metadata_sym) flags.metadata_shown;
   }
 
-let resolve_iri ~loc: _ str =
-  let base = let host = Host_env.read () in URI_scheme.base_iri ~host in
+let resolve_uri ~loc: _ str =
+  let base = let host = Host_env.read () in URI_scheme.base_uri ~host in
   match URI.of_string_exn str with
-  | iri -> Ok (URI.resolve ~base iri)
+  | uri -> Ok (URI.resolve ~base uri)
   | exception _ -> Error "Invalid IRI"
 
-let extract_iri (node : V.located) =
+let extract_uri (node : V.located) =
   let text = V.extract_text node in
-  resolve_iri ~loc: node.loc text
+  resolve_uri ~loc: node.loc text
 
 let extract_dx_term (node : V.located) =
   match node.value with
@@ -185,8 +185,8 @@ let extract_vertex ~type_ (node : V.located) =
   | `Content ->
     Ok (T.Content_vertex (V.extract_content node))
   | `Iri ->
-    let@ iri = Result.map @~ extract_iri node in
-    T.Iri_vertex iri
+    let@ uri = Result.map @~ extract_uri node in
+    T.Iri_vertex uri
 
 let extract_query_vertex_expr ~host: _ ~type_ (node : V.located) =
   match node.value with
@@ -196,7 +196,7 @@ let extract_query_vertex_expr ~host: _ ~type_ (node : V.located) =
     | Ok vtx -> Query.Vertex vtx
     | Error _ -> Reporter.fatalf ?loc: node.loc Type_error "Expected valid RFC 3987 IRI in query expression"
 
-let anon_iri base =
+let anon_uri base =
   let ix = Anon_subtree_ix.get () in
   let ix' = ix + 1 in
   Anon_subtree_ix.set ix';
@@ -238,7 +238,7 @@ and eval_node node : V.t =
     focus_clo ?loc env xs body
   | Ref ->
     begin
-      match eval_pop_arg ~loc |> extract_iri with
+      match eval_pop_arg ~loc |> extract_uri with
       | Ok href when URI.scheme href = Some URI_scheme.scheme ->
         let content =
           T.Content
@@ -249,8 +249,8 @@ and eval_node node : V.t =
             ]
         in
         emit_content_node ~loc @@ Link {href; content}
-      | Ok iri ->
-        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester IRI %a" URI.pp iri
+      | Ok uri ->
+        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester IRI %a" URI.pp uri
       | Error _ ->
         Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in ref"
     end
@@ -258,8 +258,8 @@ and eval_node node : V.t =
     let _host = Host_env.read () in
     let dest = {node with value = dest} |> Range.map eval_tape in
     let href =
-      match extract_iri dest with
-      | Ok iri -> iri
+      match extract_uri dest with
+      | Ok uri -> uri
       | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in link"
     in
     let content =
@@ -355,10 +355,10 @@ and eval_node node : V.t =
     let flags = get_transclusion_flags ~loc in
     let href_arg = eval_pop_arg ~loc in
     let href =
-      match extract_iri href_arg with
-      | Ok iri when URI.scheme iri = Some URI_scheme.scheme -> iri
-      | Ok iri ->
-        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester IRI %a" URI.pp iri
+      match extract_uri href_arg with
+      | Ok uri when URI.scheme uri = Some URI_scheme.scheme -> uri
+      | Ok uri ->
+        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester IRI %a" URI.pp uri
       | Error _ ->
         Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in transclusion"
     in
@@ -366,23 +366,23 @@ and eval_node node : V.t =
   | Subtree (addr_opt, nodes) ->
     let flags = get_transclusion_flags ~loc in
     let host = Host_env.read () in
-    let iri =
+    let uri =
       match addr_opt with
-      | Some addr -> URI_scheme.user_iri ~host addr
+      | Some addr -> URI_scheme.user_uri ~host addr
       | None ->
         let fm = Frontmatter.get () in
-        match fm.iri with
+        match fm.uri with
         | None ->
           (* Currently the only source of trees without IRIs are the backmatter subtrees (backlinks, context, references, etc.). I believe that this case is therefore unreachable.*)
           assert false
-        | Some current_iri ->
-          anon_iri current_iri
+        | Some current_uri ->
+          anon_uri current_uri
     in
-    let subtree = eval_tree_inner ~iri nodes.syn in
+    let subtree = eval_tree_inner ~uri nodes.syn in
     let frontmatter = Frontmatter.get () in
-    let subtree = {subtree with frontmatter = {subtree.frontmatter with iri = Some iri; designated_parent = frontmatter.iri}} in
+    let subtree = {subtree with frontmatter = {subtree.frontmatter with uri = Some uri; designated_parent = frontmatter.uri}} in
     Emitted_trees.modify @@ List.cons subtree;
-    let transclusion = T.{href = iri; target = Full flags; modifier = Identity} in
+    let transclusion = T.{href = uri; target = Full flags; modifier = Identity} in
     emit_content_node ~loc @@ Transclude transclusion
   | Results_of_query ->
     let arg = eval_pop_arg ~loc in
@@ -426,25 +426,25 @@ and eval_node node : V.t =
     Jobs.modify (List.cons (Range.locate_opt loc job));
     let transclusion =
       let host = Host_env.read () in
-      let href = URI_scheme.hash_iri ~host hash in
+      let href = URI_scheme.hash_uri ~host hash in
       let target = T.Mainmatter in
       T.{href; target; modifier = Identity}
     in
     emit_content_node ~loc @@ T.Transclude transclusion
   | Route_asset ->
     let source_path = pop_text_arg ~loc in
-    let iri = Asset_router.iri_of_asset ?loc ~source_path () in
+    let uri = Asset_router.uri_of_asset ?loc ~source_path () in
     let sequents =
       Option.value ~default: [] @@
         let fm = Frontmatter.get () in
-        let@ current_iri = Option.map @~ fm.iri in
+        let@ current_uri = Option.map @~ fm.uri in
         let open Datalog_expr.Notation in
         [
-          Builtin_relation.in_bundle_step @* [const (T.Iri_vertex current_iri); const (T.Iri_vertex iri)] << []
+          Builtin_relation.in_bundle_step @* [const (T.Iri_vertex current_uri); const (T.Iri_vertex uri)] << []
         ]
     in
     let datalog = T.Datalog_script sequents in
-    emit_content_nodes ~loc @@ [datalog; T.Route_of_iri iri]
+    emit_content_nodes ~loc @@ [datalog; T.Route_of_uri uri]
   | Object {self; methods} ->
     let table =
       let env = Lex_env.read () in
@@ -547,8 +547,8 @@ and eval_node node : V.t =
     let _host = Host_env.read () in
     let parent_arg = eval_pop_arg ~loc in
     let parent =
-      match extract_iri parent_arg with
-      | Ok iri -> iri
+      match extract_uri parent_arg with
+      | Ok uri -> uri
       | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in parent declaration"
     in
     Frontmatter.modify (fun fm -> {fm with designated_parent = Some parent});
@@ -640,8 +640,8 @@ and eval_node node : V.t =
       | `Content -> T.Content_vertex (V.extract_content arg)
       | `Iri ->
         begin
-          match extract_iri arg with
-          | Ok iri -> T.Iri_vertex iri
+          match extract_uri arg with
+          | Ok uri -> T.Iri_vertex uri
           | Error _ ->
             Reporter.fatalf ?loc: node.loc Type_error "Expected valid RFC 3987 IRI in datalog constant expression."
         end
@@ -651,12 +651,12 @@ and eval_node node : V.t =
     let script = eval_pop_arg ~loc: node.loc |> extract_dx_sequent in
     emit_content_node ~loc: node.loc @@ T.Datalog_script [script]
   | Current_tree ->
-    let iri =
-      match (Frontmatter.get ()).iri with
-      | Some iri -> iri
-      | None -> Reporter.fatalf ?loc: node.loc Internal_error "No iri for tree"
+    let uri =
+      match (Frontmatter.get ()).uri with
+      | Some uri -> uri
+      | None -> Reporter.fatalf ?loc: node.loc Internal_error "No uri for tree"
     in
-    emit_content_node ~loc: node.loc @@ T.Iri iri
+    emit_content_node ~loc: node.loc @@ T.Iri uri
 
 and eval_var ~loc x =
   match Env.find_opt x @@ Lex_env.read () with
@@ -714,7 +714,7 @@ and emit_content_nodes ~loc content =
 and emit_content_node ~loc content =
   emit_content_nodes ~loc [content]
 
-and eval_tree_inner ~(iri : URI.t) (syn : Syn.t) : T.content T.article =
+and eval_tree_inner ~(uri : URI.t) (syn : Syn.t) : T.content T.article =
   let attribution_is_author attr =
     match T.(attr.role) with
     | T.Author -> true
@@ -724,7 +724,7 @@ and eval_tree_inner ~(iri : URI.t) (syn : Syn.t) : T.content T.article =
   let attributions = List.filter attribution_is_author outer_frontmatter.attributions in
   let frontmatter =
     T.default_frontmatter
-      ~iri
+      ~uri
       ~attributions
       ?source_path: outer_frontmatter.source_path
       ~dates: outer_frontmatter.dates
@@ -734,7 +734,7 @@ and eval_tree_inner ~(iri : URI.t) (syn : Syn.t) : T.content T.article =
   let@ () = Frontmatter.run ~init: frontmatter in
   let mainmatter = {value = eval_tape syn; loc = None} |> V.extract_content in
   let frontmatter = Frontmatter.get () in
-  let backmatter = default_backmatter ~iri in
+  let backmatter = default_backmatter ~uri in
   T.{frontmatter; mainmatter; backmatter}
 
 let empty_result = {
@@ -746,7 +746,7 @@ let recover_tree _d = empty_result
 
 let eval_tree
     ~(host : string)
-    ~(iri : URI.t)
+    ~(uri : URI.t)
     ~(source_path : string option)
     (tree : Syn.t)
     : result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t
@@ -757,7 +757,7 @@ let eval_tree
       ~recover: recover_tree
       (fun ds -> diagnostics := ds;)
       @@ fun () ->
-      let fm = T.default_frontmatter ~iri ?source_path () in
+      let fm = T.default_frontmatter ~uri ?source_path () in
       let@ () = Frontmatter.run ~init: fm in
       let@ () = Emitted_trees.run ~init: [] in
       let@ () = Jobs.run ~init: [] in
@@ -765,7 +765,7 @@ let eval_tree
       let@ () = Lex_env.run ~env: Env.empty in
       let@ () = Dyn_env.run ~env: Env.empty in
       let@ () = Host_env.run ~env: host in
-      let main = eval_tree_inner ~iri tree in
+      let main = eval_tree_inner ~uri tree in
       let side = Emitted_trees.get () in
       let jobs = Jobs.get () in
       {articles = main :: side; jobs}

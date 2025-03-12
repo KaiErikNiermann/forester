@@ -20,39 +20,39 @@ type query = {
 
 module Xmlns = Xmlns_effect.Make ()
 
-let get_sorted_articles (forest : State.t) iris =
+let get_sorted_articles (forest : State.t) uris =
   let module C = Types.Comparators(struct
     let string_of_content =
       Plain_text_client.string_of_content
         ~forest: forest.resources
         ~router: URI.to_string (* TODO *)
   end) in
-  iris
+  uris
   |> Vertex_set.to_seq
-  |> Seq.filter_map Vertex.iri_of_vertex
-  |> Seq.filter_map (fun iri -> Forest.get_article iri forest.resources)
+  |> Seq.filter_map Vertex.uri_of_vertex
+  |> Seq.filter_map (fun uri -> Forest.get_article uri forest.resources)
   |> List.of_seq
   |> List.sort C.compare_article
 
-let home_iri ~(config : Config.t) =
+let home_uri ~(config : Config.t) =
   (* let config = State.get_config forest in *)
   let@ root = Option.bind config.home in
-  let base = URI_scheme.base_iri ~host: config.host in
+  let base = URI_scheme.base_uri ~host: config.host in
   try
     Option.some @@ URI.resolve ~base @@ URI.of_string_exn root
   with
     | _ -> None
 
-let iri_is_home ~config iri =
-  match home_iri ~config with
-  | Some home_iri ->
+let uri_is_home ~config uri =
+  match home_uri ~config with
+  | Some home_uri ->
     (* By this point, any IRI should be in normal form. *)
-    URI.equal home_iri iri
+    URI.equal home_uri uri
   | None -> false
 
 let route (forest : State.t) addr =
   let config = forest.config in
-  if Some addr = Option.map (URI_scheme.user_iri ~host: config.host) config.home then
+  if Some addr = Option.map (URI_scheme.user_uri ~host: config.host) config.home then
     "index.html"
   else
     Format.asprintf "%s" (URI.path_string addr)
@@ -229,7 +229,7 @@ let rec render_article (forest : State.t) (article : T.content T.article) : node
                 ] :: render_content forest article.mainmatter;
             );
         ];
-      match Option.map (iri_is_home ~config: forest.config) article.frontmatter.iri with
+      match Option.map (uri_is_home ~config: forest.config) article.frontmatter.uri with
       | None ->
         footer
           []
@@ -360,22 +360,22 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
         )
         frontmatter.title
   in
-  let iri =
-    match frontmatter.iri with
+  let uri =
+    match frontmatter.uri with
     | None -> null []
-    | Some iri ->
-      let iri_str =
-        if URI.host iri = Some forest.config.host then
-          Scanf.(sscanf (URI.path_string iri) "/%s") Fun.id
+    | Some uri ->
+      let uri_str =
+        if URI.host uri = Some forest.config.host then
+          Scanf.(sscanf (URI.path_string uri) "/%s") Fun.id
         else
-          Format.asprintf "%a" URI.pp iri
+          Format.asprintf "%a" URI.pp uri
       in
       a
         [
           class_ "slug";
-          href "%s" iri_str;
+          href "%s" uri_str;
         ]
-        [txt "[%s]" iri_str]
+        [txt "[%s]" uri_str]
   in
   let source_path =
     match frontmatter.source_path with
@@ -477,7 +477,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
             ] @
             title @
             [txt " "] @
-            [iri] @
+            [uri] @
             source_path
           )
       );
@@ -616,7 +616,7 @@ and render_content_node
   | T.Datalog_script _ -> []
   | T.Artefact _
   | T.Iri _
-  | T.Route_of_iri _ ->
+  | T.Route_of_uri _ ->
     [txt "todo"]
 
 (* TODO: links need to be flattened in order to produce valid HTML. *)
@@ -630,8 +630,8 @@ and render_link (forest : State.t) (link : T.content T.link) : node list =
       ]
     | Some article ->
       begin
-        match article.frontmatter.iri with
-        | Some _iri ->
+        match article.frontmatter.uri with
+        | Some _uri ->
           [
             title_ "%s" @@
             Option.value ~default: "" @@
@@ -715,7 +715,7 @@ and _render_toc_item (forest : State.t) (item : T.content T.section) =
                       "[%a]"
                       URI.pp
                   )
-                  item.frontmatter.iri
+                  item.frontmatter.uri
             )
         ]
         [txt "■"];
@@ -774,8 +774,8 @@ let render_query_result (forest : State.t) (vs : Vertex_set.t) =
   end) in
   vs
   |> Vertex_set.to_seq
-  |> Seq.filter_map Vertex.iri_of_vertex
-  |> Seq.filter_map (fun iri -> Forest.get_article iri forest.resources)
+  |> Seq.filter_map Vertex.uri_of_vertex
+  |> Seq.filter_map (fun uri -> Forest.get_article uri forest.resources)
   |> List.of_seq
   |> List.sort C.compare_article
   |> List.map

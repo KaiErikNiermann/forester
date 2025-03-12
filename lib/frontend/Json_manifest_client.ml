@@ -14,9 +14,9 @@ module PT = Plain_text_client
 
 let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string * Yojson.Safe.t) option =
   let host = forest.config.host in
-  let@ iri = Option.bind doc.frontmatter.iri in
+  let@ uri = Option.bind doc.frontmatter.uri in
   (* TODO : Check routing *)
-  let route = Legacy_xml_client.route forest iri in
+  let route = Legacy_xml_client.route forest uri in
   let title_string =
     String_util.sentence_case @@
     PT.string_of_content ~forest: forest.resources ~router: URI.to_string @@
@@ -63,7 +63,7 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
           ("metas", metas)
         ]
     in
-    (URI.to_string (URI.relativise ~host iri), `Assoc fm)
+    (URI.to_string (URI.relativise ~host uri), `Assoc fm)
 
 let render_trees
     ~(dev : bool)

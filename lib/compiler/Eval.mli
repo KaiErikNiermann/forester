@@ -15,7 +15,7 @@ type result = {
 
 val eval_tree :
   host: string ->
-  iri: URI.t ->
+  uri: URI.t ->
   source_path: string option ->
   Syn.t ->
   result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t

@@ -14,9 +14,9 @@ include URI.Tbl
 
 type resource = T.content T.resource
 
-let iri_for_resource = function
-  | T.Article article -> article.frontmatter.iri
-  | T.Asset asset -> Some asset.iri
+let uri_for_resource = function
+  | T.Article article -> article.frontmatter.uri
+  | T.Asset asset -> Some asset.uri
 
 type article = T.content T.article
 
@@ -53,7 +53,7 @@ let add_edge graphs rel ~source ~target =
 
 let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) : unit =
   match node with
-  | Text _ | CDATA _ | Route_of_iri _ | Iri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Img _ | Contextual_number _ -> ()
+  | Text _ | CDATA _ | Route_of_uri _ | Iri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Img _ | Contextual_number _ -> ()
   | Transclude transclusion ->
     analyse_transclusion graphs scope transclusion
   | Xml_elt elt ->
@@ -118,7 +118,7 @@ and analyse_tags graphs (scope : URI.t) (tags : _ T.vertex list) =
   tags |> List.iter @@ analyse_tag graphs scope
 
 and analyse_frontmatter graphs (fm : T.content T.frontmatter) : unit =
-  let@ scope = Option.iter @~ fm.iri in
+  let@ scope = Option.iter @~ fm.uri in
   Option.iter (analyse_content graphs scope) fm.title;
   analyse_taxon graphs scope fm.taxon;
   analyse_attributions graphs scope fm.attributions;
@@ -133,15 +133,15 @@ and analyse_meta graphs (scope : URI.t) (_, content) : unit =
 
 and analyse_section graphs (scope : URI.t) (section : T.content T.section) : unit =
   begin
-    let@ target = Option.iter @~ section.frontmatter.iri in
+    let@ target = Option.iter @~ section.frontmatter.uri in
     add_edge graphs Builtin_relation.transcludes ~source: (Iri_vertex scope) ~target: (Iri_vertex target)
   end;
   analyse_frontmatter graphs section.frontmatter;
-  analyse_content graphs (Option.value ~default: scope section.frontmatter.iri) section.mainmatter
+  analyse_content graphs (Option.value ~default: scope section.frontmatter.uri) section.mainmatter
 
 let analyse_article graphs (article : article) : unit =
   analyse_frontmatter graphs article.frontmatter;
-  let@ scope = Option.iter @~ article.frontmatter.iri in
+  let@ scope = Option.iter @~ article.frontmatter.uri in
   analyse_content graphs scope article.mainmatter;
   analyse_content graphs scope article.backmatter
 
@@ -151,24 +151,24 @@ let analyse_resource graphs = function
 
 let get_article
   : URI.t -> _ t -> T.content T.article option
-= fun iri forest ->
-  match find_opt forest iri with
+= fun uri forest ->
+  match find_opt forest uri with
   | None -> None
   | Some (T.Asset _) ->
-    Logs.debug (fun m -> m "%a is an asset, not an article" URI.pp iri);
+    Logs.debug (fun m -> m "%a is an asset, not an article" URI.pp uri);
     None
   | Some (T.Article article) -> Some article
 
 let plant_resource (resource : resource) (graphs : (module Forest_graphs.S)) (resources : resource t) : unit =
   let module Graphs = (val graphs) in
   analyse_resource graphs resource;
-  let@ iri = Option.iter @~ iri_for_resource resource in
-  let iri = URI.canonicalise iri in
-  Graphs.register_iri iri;
-  match URI.Tbl.mem resources iri with
+  let@ uri = Option.iter @~ uri_for_resource resource in
+  let uri = URI.canonicalise uri in
+  Graphs.register_uri uri;
+  match URI.Tbl.mem resources uri with
   | false ->
-    (* Graphs.register_iri iri; *)
-    add resources iri resource
+    (* Graphs.register_uri uri; *)
+    add resources uri resource
   | true ->
     ()
 
@@ -178,18 +178,18 @@ let rec get_expanded_title ?scope ?(flags = T.{empty_when_untitled = false}) (fr
     | Some content -> content
     | None when not flags.empty_when_untitled ->
       begin
-        match frontmatter.iri with
-        | Some iri -> T.Content [T.Iri iri]
+        match frontmatter.uri with
+        | Some uri -> T.Content [T.Iri uri]
         | _ -> T.Content [T.Text "Untitled"]
       end
     | _ -> T.Content []
   in
   Option.value ~default: short_title @@
     match frontmatter.designated_parent with
-    | Some parent_iri when not (Option.equal URI.equal scope frontmatter.designated_parent) ->
-      let@ parent = Option.map @~ get_article parent_iri forest in
+    | Some parent_uri when not (Option.equal URI.equal scope frontmatter.designated_parent) ->
+      let@ parent = Option.map @~ get_article parent_uri forest in
       let parent_title = get_expanded_title parent.frontmatter forest in
-      let parent_link = T.Link {href = parent_iri; content = parent_title} in
+      let parent_link = T.Link {href = parent_uri; content = parent_title} in
       let chevron = T.Text " › " in
       T.map_content (fun xs -> parent_link :: chevron :: xs) short_title
     | _ -> None
@@ -225,11 +225,11 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) ~modifier vertex
     Option.map @~
       match vertex with
       | T.Content_vertex content -> Some content
-      | T.Iri_vertex iri ->
+      | T.Iri_vertex uri ->
         begin
-          match get_article iri forest with
+          match get_article uri forest with
           | Some article -> article.frontmatter.title
-          | None -> not_found iri
+          | None -> not_found uri
         end
   in
   T.apply_modifier_to_content modifier content

@@ -26,8 +26,8 @@ let compute
     (* let resolver = Compiler.make_resolver ~host: server.config.host codes in *)
     (* let* { code; _ } = Compiler.resolve ~host textDocument.uri codes in *)
     (* let* addr = Analysis.addr_at ~position code in *)
-    (* let iri = URI_scheme.user_iri ~host: server.config.host addr in *)
-    (* let* uri = Hashtbl.find_opt resolver iri in *)
+    (* let uri = URI_scheme.user_uri ~host: server.config.host addr in *)
+    (* let* uri = Hashtbl.find_opt resolver uri in *)
     let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
     Some
       (`Location [L.Location.{uri = textDocument.uri; range}])

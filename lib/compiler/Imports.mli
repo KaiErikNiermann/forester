@@ -17,5 +17,5 @@ val register_document : host: string -> Forest_graph.t -> Lsp.Text_document.t ->
 val build : State.t -> Forest_graph.t
 val run_builder : ?root: URI.t -> analysis_env -> Forest_graph.t
 val dependencies : Code.tree -> State.t -> Forest_graph.t
-val resolve_iri_to_code : State.t -> Forest.key -> (Code.tree * Lsp.Text_document.t) option
+val resolve_uri_to_code : State.t -> Forest.key -> (Code.tree * Lsp.Text_document.t) option
 val fixup : Code.tree -> State.t -> unit

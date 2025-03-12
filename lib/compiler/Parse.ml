@@ -25,7 +25,7 @@ let parse_document ~host doc =
     Code.{
       code;
       source_path = Some path;
-      iri = Some (URI_scheme.path_to_iri ~host path);
+      uri = Some (URI_scheme.path_to_uri ~host path);
       timestamp = Some (Unix.time ());
     }
   ) @@

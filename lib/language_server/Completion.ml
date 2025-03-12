@@ -112,8 +112,8 @@ let compute
       |> Seq.filter_map
           begin
             fun (tree : Code.tree) ->
-              let* iri = tree.iri in
-              let* {frontmatter; mainmatter; _} = Forest.get_article iri forest.resources in
+              let* uri = tree.uri in
+              let* {frontmatter; mainmatter; _} = Forest.get_article uri forest.resources in
               let documentation =
                 let render =
                   Plain_text_client.string_of_content
@@ -132,14 +132,14 @@ let compute
                 Some (`String content)
               in
               let insertText =
-                (* TODO if host = current_host insert shortform else insert fully qualified iri*)
+                (* TODO if host = current_host insert shortform else insert fully qualified uri*)
                 match triggerCharacter with
-                | Some "{" -> URI_scheme.name iri ^ "}"
-                | Some "(" -> URI_scheme.name iri ^ ")"
-                | Some "[" -> URI_scheme.name iri ^ "]"
+                | Some "{" -> URI_scheme.name uri ^ "}"
+                | Some "(" -> URI_scheme.name uri ^ ")"
+                | Some "[" -> URI_scheme.name uri ^ "]"
                 | _ -> ""
               in
-              Some (L.CompletionItem.create ?documentation ~label: (URI_scheme.name iri) ~insertText ())
+              Some (L.CompletionItem.create ?documentation ~label: (URI_scheme.name uri) ~insertText ())
           end
       |> List.of_seq
     in

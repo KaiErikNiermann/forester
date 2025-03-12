@@ -30,10 +30,10 @@ let average_doc_length
 let add_one
   : T.content T.article -> t -> t
 = fun article ({index; number_of_tokens; number_of_docs;} as t) ->
-  if Option.is_none T.(article.frontmatter.iri) then t
+  if Option.is_none T.(article.frontmatter.uri) then t
   else
     let tokens_in_article = Tokenizer.tokenize_article article in
-    let iri = Option.get T.(article.frontmatter.iri) in
+    let uri = Option.get T.(article.frontmatter.uri) in
     let new_tokens = ref 0 in
     let new_index =
       List.fold_left
@@ -42,11 +42,11 @@ let add_one
           | [] ->
             (* Unseen token*)
             (* TODO: add to list of ocurrences*)
-            let ocurrence = Ocurrences.singleton ([ocurrences], iri) in
+            let ocurrence = Ocurrences.singleton ([ocurrences], uri) in
             new_tokens := !new_tokens + 1;
             Index.add index token ocurrence
           | ids :: [] ->
-            Index.add index token (Ocurrences.add ([ocurrences], iri) ids)
+            Index.add index token (Ocurrences.add ([ocurrences], uri) ids)
           | _ ->
             (* We are using limit=0, so this shouldn't happen*)
             assert false
@@ -124,12 +124,12 @@ let ranked_search
          search for the first token, so this should be changed.*)
       let first_token = List.hd tokens in
       let matches = search ~fuzz: 1 index first_token in
-      let iris =
+      let uris =
         List.filter_map
-          (fun (_, iri) ->
-            match URI.Tbl.find_opt forest iri with
+          (fun (_, uri) ->
+            match URI.Tbl.find_opt forest uri with
             | Some (T.Article a) ->
-              Some (iri, BM_25.score a terms index)
+              Some (uri, BM_25.score a terms index)
             | None -> assert false
             | _ -> None
           )
@@ -137,7 +137,7 @@ let ranked_search
       in
       List.sort
         (fun (_, score_a) (_, score_b) -> Float.compare score_a score_b)
-        iris
+        uris
 
 let create articles =
   let index = {

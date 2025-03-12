@@ -14,7 +14,7 @@ type loc =
 
 let int_of_field_frontmatter
 = function
-  | `iri -> 0
+  | `uri -> 0
   | `title -> 1
   | `dates -> 2
   | `attributions -> 3
@@ -102,7 +102,7 @@ let rec tokenize_content
           | T.Img _
           | T.Artefact _
           | T.Iri _
-          | T.Route_of_iri _
+          | T.Route_of_uri _
           | T.Datalog_script _
           | T.Results_of_datalog_query _ ->
             []

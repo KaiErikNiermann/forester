@@ -13,7 +13,7 @@
   Test_expansion
   Test_graph_database
   Test_import_graph
-  Test_iri_util)
+  Test_uri_util)
  (preprocess
   (pps ppx_deriving.show))
  (libraries
