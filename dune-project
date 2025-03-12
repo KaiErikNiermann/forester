@@ -42,7 +42,7 @@
   (ocamlgraph
    (>= 2.1.0))
   (ocaml
-   (>= 5.2.0))
+   (>= 5.3.0))
   dune
   dune-site
   ocaml-index
