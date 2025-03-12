@@ -1,7 +1,7 @@
 type t
 
 val host : t -> string option
-val scheme : t -> string
+val scheme : t -> string option
 val path_string : t -> string
 val path_components : t -> string list
 val with_path_components : string list -> t -> t
@@ -11,9 +11,6 @@ val relativise : host: string -> t -> t
 val resolve : base: t -> t -> t
 val equal : t -> t -> bool
 val compare : t -> t -> int
-
-(* TODO: get rid of *)
-val clean : t -> t
 
 val make :
   ?scheme: string ->

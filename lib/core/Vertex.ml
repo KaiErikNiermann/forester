@@ -11,7 +11,7 @@ type t = content vertex
 
 let clean = function
   | Content_vertex x -> Content_vertex x
-  | Iri_vertex iri -> Iri_vertex (URI.clean iri)
+  | Iri_vertex iri -> Iri_vertex iri
 
 let hash x = Hashtbl.hash (clean x)
 

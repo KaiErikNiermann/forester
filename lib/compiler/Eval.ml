@@ -239,7 +239,7 @@ and eval_node node : V.t =
   | Ref ->
     begin
       match eval_pop_arg ~loc |> extract_iri with
-      | Ok href when URI.scheme href = URI_scheme.scheme ->
+      | Ok href when URI.scheme href = Some URI_scheme.scheme ->
         let content =
           T.Content
             [
@@ -356,7 +356,7 @@ and eval_node node : V.t =
     let href_arg = eval_pop_arg ~loc in
     let href =
       match extract_iri href_arg with
-      | Ok iri when URI.scheme iri = URI_scheme.scheme -> iri
+      | Ok iri when URI.scheme iri = Some URI_scheme.scheme -> iri
       | Ok iri ->
         Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester IRI %a" URI.pp iri
       | Error _ ->

@@ -27,7 +27,7 @@ let hash_iri ~host hash_str =
 
 let is_named_iri iri =
   match URI.scheme iri, URI.path_components iri with
-  | sch, "hash" :: _ when sch = scheme -> false
+  | sch, "hash" :: _ when sch = Some scheme -> false
   | _ -> true
 
 let last_segment str =

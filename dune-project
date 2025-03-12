@@ -50,8 +50,6 @@
   (cmdliner
    (>= 1.2.0))
   dune-build-info
-  (iri
-   (>= 1.0.0))
   (uucp
    (>= 15.1.0))
   (eio_main

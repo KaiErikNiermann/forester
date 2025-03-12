@@ -36,7 +36,7 @@ let transclusion_cache = Hashtbl.create 1000
 
 let iri_to_string ~(config : Config.t) iri =
   match URI.host iri with
-  | Some host when URI.scheme iri = URI_scheme.scheme ->
+  | Some host when URI.scheme iri = Some URI_scheme.scheme ->
     if host = config.host then
       URI.path_string @@ URI.relativise ~host iri
     else
@@ -62,7 +62,8 @@ let iri_is_home ~config iri =
 let route_resource_iri ~suffix (forest : State.t) iri =
   let config = forest.config in
   let host = Option.value ~default: "" @@ URI.host iri in
-  let bare_route = String.concat "-" @@ URI.path_components iri in
+  let components = URI.path_components iri in
+  let bare_route = String.concat "-" components in
   begin
     if host = config.host then
       if iri_is_home ~config iri then "index.xml"
@@ -81,7 +82,7 @@ let route (forest : State.t) iri =
       | T.Asset _ -> ""
     in
     route_resource_iri ~suffix forest iri
-  | None when URI.scheme iri = URI_scheme.scheme ->
+  | None when URI.scheme iri = Some URI_scheme.scheme ->
     Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp iri;
     URI.to_string iri
   | None ->

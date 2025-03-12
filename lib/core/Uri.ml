@@ -1,53 +1,70 @@
 module Basics = struct
-  type t = Iri.t
+  type t = {
+    scheme: string option;
+    userinfo: string option;
+    host: string option;
+    port: int option;
+    path: string;
+    fragment: string option;
+  }
 
-  let host = Iri.host
-  let scheme = Iri.scheme
-  let port = Iri.port
-  let path_string iri = Iri.path_string iri
+  let hydrate {scheme; userinfo; host; port; path; fragment} =
+    Uri.make ?scheme ?userinfo ?host ?port ~path ?fragment ()
 
-  let equal x y = Iri.equal ~normalize: true x y
-  let compare x y = Iri.compare ~normalize: true x y
-  let resolve = Iri.resolve ~normalize: true
+  let dehydrate x = {
+    scheme = Uri.scheme x;
+    userinfo = Uri.userinfo x;
+    host = Uri.host x;
+    port = Uri.port x;
+    path = Uri.path x;
+    fragment = Uri.fragment x
+  }
 
-  let clean iri = Iri.with_query iri (Iri.query iri)
-  let hash (iri : t) = Hashtbl.hash (clean iri)
-
+  let host x = x.host
+  let scheme x = x.scheme
+  let port x = x.port
 
   let path_components x =
-    match Iri.path x with
-    | Absolute xs -> xs
-    | Relative xs -> xs
+    List.filter (function "" -> false | _ -> true) @@
+    String.split_on_char '/' @@ x.path
+
+  let path_string x =
+    String.concat "/" @@ path_components x
+
+  let equal = (=)
+  let compare = compare
+
+  let resolve ~base x =
+    dehydrate @@ Uri.resolve "" (hydrate base) (hydrate x)
+
+  let canonicalise iri = dehydrate @@ Uri.canonicalize @@ hydrate iri
+  let hash (iri : t) = Hashtbl.hash iri
 
   let with_path_components xs iri =
-    Iri.normalize @@
-    match Iri.path iri with
-    | Absolute _ -> Iri.with_path iri (Absolute xs)
-    | Relative _ -> Iri.with_path iri (Relative xs)
+    dehydrate @@
+    Uri.canonicalize @@
+    Uri.with_path (hydrate iri) @@ String.concat "/" xs
 
-  let t = Repr.map Repr.string Iri.of_string Iri.to_string
+  let t = Repr.map Repr.string (Fun.compose dehydrate Uri.of_string) (Fun.compose Uri.to_string hydrate)
 
   let pp (fmt : Format.formatter) (iri : t) =
     Format.fprintf fmt "%s" @@
-      Iri.to_string ~pctencode: false iri
+    Uri.to_string @@ hydrate iri (* wanted it not pct-encoded, but we'll see*)
 
-  let to_string = Iri.to_uri
+  let to_string x = Uri.to_string @@ hydrate x
 
-  let of_string_exn : string -> t =
-    Iri.of_string ~normalize: true
+  let of_string_exn str =
+    dehydrate @@ Uri.canonicalize @@ Uri.of_string str
 
   let make ?scheme ?user ?host ?port ?path () =
-    let path = Option.map (fun xs -> Iri.Absolute xs) path in
-    Iri.normalize @@ Iri.iri ?scheme ?user ?host ?port ?path ()
+    let path = Option.map (String.concat "/") path in
+    dehydrate @@ Uri.canonicalize @@ Uri.make ?scheme ?userinfo: user ?host ?port ?path ()
 
   let relativise ~(host : string) iri =
-    if scheme iri = "forest" && Iri.host iri = Some host then
-      let (Iri.Absolute components | Iri.Relative components) = Iri.path iri in
-      Iri.iri ~path: (Iri.Relative components) ()
+    if scheme iri = Some "forest" && iri.host = Some host then
+      dehydrate @@ Uri.make ?scheme: (scheme iri) ~path: iri.path ()
     else
       iri
-
-  let canonicalise iri = Iri.normalize iri
 end
 
 module Set = Set.Make(Basics)
