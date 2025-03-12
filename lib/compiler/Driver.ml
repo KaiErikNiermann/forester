@@ -87,7 +87,7 @@ let update
     Seq.iter Reporter.Tty.display errors;
     Seq.iter
       (fun tree ->
-        (* Every tree that comes from the filesystem has an IRI *)
+        (* Every tree that comes from the filesystem has an URI *)
         let uri = Option.get Code.(tree.uri) in
         URI.Tbl.add
           forest.parsed

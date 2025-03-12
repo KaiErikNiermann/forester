@@ -46,7 +46,7 @@ let home_uri ~(config : Config.t) =
 let uri_is_home ~config uri =
   match home_uri ~config with
   | Some home_uri ->
-    (* By this point, any IRI should be in normal form. *)
+    (* By this point, any URIs should be in normal form. *)
     URI.equal home_uri uri
   | None -> false
 

@@ -158,7 +158,7 @@ let resolve_uri ~loc: _ str =
   let base = let host = Host_env.read () in URI_scheme.base_uri ~host in
   match URI.of_string_exn str with
   | uri -> Ok (URI.resolve ~base uri)
-  | exception _ -> Error "Invalid IRI"
+  | exception _ -> Error "Invalid URI"
 
 let extract_uri (node : V.located) =
   let text = V.extract_text node in
@@ -194,7 +194,7 @@ let extract_query_vertex_expr ~host: _ ~type_ (node : V.located) =
   | _ ->
     match extract_vertex ~type_ node with
     | Ok vtx -> Query.Vertex vtx
-    | Error _ -> Reporter.fatalf ?loc: node.loc Type_error "Expected valid RFC 3987 IRI in query expression"
+    | Error _ -> Reporter.fatalf ?loc: node.loc Type_error "Expected valid URI in query expression"
 
 let anon_uri base =
   let ix = Anon_subtree_ix.get () in
@@ -250,9 +250,9 @@ and eval_node node : V.t =
         in
         emit_content_node ~loc @@ Link {href; content}
       | Ok uri ->
-        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester IRI %a" URI.pp uri
+        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester URI %a" URI.pp uri
       | Error _ ->
-        Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in ref"
+        Reporter.fatalf ?loc Type_error "Expected valid URI in ref"
     end
   | Link {title; dest} ->
     let _host = Host_env.read () in
@@ -260,7 +260,7 @@ and eval_node node : V.t =
     let href =
       match extract_uri dest with
       | Ok uri -> uri
-      | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in link"
+      | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid URI in link"
     in
     let content =
       match title with
@@ -358,9 +358,9 @@ and eval_node node : V.t =
       match extract_uri href_arg with
       | Ok uri when URI.scheme uri = Some URI_scheme.scheme -> uri
       | Ok uri ->
-        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester IRI %a" URI.pp uri
+        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester URI %a" URI.pp uri
       | Error _ ->
-        Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in transclusion"
+        Reporter.fatalf ?loc Type_error "Expected valid URI in transclusion"
     in
     emit_content_node ~loc @@ T.Transclude {href; target = Full flags; modifier = Identity}
   | Subtree (addr_opt, nodes) ->
@@ -549,7 +549,7 @@ and eval_node node : V.t =
     let parent =
       match extract_uri parent_arg with
       | Ok uri -> uri
-      | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid RFC 3987 IRI in parent declaration"
+      | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid URI in parent declaration"
     in
     Frontmatter.modify (fun fm -> {fm with designated_parent = Some parent});
     process_tape ()
@@ -569,7 +569,7 @@ and eval_node node : V.t =
           | Author -> "\\author/literal"
           | Contributor -> "\\contributor/literal"
         in
-        Reporter.emitf ?loc Type_warning "Expected valid RFC 3987 IRI in attribution. Use `%s` instead if you intend an unlinked attribution." corrected_attribution_code;
+        Reporter.emitf ?loc Type_warning "Expected valid URI in attribution. Use `%s` instead if you intend an unlinked attribution." corrected_attribution_code;
         T.Content_vertex (V.extract_content arg)
     in
     let attribution = T.{role; vertex} in
@@ -582,7 +582,7 @@ and eval_node node : V.t =
       | Ok vtx -> vtx
       | Error _ ->
         let corrected = "\\tag/content" in
-        Reporter.emitf ?loc Type_warning "Expected valid RFC 3987 IRI in tag. Use `%s` instead if you intend an unlinked attribution." corrected;
+        Reporter.emitf ?loc Type_warning "Expected valid URI in tag. Use `%s` instead if you intend an unlinked attribution." corrected;
         T.Content_vertex (V.extract_content arg)
     in
     Frontmatter.modify (fun fm -> {fm with tags = fm.tags @ [vertex]});
@@ -643,7 +643,7 @@ and eval_node node : V.t =
           match extract_uri arg with
           | Ok uri -> T.Iri_vertex uri
           | Error _ ->
-            Reporter.fatalf ?loc: node.loc Type_error "Expected valid RFC 3987 IRI in datalog constant expression."
+            Reporter.fatalf ?loc: node.loc Type_error "Expected valid URI in datalog constant expression."
         end
     in
     focus ?loc: node.loc @@ V.Dx_const const
