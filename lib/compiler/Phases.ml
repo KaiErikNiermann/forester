@@ -187,46 +187,33 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
 
 let run_jobs (forest : State.t) jobs =
   Logs.debug (fun m -> m "Running %d jobs" (List.length jobs));
-  let@ Range.{value; loc} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
-  let@ () = Reporter.easy_run in
-  match value with
-  | Job.LaTeX_to_svg {hash; source; content} ->
-    let svg = Build_latex.latex_to_svg ~env: forest.env ?loc source in
-    let iri = Iri_scheme.hash_iri ~host: forest.config.host hash in
-    let frontmatter = T.default_frontmatter ~iri () in
-    let mainmatter = content ~svg in
-    let backmatter = T.Content [] in
-    let article = T.{frontmatter; mainmatter; backmatter} in
+  (* All articles induced by LaTeX jobs must be planted prior to publication export. *)
+  let articles_to_plant =
+    let@ Range.{value; loc} = Eio.Fiber.List.filter_map ~max_fibers: 20 @~ jobs in
+    match value with
+    | Job.LaTeX_to_svg job ->
+      let@ () = Reporter.easy_run in
+      let svg = Build_latex.latex_to_svg ~env: forest.env ?loc job.source in
+      let iri = Iri_scheme.hash_iri ~host: forest.config.host job.hash in
+      let frontmatter = T.default_frontmatter ~iri () in
+      let mainmatter = job.content ~svg in
+      let backmatter = T.Content [] in
+      Some T.{frontmatter; mainmatter; backmatter}
+    | Job.Publish _ -> None
+  in
+  begin
+    (* It is probably not save to plant the articles in parallel, so this is done sequentially! *)
+    let@ article = List.iter @~ articles_to_plant in
     Forest.plant_resource (T.Article article) forest.graphs forest.resources
-  | Job.Publish publication ->
-    export_publication ~env: forest.env ~forest publication
-
-(* in *)
-(* let append_diagnostics () = *)
-(*   let@ uri = Option.iter @~ uri in *)
-(*   Diagnostic_store.append forest.diagnostics uri diagnostics *)
-(* in *)
-(* let plant_articles () = *)
-(*   let@ article = List.iter @~ articles in *)
-(*   Forest.plant_resource (T.Article article) forest.graphs forest.resources *)
-(* in *)
-(* append_diagnostics (); *)
-(* plant_articles (); *)
-(* begin *)
-(*   let@ Range.{value; loc} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in *)
-(*   let@ () = Reporter.easy_run in *)
-(*   match value with *)
-(*   | Job.LaTeX_to_svg {hash; source; content} -> *)
-(*     let svg = Build_latex.latex_to_svg ~env ?loc source in *)
-(*     let iri = Iri_scheme.hash_iri ~host hash in *)
-(*     let frontmatter = T.default_frontmatter ~iri () in *)
-(*     let mainmatter = content ~svg in *)
-(*     let backmatter = T.Content [] in *)
-(*     let article = T.{frontmatter; mainmatter; backmatter} in *)
-(*     Forest.plant_resource (T.Article article) forest.graphs forest.resources *)
-(*   | Job.Publish publication -> *)
-(*     export_publication ~env ~forest publication *)
-(* end *)
+  end;
+  begin
+    (* Now that the articles have been planted, we can export publications. *)
+    let@ Range.{value; _} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
+    match value with
+    | Publish publication ->
+      export_publication ~env: forest.env ~forest publication
+    | Job.LaTeX_to_svg _ -> ()
+  end
 
 let eval (forest : State.t) =
   let host = forest.config.host in
