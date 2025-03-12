@@ -88,7 +88,7 @@ let test_reparsing ~env () =
     in
     let reparse_addr = "t8.tree" in
     let reparse_uri = URI_scheme.path_to_uri ~host: config.host reparse_addr in
-    let vtx = T.Iri_vertex reparse_uri in
+    let vtx = T.Uri_vertex reparse_uri in
     Alcotest.(check int)
       "Number of vertices before reparsing"
       8

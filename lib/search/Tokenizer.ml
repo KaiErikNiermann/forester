@@ -101,7 +101,7 @@ let rec tokenize_content
           | T.TeX_cs _
           | T.Img _
           | T.Artefact _
-          | T.Iri _
+          | T.Uri _
           | T.Route_of_uri _
           | T.Datalog_script _
           | T.Results_of_datalog_query _ ->
@@ -116,7 +116,7 @@ and tokenize_vertex
   (int list * string) list
 = fun path loc v ->
   match v with
-  | T.Iri_vertex _ -> []
+  | T.Uri_vertex _ -> []
   | T.Content_vertex c ->
     tokenize_content path loc c
 

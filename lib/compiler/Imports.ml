@@ -50,7 +50,7 @@ let add_edge g v w =
 let register_document ~host g doc =
   let uri = Lsp.Text_document.documentUri doc in
   let uri = URI_scheme.lsp_uri_to_uri ~host uri in
-  Forest_graph.add_vertex g (T.Iri_vertex uri)
+  Forest_graph.add_vertex g (T.Uri_vertex uri)
 
 module Analysis_env = Algaeff.Reader.Make(struct type t = analysis_env end)
 
@@ -91,7 +91,7 @@ let rec analyse_tree (root : URI.t) (tree : Code.tree) =
   let uri_opt = tree.uri in
   let code = tree.code in
   let@ uri = Option.iter @~ uri_opt in
-  Forest_graph.add_vertex env.graph (T.Iri_vertex uri);
+  Forest_graph.add_vertex env.graph (T.Uri_vertex uri);
   analyse_code root code;
 
 and analyse_tree_exn (tree : Code.tree) =
@@ -109,8 +109,8 @@ and analyse_node root (node : Code.node Asai.Range.located) =
   | Import (_, dep) ->
     (* NOTE: Doesn't this imply we can't import like \import{forest://foo/bar}?*)
     let dep_uri = URI_scheme.user_uri ~host dep in
-    let dependency = T.Iri_vertex dep_uri in
-    let target = T.Iri_vertex root in
+    let dependency = T.Uri_vertex dep_uri in
+    let target = T.Uri_vertex root in
     begin
       match resolve_uri_to_code env.forest dep_uri with
       | None ->
@@ -161,7 +161,7 @@ let fixup (tree : Code.tree) (forest : State.t) =
   let@ () = Reporter.tracef "when resolving imports" in
   let graph = forest.import_graph in
   let this_uri = Option.get tree.uri in
-  let this_vertex = T.Iri_vertex this_uri in
+  let this_vertex = T.Uri_vertex this_uri in
   let old_deps = Vertex_set.of_list @@ Forest_graph.immediate_dependencies graph this_vertex in
   let new_deps =
     let env = {
@@ -192,7 +192,7 @@ let _minimal_dependency_graph
       dep_graph
       v
   in
-  f (T.Iri_vertex addr);
+  f (T.Uri_vertex addr);
   dep_graph
 
 let run_builder ?root env =

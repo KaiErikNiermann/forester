@@ -106,7 +106,7 @@ module V = struct
 end
 
 let default_backmatter ~(uri : URI.t) : T.content =
-  let vtx = T.Iri_vertex uri in
+  let vtx = T.Uri_vertex uri in
   let make_section title query =
     let section =
       let frontmatter = T.default_frontmatter ~title: (T.Content [T.Text title]) () in
@@ -184,9 +184,9 @@ let extract_vertex ~type_ (node : V.located) =
   match type_ with
   | `Content ->
     Ok (T.Content_vertex (V.extract_content node))
-  | `Iri ->
+  | `Uri ->
     let@ uri = Result.map @~ extract_uri node in
-    T.Iri_vertex uri
+    T.Uri_vertex uri
 
 let extract_query_vertex_expr ~host: _ ~type_ (node : V.located) =
   match node.value with
@@ -373,7 +373,7 @@ and eval_node node : V.t =
         let fm = Frontmatter.get () in
         match fm.uri with
         | None ->
-          (* Currently the only source of trees without IRIs are the backmatter subtrees (backlinks, context, references, etc.). I believe that this case is therefore unreachable.*)
+          (* Currently the only source of trees without URIs are the backmatter subtrees (backlinks, context, references, etc.). I believe that this case is therefore unreachable.*)
           assert false
         | Some current_uri ->
           anon_uri current_uri
@@ -440,7 +440,7 @@ and eval_node node : V.t =
         let@ current_uri = Option.map @~ fm.uri in
         let open Datalog_expr.Notation in
         [
-          Builtin_relation.in_bundle_step @* [const (T.Iri_vertex current_uri); const (T.Iri_vertex uri)] << []
+          Builtin_relation.in_bundle_step @* [const (T.Uri_vertex current_uri); const (T.Uri_vertex uri)] << []
         ]
     in
     let datalog = T.Datalog_script sequents in
@@ -638,10 +638,10 @@ and eval_node node : V.t =
     let const =
       match type_ with
       | `Content -> T.Content_vertex (V.extract_content arg)
-      | `Iri ->
+      | `Uri ->
         begin
           match extract_uri arg with
-          | Ok uri -> T.Iri_vertex uri
+          | Ok uri -> T.Uri_vertex uri
           | Error _ ->
             Reporter.fatalf ?loc: node.loc Type_error "Expected valid URI in datalog constant expression."
         end
@@ -656,7 +656,7 @@ and eval_node node : V.t =
       | Some uri -> uri
       | None -> Reporter.fatalf ?loc: node.loc Internal_error "No uri for tree"
     in
-    emit_content_node ~loc: node.loc @@ T.Iri uri
+    emit_content_node ~loc: node.loc @@ T.Uri uri
 
 and eval_var ~loc x =
   match Env.find_opt x @@ Lex_env.read () with

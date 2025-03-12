@@ -112,11 +112,11 @@ let test_render_context_frontmatter () =
       ~attributions: [
         {
           role = T.Author;
-          vertex = Iri_vertex (URI.of_string_exn "forest://test/kentookura");
+          vertex = Uri_vertex (URI.of_string_exn "forest://test/kentookura");
         };
         {
           role = T.Contributor;
-          vertex = Iri_vertex (URI.of_string_exn "forest://test/jonmsterling")
+          vertex = Uri_vertex (URI.of_string_exn "forest://test/jonmsterling")
         }
       ]
       ()

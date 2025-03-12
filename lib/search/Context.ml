@@ -24,7 +24,7 @@ let show_leaf_node
       | TeX_cs.Word s -> "\\" ^ s
       | TeX_cs.Symbol c -> "\\" ^ String.init 0 (Fun.const c)
     end
-  | T.Iri i
+  | T.Uri i
   | T.Route_of_uri i ->
     Format.asprintf "%a" URI.pp i
   | T.Xml_elt _
@@ -153,7 +153,7 @@ and render_context_node
     | T.Link {href; content} -> render_context_content path' content
     | T.Img _ -> assert false
     | T.Artefact _ -> assert false
-    | T.Iri _ -> assert false
+    | T.Uri _ -> assert false
     | T.Route_of_uri _ -> assert false
     | T.Datalog_script _ -> assert false
     | T.Results_of_datalog_query _ -> assert false

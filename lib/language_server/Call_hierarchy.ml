@@ -21,13 +21,13 @@ let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
       let from = item in
       let fromRanges = [] in
       match v with
-      | T.Iri_vertex _ -> L.CallHierarchyIncomingCall.create ~from ~fromRanges
+      | T.Uri_vertex _ -> L.CallHierarchyIncomingCall.create ~from ~fromRanges
       | T.Content_vertex _ -> L.CallHierarchyIncomingCall.create ~from ~fromRanges
     in
     match item with
     | {uri; _} ->
       let uri = URI_scheme.path_to_uri ~host: config.host (Lsp.Uri.to_path uri) in
-      let vertex = T.Iri_vertex uri in
+      let vertex = T.Uri_vertex uri in
       let run_query = Forest.run_datalog_query forest.graphs in
       let fwdlinks = run_query @@ Builtin_queries.fwdlinks_datalog vertex in
       Eio.traceln "got %i link items" (Vertex_set.cardinal fwdlinks);
@@ -47,13 +47,13 @@ let outgoing (params : L.CallHierarchyOutgoingCallsParams.t) =
       let to_ = item in
       let fromRanges = [] in
       match v with
-      | T.Iri_vertex _ -> L.CallHierarchyOutgoingCall.create ~to_ ~fromRanges
+      | T.Uri_vertex _ -> L.CallHierarchyOutgoingCall.create ~to_ ~fromRanges
       | T.Content_vertex _ -> L.CallHierarchyOutgoingCall.create ~to_ ~fromRanges
     in
     match item with
     | {uri; _} ->
       let uri = URI_scheme.path_to_uri ~host: config.host (Lsp.Uri.to_path uri) in
-      let vertex = T.Iri_vertex uri in
+      let vertex = T.Uri_vertex uri in
       let run_query = Forest.run_datalog_query forest.graphs in
       let backlinks = run_query @@ Builtin_queries.backlinks_datalog vertex in
       Eio.traceln "got %i link items" (Vertex_set.cardinal backlinks);

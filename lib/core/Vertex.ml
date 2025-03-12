@@ -11,7 +11,7 @@ type t = content vertex
 
 let clean = function
   | Content_vertex x -> Content_vertex x
-  | Iri_vertex uri -> Iri_vertex uri
+  | Uri_vertex uri -> Uri_vertex uri
 
 let hash x = Hashtbl.hash (clean x)
 
@@ -19,5 +19,5 @@ let compare x y = compare (clean x) (clean y)
 let equal x y = clean x = clean y
 
 let uri_of_vertex : _ Types.vertex -> URI.t option = function
-  | Iri_vertex uri -> Some uri
+  | Uri_vertex uri -> Some uri
   | Content_vertex _ -> None

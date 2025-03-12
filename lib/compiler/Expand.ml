@@ -251,7 +251,7 @@ let rec expand : Code.t -> Syn.t = function
   | {value = Dx_const_content arg; loc} :: rest ->
     {value = Syn.Dx_const (`Content, expand arg); loc} :: expand rest
   | {value = Dx_const_uri arg; loc} :: rest ->
-    {value = Syn.Dx_const (`Iri, expand arg); loc} :: expand rest
+    {value = Syn.Dx_const (`Uri, expand arg); loc} :: expand rest
   | {value = Let (a, bs, def); loc} :: rest ->
     let lam = expand_lambda loc (bs, def) in
     let@ () = Sc.section [] in
@@ -393,15 +393,15 @@ let builtins = [
   ["taxon"], Syn.Taxon;
   ["date"], Syn.Date;
   ["meta"], Syn.Meta;
-  ["author"], Syn.Attribution (Author, `Iri);
+  ["author"], Syn.Attribution (Author, `Uri);
   ["author"; "literal"], Syn.Attribution (Author, `Content);
-  ["contributor"], Syn.Attribution (Contributor, `Iri);
+  ["contributor"], Syn.Attribution (Contributor, `Uri);
   ["contributor"; "literal"], Syn.Attribution (Contributor, `Content);
   ["parent"], Syn.Parent;
   ["number"], Syn.Number;
   ["tag"], Syn.Tag `Content;
   ["query"], Syn.Results_of_query;
-  ["query"; "rel"], Syn.Query_rel `Iri;
+  ["query"; "rel"], Syn.Query_rel `Uri;
   ["query"; "rel"; "literal"], Syn.Query_rel `Content;
   ["query"; "union"], Syn.Query_union;
   ["query"; "isect"], Syn.Query_isect;
@@ -412,7 +412,7 @@ let builtins = [
   ["query"; "compl"], Syn.Query_compl;
   ["query"; "tag"], Syn.Query_builtin (`Tag, `Content);
   ["query"; "taxon"], Syn.Query_builtin (`Taxon, `Content);
-  ["query"; "author"], Syn.Query_builtin (`Author, `Iri);
+  ["query"; "author"], Syn.Query_builtin (`Author, `Uri);
   ["query"; "author"; "literal"], Syn.Query_builtin (`Author, `Content);
   ["query"; "incoming"], Syn.Query_polarity Incoming;
   ["query"; "outgoing"], Syn.Query_polarity Outgoing;

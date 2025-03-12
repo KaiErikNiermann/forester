@@ -29,7 +29,7 @@ type node =
   | Query_polarity of Query.polarity
   | Query_mode of Query.mode
   | Results_of_query
-  | Query_rel of [`Content | `Iri]
+  | Query_rel of [`Content | `Uri]
   | Query_isect
   | Query_union
   | Query_compl
@@ -37,7 +37,7 @@ type node =
   | Query_union_fam
   | Query_isect_fam_rel
   | Query_union_fam_rel
-  | Query_builtin of [`Taxon | `Author | `Tag] * [`Content | `Iri]
+  | Query_builtin of [`Taxon | `Author | `Tag] * [`Content | `Uri]
   | Transclude
   | Embed_tex
   | Ref
@@ -45,15 +45,15 @@ type node =
   | Parent
   | Taxon
   | Meta
-  | Attribution of Types.attribution_role * [`Content | `Iri]
-  | Tag of [`Content | `Iri]
+  | Attribution of Types.attribution_role * [`Content | `Uri]
+  | Tag of [`Content | `Uri]
   | Date
   | Number
   | Dx_sequent of t * t list
   | Dx_query of string * t list * t list
   | Dx_prop of t * t list
   | Dx_var of string
-  | Dx_const of [`Content | `Iri] * t
+  | Dx_const of [`Content | `Uri] * t
   | Dx_execute
   | Route_asset
   | Publish_results_of_query

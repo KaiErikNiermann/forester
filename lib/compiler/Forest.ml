@@ -53,7 +53,7 @@ let add_edge graphs rel ~source ~target =
 
 let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) : unit =
   match node with
-  | Text _ | CDATA _ | Route_of_uri _ | Iri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Img _ | Contextual_number _ -> ()
+  | Text _ | CDATA _ | Route_of_uri _ | Uri _ | Results_of_query _ | Results_of_datalog_query _ | TeX_cs _ | Img _ | Contextual_number _ -> ()
   | Transclude transclusion ->
     analyse_transclusion graphs scope transclusion
   | Xml_elt elt ->
@@ -65,7 +65,7 @@ let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) :
   | Section section ->
     analyse_section graphs scope section
   | Link link ->
-    add_edge graphs Builtin_relation.links_to ~source: (Iri_vertex scope) ~target: (Iri_vertex link.href);
+    add_edge graphs Builtin_relation.links_to ~source: (Uri_vertex scope) ~target: (Uri_vertex link.href);
     analyse_content graphs scope link.content
   | Prim (_, content) ->
     analyse_content graphs scope content
@@ -82,7 +82,7 @@ and analyse_artefact graphs scope artefact =
 and analyse_transclusion graphs (scope : URI.t) (transclusion : T.transclusion) : unit =
   match transclusion.target with
   | Full _ | Mainmatter ->
-    add_edge graphs Builtin_relation.transcludes ~source: (Iri_vertex scope) ~target: (Iri_vertex transclusion.href)
+    add_edge graphs Builtin_relation.transcludes ~source: (Uri_vertex scope) ~target: (Uri_vertex transclusion.href)
   | Title _ | Taxon -> ()
 
 and analyse_content (graphs : env) (scope : URI.t) (content : T.content) : unit =
@@ -94,22 +94,22 @@ and analyse_attribution graphs (scope : URI.t) (attr : _ T.attribution) =
     | Author -> Builtin_relation.has_author
     | Contributor -> Builtin_relation.has_direct_contributor
   in
-  add_edge graphs rel ~source: (Iri_vertex scope) ~target: attr.vertex;
+  add_edge graphs rel ~source: (Uri_vertex scope) ~target: attr.vertex;
   analyse_vertex graphs scope attr.vertex
 
 and analyse_vertex graphs scope vtx =
   match vtx with
-  | Iri_vertex _ -> ()
+  | Uri_vertex _ -> ()
   | Content_vertex content -> analyse_content graphs scope content
 
 and analyse_tag graphs (scope : URI.t) (tag : _ T.vertex) =
   analyse_vertex graphs scope tag;
-  add_edge graphs Builtin_relation.has_tag ~source: (Iri_vertex scope) ~target: tag
+  add_edge graphs Builtin_relation.has_tag ~source: (Uri_vertex scope) ~target: tag
 
 and analyse_taxon graphs (scope : URI.t) (taxon_opt : T.content option) =
   let@ taxon = Option.iter @~ taxon_opt in
   analyse_content graphs scope taxon;
-  add_edge graphs Builtin_relation.has_taxon ~source: (Iri_vertex scope) ~target: (Content_vertex taxon)
+  add_edge graphs Builtin_relation.has_taxon ~source: (Uri_vertex scope) ~target: (Content_vertex taxon)
 
 and analyse_attributions graphs (scope : URI.t) (attrs : _ T.attribution list) =
   attrs |> List.iter @@ analyse_attribution graphs scope
@@ -134,7 +134,7 @@ and analyse_meta graphs (scope : URI.t) (_, content) : unit =
 and analyse_section graphs (scope : URI.t) (section : T.content T.section) : unit =
   begin
     let@ target = Option.iter @~ section.frontmatter.uri in
-    add_edge graphs Builtin_relation.transcludes ~source: (Iri_vertex scope) ~target: (Iri_vertex target)
+    add_edge graphs Builtin_relation.transcludes ~source: (Uri_vertex scope) ~target: (Uri_vertex target)
   end;
   analyse_frontmatter graphs section.frontmatter;
   analyse_content graphs (Option.value ~default: scope section.frontmatter.uri) section.mainmatter
@@ -179,7 +179,7 @@ let rec get_expanded_title ?scope ?(flags = T.{empty_when_untitled = false}) (fr
     | None when not flags.empty_when_untitled ->
       begin
         match frontmatter.uri with
-        | Some uri -> T.Content [T.Iri uri]
+        | Some uri -> T.Content [T.Uri uri]
         | _ -> T.Content [T.Text "Untitled"]
       end
     | _ -> T.Content []
@@ -210,7 +210,7 @@ let get_content_of_transclusion (transclusion : T.transclusion) forest =
         Option.some @@
           begin
             match get_article transclusion.href forest with
-            | None -> T.Content [T.Iri transclusion.href]
+            | None -> T.Content [T.Uri transclusion.href]
             | Some article -> get_expanded_title ~flags article.frontmatter forest
           end
       | Taxon ->
@@ -225,7 +225,7 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) ~modifier vertex
     Option.map @~
       match vertex with
       | T.Content_vertex content -> Some content
-      | T.Iri_vertex uri ->
+      | T.Uri_vertex uri ->
         begin
           match get_article uri forest with
           | Some article -> article.frontmatter.title

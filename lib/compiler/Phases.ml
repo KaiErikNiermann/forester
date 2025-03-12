@@ -68,7 +68,7 @@ let expand (forest : State.t) =
     | T.Content_vertex _ ->
       (* when creating the import graph we are only adding uri vertices *)
       assert false
-    | T.Iri_vertex uri ->
+    | T.Uri_vertex uri ->
       match Forest.find_opt parsed uri with
       | None ->
         (* The import graph has subtrees for vertices, which do not correspond to a source file *)
@@ -95,14 +95,14 @@ let expand (forest : State.t) =
    fact that we are using a different graph builder, one that only traverses
    the dependencies of a specific tree*)
 let expand_only_aux ~(addr : URI.t) (forest : State.t) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
-  let import_graph = Forest_graph.dependencies forest.import_graph (T.Iri_vertex addr) in
+  let import_graph = Forest_graph.dependencies forest.import_graph (T.Uri_vertex addr) in
   assert (Forest_graph.nb_vertex import_graph >= Forest.length forest.parsed);
   let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t URI.Tbl.t))) =
     match addr with
     | T.Content_vertex _ ->
       (* when creating the import graph we are only adding uri vertices *)
       assert false
-    | T.Iri_vertex uri ->
+    | T.Uri_vertex uri ->
       match Imports.resolve_uri_to_code forest uri with
       | None ->
         (* The import graph has vertices for subtrees, which do not correspond to a source file *)
@@ -167,7 +167,7 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
     let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
     match vertex with
     | Content_vertex _ -> None
-    | Iri_vertex uri ->
+    | Uri_vertex uri ->
       match Forest.find_opt forest.resources uri with
       | None ->
         Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" URI.pp uri;

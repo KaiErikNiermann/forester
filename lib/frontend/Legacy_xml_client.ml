@@ -224,7 +224,7 @@ and render_content_node
     [P.txt "%s" str]
   | CDATA str ->
     [P.txt ~raw: true "<![CDATA[%s]]>" str]
-  | Iri uri ->
+  | Uri uri ->
     let relativised = URI.relativise ~host: config.host uri in
     let str = Format.asprintf "%a" URI.pp relativised in
     [P.txt "%s" str]
@@ -372,7 +372,7 @@ and render_attributions =
           let indirect_attributions =
             let open Datalog_expr.Notation in
             let articles =
-              let positives = [Builtin_relation.has_indirect_contributor @* [const (T.Iri_vertex scope); var "X"]] in
+              let positives = [Builtin_relation.has_indirect_contributor @* [const (T.Uri_vertex scope); var "X"]] in
               let negatives = [] in
               Datalog_expr.{var = "X"; positives; negatives}
               |> Forest.run_datalog_query forest.graphs
@@ -380,7 +380,7 @@ and render_attributions =
             in
             let@ biotree = List.filter_map @~ articles in
             let@ uri = Option.map @~ biotree.frontmatter.uri in
-            T.{vertex = T.Iri_vertex uri; role = Contributor}
+            T.{vertex = T.Uri_vertex uri; role = Contributor}
           in
           let all_attributions =
             attributions @
@@ -404,7 +404,7 @@ and render_attribution forest (attrib : _ T.attribution) =
 
 and render_attribution_vertex (forest : State.t) vtx =
   match vtx with
-  | T.Iri_vertex href ->
+  | T.Uri_vertex href ->
     let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}; modifier = Identity}] in
     render_link forest T.{href; content}
   | T.Content_vertex content ->

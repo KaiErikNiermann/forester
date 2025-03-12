@@ -307,7 +307,7 @@ and render_attributions forest (attributions : T.content T.attribution list) =
     match attribution with
     | T.{vertex; _} ->
       match vertex with
-      | T.Iri_vertex href ->
+      | T.Uri_vertex href ->
         let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}; modifier = Identity}] in
         null @@ render_link forest T.{href; content}
       | T.Content_vertex content ->
@@ -615,7 +615,7 @@ and render_content_node
     ]
   | T.Datalog_script _ -> []
   | T.Artefact _
-  | T.Iri _
+  | T.Uri _
   | T.Route_of_uri _ ->
     [txt "todo"]
 

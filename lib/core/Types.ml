@@ -11,7 +11,7 @@ open Base
 type xml_qname = Forester_xml_names.xml_qname = {prefix: string; uname: string; xmlns: string option}
 
 type 'content vertex =
-  | Iri_vertex of URI.t
+  | Uri_vertex of URI.t
   | Content_vertex of 'content
 [@@deriving show, repr]
 
@@ -163,7 +163,7 @@ type 'content content_node =
   | Link of 'content link
   | Img of img
   | Artefact of 'content artefact
-  | Iri of URI.t
+  | Uri of URI.t
   | Route_of_uri of URI.t
   | Datalog_script of (string, 'content vertex) Datalog_expr.script
   | Results_of_datalog_query of (string, 'content vertex) Datalog_expr.query
@@ -273,7 +273,7 @@ module TeX_like : sig
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
     | TeX_cs cs -> pp_tex_cs fmt cs
-    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Prim _ | Link _ | Img _ | Artefact _ | Iri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
+    | Xml_elt _ | Transclude _ | Contextual_number _ | Results_of_query _ | Section _ | Prim _ | Link _ | Img _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
       Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
 
   let string_of_content =

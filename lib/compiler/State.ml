@@ -70,7 +70,7 @@ let batch_write : t -> _ = function
           | T.Content_vertex _ ->
             (*Import graph has no content vertices*)
             assert false
-          | T.Iri_vertex uri ->
+          | T.Uri_vertex uri ->
             let item = Item.Tree uri in
             Dependency_tbl.add tbl item Item.{timestamp = Some now; color = Green};
             item

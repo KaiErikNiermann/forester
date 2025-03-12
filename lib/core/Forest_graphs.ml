@@ -61,7 +61,7 @@ let init : Dl.db -> (module S) = fun db ->
       | Query.Paths -> get_preorder
 
     let register_uri uri =
-      let vtx : Vertex.t = T.Iri_vertex uri in
+      let vtx : Vertex.t = T.Uri_vertex uri in
       Dl.db_add_fact dl_db @@ Dl.mk_literal Builtin_relation.is_node [Dl.mk_const vtx];
       begin
         let@ host = Option.iter @~ URI.host uri in
