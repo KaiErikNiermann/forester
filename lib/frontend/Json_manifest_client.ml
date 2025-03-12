@@ -65,10 +65,6 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
     in
     (URI.to_string (URI.relativise ~host uri), `Assoc fm)
 
-let render_trees
-    ~(dev : bool)
-    ~(forest : State.t)
-    : Yojson.Safe.t
-  =
+let render_trees ~(dev : bool) ~(forest : State.t) : Yojson.Safe.t =
   let trees = Forest.get_all_articles forest.resources in
   `Assoc (List.filter_map (render_tree ~dev ~forest) trees)

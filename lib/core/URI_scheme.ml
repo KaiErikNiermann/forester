@@ -35,7 +35,6 @@ let last_segment str =
   |> String.split_on_char '/'
   |> List.rev
   |> List.hd
-(* |> Filename.chop_extension *)
 
 let name (uri : URI.t) : string =
   uri
@@ -46,8 +45,7 @@ let split_addr (uri : URI.t) : (string option * int) option =
   let name = last_segment @@ URI.path_string uri in
   (* primitively check for address of form YYYY-MM-DD *)
   let date_regex = Str.regexp {|^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$|} in
-  if Str.string_match date_regex name 0 then
-    None
+  if Str.string_match date_regex name 0 then None
   else
     match String.rindex_opt name '-' with
     | Some i ->
@@ -63,9 +61,7 @@ let split_addr (uri : URI.t) : (string option * int) option =
       let@ key = Option.map @~ BaseN.Base36.int_of_string name in
       None, key
 
-let lsp_uri_to_uri
-  : host: string -> Lsp.Uri.t -> URI.t
-= fun ~host uri ->
+let lsp_uri_to_uri ~(host : string) (uri : Lsp.Uri.t) : URI.t =
   let uri =
     uri
     |> Lsp.Uri.to_path
@@ -73,7 +69,7 @@ let lsp_uri_to_uri
     |> last_segment
     |> user_uri ~host
   in
-  assert ((Filename.extension @@ URI.path_string uri) = "");
+  assert (Filename.extension (URI.path_string uri) = "");
   uri
 
 let path_to_uri ~host str =

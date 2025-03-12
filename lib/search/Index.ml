@@ -81,7 +81,7 @@ module BM_25 = struct
   (* Inverse document frequency *)
   let idf q (index : t) =
     let n = Float.of_int @@ List.length @@ search ~fuzz: 0 index q in
-    log (((Float.of_int index.number_of_docs -. n +. 0.5) /. n +. 0.5) +. 1.)
+    log @@ ((Float.of_int index.number_of_docs -. n +. 0.5) /. n +. 0.5) +. 1.
 
   let doc_length d =
     Float.of_int @@

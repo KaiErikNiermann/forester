@@ -209,38 +209,24 @@ let rec render_article (forest : State.t) (article : T.content T.article) : node
         ];
       match Option.map (uri_is_home ~config: forest.config) article.frontmatter.uri with
       | None ->
-        footer
-          []
-          (render_backmatter forest article.backmatter)
+        footer [] @@ render_backmatter forest article.backmatter
       | Some false ->
-        footer
-          []
-          (render_backmatter forest article.backmatter)
+        footer [] @@ render_backmatter forest article.backmatter
       | Some true ->
         null []
     ]
 
 and render_section (forest : State.t) (section : T.content T.section) : node =
   match section with
-  | {frontmatter;
-    mainmatter;
-    flags = {header_shown;
-      metadata_shown;
-      expanded;
-      numbered = _;
-      included_in_toc = _;
-      hidden_when_empty = _;
-    }
-  } ->
+  | {frontmatter; mainmatter; flags} ->
     let test k = function
       | Some true -> true
       | Some false -> false
       | None -> k
     in
     let class_ =
-      if test false metadata_shown then class_ "block"
-      else
-        class_ "block hide-metadata"
+      if test false flags.metadata_shown then class_ "block"
+      else class_ "block hide-metadata"
     in
     let data_taxon =
       match frontmatter.taxon with
@@ -255,15 +241,11 @@ and render_section (forest : State.t) (section : T.content T.section) : node =
         data_taxon;
       ]
       [
-        if test true header_shown then
+        if test true flags.header_shown then
           details
-            [if test true expanded then open_ else null_]
+            [if test true flags.expanded then open_ else null_]
             [
-              summary
-                []
-                [
-                  render_frontmatter forest frontmatter;
-                ];
+              summary [] [render_frontmatter forest frontmatter];
               null @@ render_content forest mainmatter;
             ]
         else null @@ render_content forest mainmatter;
@@ -273,12 +255,9 @@ and render_section (forest : State.t) (section : T.content T.section) : node =
 
 (* Same as render_section, but adds the backmatter-section class *)
 and render_backmatter (forest : State.t) backmatter =
-  List.map
-    (fun node ->
-      let attrs = Format.asprintf "%s backmatter-section" node.@["class"] in
-      node +@ class_ "%s" attrs
-    )
-    (render_content forest backmatter)
+  let@ node = List.map @~ render_content forest backmatter in
+  let attrs = Format.asprintf "%s backmatter-section" node.@["class"] in
+  node +@ class_ "%s" attrs
 
 and render_attributions forest (attributions : T.content T.attribution list) =
   let render_attribution attribution =
@@ -303,40 +282,26 @@ and render_attributions forest (attributions : T.content T.attribution list) =
   li
     [class_ "meta-item"]
     [
-      address
-        [class_ "author"] @@
+      address [class_ "author"] @@
       (List.map render_attribution authors) @
-      (
+      begin
         if List.length contributors > 0 then
           [txt "with contributions from "]
         else []
-      ) @
+      end @
       List.map render_attribution contributors
     ]
 
 and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : node =
   let taxon =
     Option.value ~default: [] @@
-      Option.map
-        (fun c ->
-          (
-            render_content forest @@
-              T.apply_modifier_to_content T.Sentence_case c
-          ) @
-            [txt ". "]
-        )
-        frontmatter.taxon
+      let@ c = Option.map @~ frontmatter.taxon in
+      render_content forest (T.apply_modifier_to_content T.Sentence_case c) @ [txt ". "]
   in
   let title =
     Option.value ~default: [] @@
-      Option.map
-        (fun c ->
-          render_content forest @@
-            T.apply_modifier_to_content
-              T.Sentence_case
-              c
-        )
-        frontmatter.title
+      let@ c = Option.map @~ frontmatter.title in
+      render_content forest @@ T.apply_modifier_to_content T.Sentence_case c
   in
   let uri =
     match frontmatter.uri with
@@ -349,32 +314,19 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
           Format.asprintf "%a" URI.pp uri
       in
       a
-        [
-          class_ "slug";
-          href "%s" uri_str;
-        ]
+        [class_ "slug"; href "%s" uri_str;]
         [txt "[%s]" uri_str]
   in
   let source_path =
     match frontmatter.source_path with
     | Some path ->
-      [
-        a
-          [
-            class_ "edit-button";
-            href "vscode://file%s" path
-          ]
-          [txt "[edit]"]
-      ]
+      [a [class_ "edit-button"; href "vscode://file%s" path] [txt "[edit]"]]
     | None -> []
   in
   let find_meta key =
-    List.find_map
-      (fun (str, content) ->
-        if str = key then Some content
-        else None
-      )
-      frontmatter.metas
+    let@ str, content = List.find_map @~ frontmatter.metas in
+    if str = key then Some content
+    else None
   in
   let render_meta key f =
     Option.value
@@ -408,10 +360,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
         [class_ "meta-item"]
         [
           a
-            [
-              class_ "doi link";
-              href "https://www.doi.org/%s" content;
-            ]
+            [class_ "doi link"; href "https://www.doi.org/%s" content;]
             [txt "%s" content]
         ]
     )
@@ -423,10 +372,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
         [class_ "meta-item"]
         [
           a
-            [
-              class_ "link external";
-              href "%s" content;
-            ]
+            [class_ "link external"; href "%s" content;]
             [txt "%s" content]
         ]
     )
@@ -444,41 +390,24 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
   header
     []
     [
-      (
-        h1
-          []
-          (
-            [
-              span
-                [class_ "taxon"]
-                taxon
-            ] @
-            title @
-            [txt " "] @
-            [uri] @
-            source_path
-          )
-      );
+      h1 [] @@ [span [class_ "taxon"] taxon] @ title @ [txt " "; uri] @ source_path;
       div
         [class_ "metadata"]
         [
-          ul
-            []
-            (
-              (List.map render_date frontmatter.dates) @
-                [
-                  render_attributions forest frontmatter.attributions;
-                  position;
-                  institution;
-                  venue;
-                  source;
-                  doi;
-                  orcid;
-                  external_;
-                  slides;
-                  video;
-                ]
-            )
+          ul [] @@
+          List.map render_date frontmatter.dates @
+          [
+            render_attributions forest frontmatter.attributions;
+            position;
+            institution;
+            venue;
+            source;
+            doi;
+            orcid;
+            external_;
+            slides;
+            video;
+          ]
         ];
     ]
 
@@ -502,9 +431,7 @@ and render_transclusion transclusion =
 and render_content (forest : State.t) (Content content: T.content) : node list =
   List.concat_map (render_content_node forest) content
 
-and render_content_node
-  : State.t -> 'a T.content_node -> node list
-= fun forest node ->
+and render_content_node (forest : State.t) (node : 'a T.content_node) : node list =
   match node with
   | Text str ->
     [txt "%s" str]
@@ -633,17 +560,16 @@ and contextual_number (_tree : T.content T.section) (cfg : toc_config) =
   let should_number =
     cfg.number <> ""
     || (
-      (not cfg.in_backmatter && not cfg.is_root)
+      not cfg.in_backmatter
+      && not cfg.is_root
       && not cfg.implicitly_unnumbered
     )
   in
   let taxon =
     if cfg.taxon <> "" then
       cfg.taxon ^
-        (
-          if should_number || cfg.fallback_number <> "" then " "
-          else ""
-        )
+        if should_number || cfg.fallback_number <> "" then " "
+        else ""
     else ""
   in
   let number =
@@ -683,13 +609,7 @@ and _render_toc_item (forest : State.t) (item : T.content T.section) =
             (Option.value ~default: "" @@ Option.map to_str item.frontmatter.title)
             (
               Option.value ~default: "" @@
-                Option.map
-                  (
-                    Format.asprintf
-                      "[%a]"
-                      URI.pp
-                  )
-                  item.frontmatter.uri
+                Option.map (Format.asprintf "[%a]" URI.pp) item.frontmatter.uri
             )
         ]
         [txt "■"];
@@ -735,7 +655,7 @@ and render_toc (section : T.content T.section) =
           [class_ "block"]
           [
             h1 [] [txt "Table of contents"];
-            (render_toc_mainmatter section.mainmatter);
+            render_toc_mainmatter section.mainmatter;
           ]
       ]
 

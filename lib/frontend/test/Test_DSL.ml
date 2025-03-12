@@ -69,8 +69,20 @@ let test () =
                 ];
             Section
               {
-                frontmatter = {uri = None; title = None; dates = []; attributions = []; taxon = None; number = None; designated_parent = None; source_path = None; tags = []; metas = []; last_changed = None};
-                mainmatter = (Content [(T.prim `P ((T.Content [(Text "section")])))]);
+                frontmatter = {
+                  uri = None;
+                  title = None;
+                  dates = [];
+                  attributions = [];
+                  taxon = None;
+                  number = None;
+                  designated_parent = None;
+                  source_path = None;
+                  tags = [];
+                  metas = [];
+                  last_changed = None
+                };
+                mainmatter = Content [T.prim `P @@ T.Content [Text "section"]];
                 flags = {hidden_when_empty = None; included_in_toc = None; header_shown = None; metadata_shown = (Some false); numbered = None; expanded = None}
               };
             T.prim `Em @@ T.Content [Text "Emphasized item"];
@@ -85,10 +97,10 @@ let test () =
             Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter; modifier = Identity};
             Contextual_number (URI.of_string_exn "chapter-3");
             Results_of_query (Query.Union []);
-            KaTeX (Inline, (Content [(Text "a = b")]));
+            KaTeX (Inline, Content [Text "a = b"]);
             TeX_cs (Word {|\begin{}|});
-            Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = (Content [(Text "Forester")])};
-            Artefact {hash = ""; content = (Content [(Text "res")]); sources = []}
+            Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = Content [Text "Forester"]};
+            Artefact {hash = ""; content = (Content [Text "res"]); sources = []}
           ]
     )
     content

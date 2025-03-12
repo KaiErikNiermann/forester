@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_prelude
 open Base
 
 module Message = struct
@@ -130,14 +131,14 @@ let lsp_run ?init_loc ?init_backtrace ~recover publish k =
         Hashtbl.add diagnostics uri (d :: previous);
         recover d
   in
-  run
-    ~emit: (fun d -> ignore @@ push_diagnostic d)
-    ~fatal: push_diagnostic
-    ?init_loc
-    ?init_backtrace
-    @@ fun () ->
-    let result = k () in
-    publish diagnostics;
-    result
+  let emit d = ignore @@ push_diagnostic d in
+  let fatal = push_diagnostic in
+  let@ () = run ~emit ~fatal ?init_loc ?init_backtrace in
+  let result = k () in
+  publish diagnostics;
+  result
 
-let ignore = run ~emit: (fun _ -> ()) ~fatal: (fun _ -> fatalf Message.Internal_error "ignoring error")
+let ignore =
+  let emit _ = () in
+  let fatal _ = fatalf Message.Internal_error "ignoring error" in
+  run ~emit ~fatal

@@ -13,9 +13,7 @@ module L = Lsp.Types
 
 let (let*) = Option.bind
 
-let kind
-  : Syn.node -> L.CompletionItemKind.t option
-= function
+let kind : Syn.node -> L.CompletionItemKind.t option = function
   | Fun (_, _) -> Some Function
   | Text _ | Verbatim _ -> Some Text
   | Meta -> Some Field
@@ -92,13 +90,9 @@ let make
   | Resolver.P.Xmlns _ ->
     None
 
-let compute
-    (params : L.CompletionParams.t)
-  =
+let compute (params : L.CompletionParams.t) =
   match params with
-  | {context;
-    _;
-  } ->
+  | {context; _} ->
     let triggerCharacter =
       match context with
       | Some {triggerCharacter; _} ->
