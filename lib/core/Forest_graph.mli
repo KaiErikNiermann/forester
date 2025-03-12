@@ -6,11 +6,11 @@
 
 type t
 
-module Map : (G_Dst : Graph.Gmap.V_DST) ->
-  sig
-    val map : (Vertex.t -> G_Dst.vertex) -> t -> G_Dst.t
-    val filter_map : (Vertex.t -> G_Dst.vertex option) -> t -> G_Dst.t
-  end
+module Map (G_Dst : Graph.Gmap.V_DST) :
+sig
+  val map : (Vertex.t -> G_Dst.vertex) -> t -> G_Dst.t
+  val filter_map : (Vertex.t -> G_Dst.vertex option) -> t -> G_Dst.t
+end
 
 val create : ?size: int -> unit -> t
 val add_vertex : t -> Vertex.t -> unit
