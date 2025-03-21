@@ -58,17 +58,15 @@ module V = struct
     | Content content -> content
     | _ -> Reporter.fatal ?loc: node.loc Type_error "Expected content"
 
-  let coalesce_text =
+  let extract_text (node : located) =
+    let content = extract_content node in
     let rec loop acc = function
       | [] -> Option.some @@ String.concat "" @@ Bwd.prepend acc []
       | (T.Text txt | T.CDATA txt) :: content -> loop (Bwd.snoc acc txt) content
+      | T.Uri uri :: content -> loop (Bwd.snoc acc (URI.to_string uri)) content
       | _ -> None
     in
-    loop Emp
-
-  let extract_text (node : located) =
-    let content = extract_content node in
-    match coalesce_text (T.extract_content content) with
+    match loop Emp (T.extract_content content) with
     | Some txt -> String.trim txt
     | None -> Reporter.fatalf ?loc: node.loc Type_error "Expected text but got: %a" pp node.value
 
