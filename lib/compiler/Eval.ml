@@ -174,6 +174,10 @@ let anon_uri base =
   let segment = Format.sprintf "%i" ix in
   URI.with_path_components (URI.path_components base @ [segment]) base
 
+let pp_tex_cs fmt = function
+  | TeX_cs.Symbol x -> Format.fprintf fmt "\\%c" x
+  | TeX_cs.Word x -> Format.fprintf fmt "\\%s " x
+
 let rec process_tape () =
   match Tape.pop_node_opt () with
   | None -> V.Content (T.Content [])
@@ -254,7 +258,7 @@ and eval_node node : V.t =
     let content = {node with value = eval_tape body} |> V.extract_content in
     emit_content_node ~loc @@ T.Xml_elt {name; attrs = process attrs; content}
   | TeX_cs cs ->
-    emit_content_node ~loc @@ TeX_cs cs
+    emit_content_node ~loc @@ T.Text (Format.asprintf "%a" pp_tex_cs cs)
   | Transclude ->
     let flags = get_transclusion_flags ~loc in
     let href_arg = eval_pop_arg ~loc in

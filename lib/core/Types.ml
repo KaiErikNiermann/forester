@@ -146,7 +146,6 @@ type 'content content_node =
   | Contextual_number of URI.t
   | Section of 'content section
   | KaTeX of math_mode * 'content
-  | TeX_cs of TeX_cs.t
   | Link of 'content link
   | Artefact of 'content artefact
   | Uri of URI.t
@@ -263,10 +262,6 @@ module TeX_like : sig
     val string_of_content : content -> string
   end
 = struct
-  let pp_tex_cs fmt = function
-    | TeX_cs.Symbol x -> Format.fprintf fmt "\\%c" x
-    | TeX_cs.Word x -> Format.fprintf fmt "\\%s " x
-
   let rec pp_content fmt = function
     | (Content nodes) ->
       (List.iter @@ pp_content_node fmt) nodes
@@ -275,7 +270,6 @@ module TeX_like : sig
     | Text str -> Format.fprintf fmt "%s" str
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
-    | TeX_cs cs -> pp_tex_cs fmt cs
     | Xml_elt _ | Transclude _ | Contextual_number _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
       Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
 

@@ -22,7 +22,6 @@ and pp_content_node
   | Uri uri -> URI.pp fmt uri
   | Route_of_uri uri -> Format.fprintf fmt "%s" (router uri)
   | KaTeX (_, content) -> pp_content ~forest ~router fmt content
-  | TeX_cs cs -> Format.fprintf fmt "\\%a" TeX_cs.pp cs
   | Xml_elt elt -> pp_content ~forest ~router fmt elt.content
   | Transclude trn -> pp_transclusion ~forest ~router fmt trn
   | Contextual_number addr -> Format.fprintf fmt "[%a]" URI.pp addr

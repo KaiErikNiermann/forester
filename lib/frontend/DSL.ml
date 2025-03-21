@@ -26,7 +26,6 @@ let figcaption content = T.prim `Figcaption @@ T.Content content
 let cdata content = T.CDATA content
 let contextual_number href = T.Contextual_number (URI.of_string_exn href)
 let katex m content = T.KaTeX (m, T.Content content)
-let tex content = T.TeX_cs (Word content)
 let route_of_uri uri = T.Route_of_uri uri
 
 module Datalog = struct

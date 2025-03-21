@@ -270,10 +270,6 @@ and render_content_node
     in
     let body = Format.asprintf "%a" T.TeX_like.pp_content content in
     [X.tex [X.display "%s" display] "<![CDATA[%s]]>" body]
-  | TeX_cs cs ->
-    (* Should not happen! *)
-    (* assert false *)
-    [P.txt ~raw: true "\\%s" @@ TeX_cs.show cs]
   | Artefact resource ->
     [render_artefact forest resource]
   | Datalog_script _ -> []

@@ -18,12 +18,6 @@ let show_leaf_node
   match node with
   | T.Text s -> s
   | T.CDATA s -> s
-  | T.TeX_cs cs ->
-    begin
-      match cs with
-      | TeX_cs.Word s -> "\\" ^ s
-      | TeX_cs.Symbol c -> "\\" ^ String.init 0 (Fun.const c)
-    end
   | T.Uri i
   | T.Route_of_uri i ->
     Format.asprintf "%a" URI.pp i
@@ -143,7 +137,6 @@ and render_context_node
     | T.Contextual_number _ -> assert false
     | T.Section _ -> assert false
     | T.KaTeX (_, _) -> assert false
-    | T.TeX_cs _ -> assert false
     | T.Link {href; content} -> render_context_content path' content
     | T.Artefact _ -> assert false
     | T.Uri _ -> assert false

@@ -472,8 +472,6 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
       | Display ->
         [div [class_ "math"] [txt ~raw: true "%s" body]]
     end
-  | TeX_cs cs ->
-    [txt ~raw: true "\\%s" (TeX_cs.show cs)]
   | Results_of_datalog_query q ->
     (* We could just evaluate the query immediately. This is just experimental*)
     [
