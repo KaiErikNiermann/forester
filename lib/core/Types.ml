@@ -156,8 +156,12 @@ type content =
   Content of content content_node list
 [@@deriving show, repr]
 
-let prim (p : Prim.t) (content : 'content) : 'content content_node =
-  let uname =
+let html_elt uname (content : 'content) : 'content content_node =
+  let name = {prefix = "html"; uname; xmlns = Some "http://www.w3.org/1999/xhtml"} in
+  Xml_elt {content; name; attrs = []}
+
+let prim (p : Prim.t) : 'content -> 'content content_node =
+  html_elt @@
     match p with
     | `P -> "p"
     | `Ol -> "ol"
@@ -170,9 +174,6 @@ let prim (p : Prim.t) (content : 'content) : 'content content_node =
     | `Blockquote -> "blockquote"
     | `Pre -> "pre"
     | `Code -> "code"
-  in
-  let name = {prefix = "html"; uname; xmlns = Some "http://www.w3.org/1999/xhtml"} in
-  Xml_elt {content; name; attrs = []}
 
 let map_content f = function Content nodes -> Content (f nodes)
 let extract_content = function Content nodes -> nodes

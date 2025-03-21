@@ -202,9 +202,7 @@ and render_content (forest : State.t) (Content content: T.content) : P.node list
     xs @ ys
   | [] -> []
 
-and render_content_node
-  : State.t -> 'a T.content_node -> P.node list
-= fun forest node ->
+and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node list =
   let config = forest.config in
   match node with
   | Text str ->
