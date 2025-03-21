@@ -25,9 +25,7 @@ type section_flags = {
 }
 [@@deriving show, repr]
 
-type title_flags = {
-  empty_when_untitled: bool
-}
+type title_flags = {empty_when_untitled: bool}
 [@@deriving show, repr]
 
 let default_section_flags = {
