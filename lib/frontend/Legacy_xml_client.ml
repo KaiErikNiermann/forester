@@ -256,10 +256,9 @@ and render_content_node
           metadata_shown = Some true
         }
     in
-    Forest.run_datalog_query forest.graphs q
-    |> get_sorted_articles forest
-    |> List.map article_to_section
-    |> List.map (render_section forest)
+    let results = Forest.run_datalog_query forest.graphs q in
+    let@ article = List.map @~ get_sorted_articles forest results in
+    render_section forest @@ article_to_section article
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->
