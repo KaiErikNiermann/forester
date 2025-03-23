@@ -185,14 +185,10 @@ let rec render_article (forest : State.t) (article : T.content T.article) : node
             [
               (* TODO: check if expanded*)
               open_
-            ]
-            (
-              summary
-                []
-                [
-                  render_frontmatter forest article.frontmatter;
-                ] :: render_content forest article.mainmatter;
-            );
+            ] @@
+            summary
+              []
+              [render_frontmatter forest article.frontmatter] :: render_content forest article.mainmatter;
         ];
       match Option.map (uri_is_home ~config: forest.config) article.frontmatter.uri with
       | None ->
@@ -258,19 +254,17 @@ and render_attributions forest (attributions : T.content T.attribution list) =
         null @@ render_content forest content
   in
   let authors, contributors =
-    List.partition_map
-      (fun a ->
-        match T.(a.role) with
-        | T.Author -> Left a
-        | Contributor -> Right a
-      )
-      attributions
+    attributions
+    |> List.partition_map @@ fun a ->
+      match T.(a.role) with
+      | T.Author -> Left a
+      | Contributor -> Right a
   in
   li
     [class_ "meta-item"]
     [
       address [class_ "author"] @@
-      (List.map render_attribution authors) @
+      List.map render_attribution authors @
       begin
         if List.length contributors > 0 then
           [txt "with contributions from "]
@@ -341,38 +335,34 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
   let source = render_meta "source" default_meta_item in
   let doi = render_meta "doi" default_meta_item in
   let orcid =
-    render_meta "orcid" (fun c ->
-      let content = to_string c in
-      li
-        [class_ "meta-item"]
-        [
-          a
-            [class_ "doi link"; href "https://www.doi.org/%s" content;]
-            [txt "%s" content]
-        ]
-    )
+    render_meta "orcid" @@ fun c ->
+    let content = to_string c in
+    li
+      [class_ "meta-item"]
+      [
+        a
+          [class_ "doi link"; href "https://www.doi.org/%s" content;]
+          [txt "%s" content]
+      ]
   in
   let external_ =
-    render_meta "external" (fun c ->
-      let content = to_string c in
-      li
-        [class_ "meta-item"]
-        [
-          a
-            [class_ "link external"; href "%s" content;]
-            [txt "%s" content]
-        ]
-    )
+    render_meta "external" @@ fun c ->
+    let content = to_string c in
+    li
+      [class_ "meta-item"]
+      [
+        a
+          [class_ "link external"; href "%s" content;]
+          [txt "%s" content]
+      ]
   in
   let slides =
-    render_meta "slides" (fun c ->
-      labelled_external_link ~href: (href "%s" (to_string c)) ~label: "Slides"
-    )
+    render_meta "slides" @@ fun c ->
+    labelled_external_link ~href: (href "%s" (to_string c)) ~label: "Slides"
   in
   let video =
-    render_meta "video" (fun c ->
-      labelled_external_link ~href: (href "%s" (to_string c)) ~label: "Video"
-    )
+    render_meta "video" @@ fun c ->
+    labelled_external_link ~href: (href "%s" (to_string c)) ~label: "Video"
   in
   header
     []
