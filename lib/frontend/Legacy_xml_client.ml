@@ -21,12 +21,6 @@ module Xmlns = struct
     k X.reserved_xmlnss
 end
 
-module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
-module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
-
-(* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
-let transclusion_cache = Hashtbl.create 1000
-
 let uri_to_string ~(config : Config.t) uri =
   match URI.host uri with
   | Some host when URI.scheme uri = Some URI_scheme.scheme ->
@@ -60,8 +54,7 @@ let route_resource_uri ~suffix (forest : State.t) uri =
   begin
     if host = config.host then
       if uri_is_home ~config uri then "index.xml"
-      else
-        bare_route ^ suffix
+      else bare_route ^ suffix
     else
       "foreign-" ^ host ^ "-" ^ bare_route ^ suffix
   end
@@ -80,6 +73,12 @@ let route (forest : State.t) uri =
     URI.to_string uri
   | None ->
     URI.to_string uri
+
+module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
+module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
+
+(* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
+let transclusion_cache = Hashtbl.create 1000
 
 let get_sorted_articles (forest : State.t) addrs =
   let module C = Types.Comparators(struct

@@ -80,7 +80,7 @@ and analyse_transclusion graphs (scope : URI.t) (transclusion : T.transclusion) 
   | Title _ | Taxon -> ()
 
 and analyse_content (graphs : env) (scope : URI.t) (content : T.content) : unit =
-  T.extract_content content |> List.iter @@ (analyse_content_node graphs scope)
+  T.extract_content content |> List.iter @@ analyse_content_node graphs scope
 
 and analyse_attribution graphs (scope : URI.t) (attr : _ T.attribution) =
   let rel =
@@ -105,11 +105,11 @@ and analyse_taxon graphs (scope : URI.t) (taxon_opt : T.content option) =
   analyse_content graphs scope taxon;
   add_edge graphs Builtin_relation.has_taxon ~source: (Uri_vertex scope) ~target: (Content_vertex taxon)
 
-and analyse_attributions graphs (scope : URI.t) (attrs : _ T.attribution list) =
-  attrs |> List.iter @@ analyse_attribution graphs scope
+and analyse_attributions graphs (scope : URI.t) =
+  List.iter @@ analyse_attribution graphs scope
 
-and analyse_tags graphs (scope : URI.t) (tags : _ T.vertex list) =
-  tags |> List.iter @@ analyse_tag graphs scope
+and analyse_tags graphs (scope : URI.t) =
+  List.iter @@ analyse_tag graphs scope
 
 and analyse_frontmatter graphs (fm : T.content T.frontmatter) : unit =
   let@ scope = Option.iter @~ fm.uri in
@@ -119,8 +119,8 @@ and analyse_frontmatter graphs (fm : T.content T.frontmatter) : unit =
   analyse_tags graphs scope fm.tags;
   analyse_metas graphs scope fm.metas
 
-and analyse_metas graphs (scope : URI.t) (metas : (string * T.content) list) : unit =
-  metas |> List.iter @@ analyse_meta graphs scope
+and analyse_metas graphs (scope : URI.t) =
+  List.iter @@ analyse_meta graphs scope
 
 and analyse_meta graphs (scope : URI.t) (_, content) : unit =
   analyse_content graphs scope content
