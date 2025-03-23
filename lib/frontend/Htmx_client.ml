@@ -97,7 +97,8 @@ let render_xml_attr
 (* "%a" render_content value *)
 
 let render_xmlns_prefix ({prefix; xmlns}: xmlns_attr) =
-  string_attr ("xmlns:" ^ prefix) "%s" xmlns
+  let attr = match prefix with "" -> "xmlns" | _ -> "xmlns:" ^ prefix in
+  string_attr attr "%s" xmlns
 
 let render_date (date : Human_datetime.t) =
   let year = txt "%i" (Human_datetime.year date) in
@@ -604,18 +605,12 @@ and _render_toc_item (forest : State.t) (item : T.content T.section) =
 
 and render_toc_mainmatter content =
   let T.Content nodes = content in
-  ul
-    [class_ "block"]
-    (
-      List.filter_map
-        (fun node ->
-          match node with
-          | T.Section section ->
-            Some (render_toc section)
-          | _ -> None
-        )
-        nodes
-    )
+  ul [class_ "block"] @@
+    let@ node = List.filter_map @~ nodes in
+    match node with
+    | T.Section section ->
+      Some (render_toc section)
+    | _ -> None
 
 and render_toc (section : T.content T.section) =
   if Some false
@@ -644,22 +639,23 @@ let render_query_result (forest : State.t) (vs : Vertex_set.t) =
         ~forest: forest.resources
         ~router: (route forest)
   end) in
-  vs
-  |> Vertex_set.to_seq
-  |> Seq.filter_map Vertex.uri_of_vertex
-  |> Seq.filter_map (fun uri -> Forest.get_article uri forest.resources)
-  |> List.of_seq
-  |> List.sort C.compare_article
-  |> List.map
-      (
-        T.article_to_section
-          ~flags: {T.default_section_flags with
-            expanded = Some false;
-            numbered = Some false;
-            included_in_toc = Some false;
-            metadata_shown = Some true
-          }
-      )
-  |> List.map (render_section forest) |> fun nodes ->
+  let make_section =
+    T.article_to_section
+      ~flags: {T.default_section_flags with
+        expanded = Some false;
+        numbered = Some false;
+        included_in_toc = Some false;
+        metadata_shown = Some true
+      }
+  in
+  let nodes =
+    vs
+    |> Vertex_set.to_seq
+    |> Seq.filter_map Vertex.uri_of_vertex
+    |> Seq.filter_map (Forest.get_article @~ forest.resources)
+    |> List.of_seq
+    |> List.sort C.compare_article
+    |> List.map (Fun.compose (render_section forest) make_section)
+  in
   if List.length nodes = 0 then None
   else Some (div [class_ "tree-content"] nodes)

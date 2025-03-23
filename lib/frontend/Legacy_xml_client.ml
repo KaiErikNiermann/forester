@@ -27,9 +27,6 @@ module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
 (* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
 let transclusion_cache = Hashtbl.create 1000
 
-(* This would be nice, but it is interfering with the stupid breadcrumb titles! Need to make that stuff stateless. *)
-(* let frontmatter_cache = Hashtbl.create 1000 *)
-
 let uri_to_string ~(config : Config.t) uri =
   match URI.host uri with
   | Some host when URI.scheme uri = Some URI_scheme.scheme ->
@@ -114,7 +111,8 @@ let render_xml_attr (forest : State.t) T.{key; value} =
   P.string_attr (render_xml_qname key) "%s" str_value
 
 let render_xmlns_prefix ({prefix; xmlns}: Forester_xml_names.xmlns_attr) =
-  P.string_attr ("xmlns:" ^ prefix) "%s" xmlns
+  let attr = match prefix with "" -> "xmlns" | _ -> "xmlns:" ^ prefix in
+  P.string_attr attr "%s" xmlns
 
 let render_section_flags (dict : T.section_flags) = [
   X.optional_ X.show_heading dict.header_shown;
@@ -158,9 +156,6 @@ let rec render_section forest (section : T.content T.section) : P.node =
     ]
 
 and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : P.node =
-  (* match Hashtbl.find_opt frontmatter_cache frontmatter with *)
-  (* | Some cached -> cached *)
-  (* | None -> *)
   let config = forest.config in
   let result =
     X.frontmatter
@@ -182,10 +177,9 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
           | Some taxon ->
             X.taxon [] @@ render_content forest (T.apply_modifier_to_content T.Sentence_case taxon)
         end;
-        X.null (List.map (render_meta forest) frontmatter.metas)
+        X.null @@ List.map (render_meta forest) frontmatter.metas
       ]
   in
-  (* Hashtbl.add frontmatter_cache frontmatter result; *)
   result
 
 and render_meta forest (key, body) =
