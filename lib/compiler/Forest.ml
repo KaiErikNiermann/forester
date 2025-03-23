@@ -28,10 +28,12 @@ let execute_datalog_script graphs script =
   let@ sequent = List.iter @~ script in
   Datalog_engine.db_add Graphs.dl_db (Datalog_eval.eval_sequent sequent)
 
+(* TODO: Why is this not run at the top level? *)
 (* let () = execute_datalog_script Builtin_relation.axioms *)
 
 let run_datalog_query (graphs : env) (q : (string, Vertex.t) Dx.query) : Vertex_set.t =
   let@ () = Reporter.trace "when running query" in
+  (* TODO: See above *)
   let () = execute_datalog_script graphs Builtin_relation.axioms in
   let module Graphs = (val graphs) in
   Datalog_eval.run_query Graphs.dl_db q
