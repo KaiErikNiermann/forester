@@ -184,7 +184,7 @@ let update
       let source_path = EP.native_exn path in
       let uri = Asset_router.install ~host: forest.config.host ~source_path ~content in
       Logs.debug (fun m -> m "Installed %s at %a" source_path URI.pp uri);
-      Forest.plant_resource (T.Asset {uri; host = forest.config.host; content}) forest.graphs forest.resources;
+      Forest.plant_resource (T.Asset {uri; content}) forest.graphs forest.resources;
     end;
     Done, forest
   | Plant_foreign ->

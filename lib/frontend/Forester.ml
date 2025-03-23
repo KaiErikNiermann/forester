@@ -136,7 +136,7 @@ let export ~(forest : State.t) : unit =
     match resource with
     | T.Article {frontmatter = {uri = Some uri; _}; _} ->
       URI.host uri = Some forest.config.host
-    | T.Asset asset -> asset.host = forest.config.host
+    | T.Asset asset -> URI.host asset.uri = Some forest.config.host
     | _ -> false
   in
   let cwd = Eio.Stdenv.cwd forest.env in

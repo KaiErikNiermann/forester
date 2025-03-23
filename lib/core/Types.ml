@@ -87,7 +87,7 @@ type 'content article = {
 }
 [@@deriving show, repr]
 
-type asset = {uri: URI.t; host: string; content: string}
+type asset = {uri: URI.t; content: string}
 [@@deriving show, repr]
 
 type 'content resource =
