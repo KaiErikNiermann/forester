@@ -60,11 +60,11 @@ module Basics = struct
     let path = Option.map (String.concat "/") path in
     dehydrate @@ Uri.canonicalize @@ Uri.make ?scheme ?userinfo: user ?host ?port ?path ()
 
-  let relativise ~(host : string) uri =
+  let relative_path_string ~(host : string) uri : string =
     if scheme uri = Some "forest" && uri.host = Some host then
-      dehydrate @@ Uri.make ?scheme: (scheme uri) ~path: uri.path ()
+      path_string uri
     else
-      uri
+      to_string uri
 end
 
 module Set = Set.Make(Basics)

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Forester_core
 open Forester_compiler
 
 type env = Eio_unix.Stdenv.base
@@ -43,6 +42,6 @@ val json_manifest :
 val complete :
   forest: State.t ->
   string ->
-  (URI.t * string) Seq.t
+  (string * string) Seq.t
 
 val export : forest: State.t -> unit

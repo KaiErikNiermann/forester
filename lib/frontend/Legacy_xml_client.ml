@@ -31,7 +31,7 @@ let uri_to_string ~(config : Config.t) uri =
   match URI.host uri with
   | Some host when URI.scheme uri = Some URI_scheme.scheme ->
     if host = config.host then
-      URI.path_string @@ URI.relativise ~host uri
+      URI.path_string uri
     else
       URI.to_string uri
   | _ -> URI.to_string uri (* used to be not percent-encoded; does it matter? *)
@@ -204,9 +204,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
   | CDATA str ->
     [P.txt ~raw: true "<![CDATA[%s]]>" str]
   | Uri uri ->
-    let relativised = URI.relativise ~host: config.host uri in
-    let str = Format.asprintf "%a" URI.pp relativised in
-    [P.txt "%s" str]
+    [P.txt "%s" (URI.relative_path_string ~host: config.host uri)]
   | Route_of_uri uri ->
     [P.txt "%s" (route forest uri)]
   | Xml_elt elt ->
@@ -314,40 +312,32 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
   [X.link attrs @@ render_content forest link.content]
 
 (* Note: this is not a big bottleneck. *)
-and render_attributions =
-  let attributions_cache = Hashtbl.create 1000 in
-  fun (forest : State.t) scope (attributions : _ T.attribution list) ->
-    match Hashtbl.find_opt attributions_cache (scope, attributions) with
-    | Some cached -> cached
-    | None ->
-      let result =
-        match scope with
-        | None -> X.null []
-        | Some scope ->
-          let indirect_attributions =
-            let open Datalog_expr.Notation in
-            let articles =
-              let positives = [Builtin_relation.has_indirect_contributor @* [const (T.Uri_vertex scope); var "X"]] in
-              let negatives = [] in
-              Datalog_expr.{var = "X"; positives; negatives}
-              |> Forest.run_datalog_query forest.graphs
-              |> get_sorted_articles forest
-            in
-            let@ biotree = List.filter_map @~ articles in
-            let@ uri = Option.map @~ biotree.frontmatter.uri in
-            T.{vertex = T.Uri_vertex uri; role = Contributor}
-          in
-          let all_attributions =
-            attributions @
-              let@ attribution = List.filter_map @~ indirect_attributions in
-              if List.exists (fun (existing : _ T.attribution) -> Vertex.equal attribution.vertex existing.vertex) attributions then None
-              else
-                Some attribution
-          in
-          X.authors [] @@ List.map (render_attribution forest) all_attributions
+and render_attributions (forest : State.t) (scope : URI.t option) (attributions : _ T.attribution list) =
+  let all_attributions =
+    match scope with
+    | None -> attributions
+    | Some uri ->
+      let indirect_attributions =
+        let open Datalog_expr.Notation in
+        let articles =
+          let x = "X" in
+          let positives = [Builtin_relation.has_indirect_contributor @* [const (T.Uri_vertex uri); var x]] in
+          let negatives = [] in
+          Datalog_expr.{var = x; positives; negatives}
+          |> Forest.run_datalog_query forest.graphs
+          |> get_sorted_articles forest
+        in
+        let@ biotree = List.filter_map @~ articles in
+        let@ uri = Option.map @~ biotree.frontmatter.uri in
+        T.{vertex = T.Uri_vertex uri; role = Contributor}
       in
-      Hashtbl.add attributions_cache (scope, attributions) result;
-      result
+      attributions @
+        let@ attribution = List.filter_map @~ indirect_attributions in
+        if List.exists (fun (existing : _ T.attribution) -> Vertex.equal attribution.vertex existing.vertex) attributions then None
+        else
+          Some attribution
+  in
+  X.authors [] @@ List.map (render_attribution forest) all_attributions
 
 and render_attribution forest (attrib : _ T.attribution) =
   let tag =

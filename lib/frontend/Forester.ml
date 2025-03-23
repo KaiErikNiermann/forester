@@ -55,12 +55,12 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
   EP.save ~create path @@ body ^ template_content;
   EP.native_exn path
 
-let complete ~(forest : State.t) prefix =
+let complete ~(forest : State.t) prefix : (string * string) Seq.t =
   let config = forest.config in
   let@ article = Seq.filter_map @~ List.to_seq @@ Forest.get_all_articles forest.resources in
   let@ uri = Option.bind article.frontmatter.uri in
   let@ uri = Option.bind @@ Option_util.guard URI_scheme.is_named_uri uri in
-  let uri = URI.relativise ~host: config.host uri in
+  let uri = URI.relative_path_string ~host: config.host uri in
   let@ title = Option.bind article.frontmatter.title in
   let title =
     Plain_text_client.string_of_content

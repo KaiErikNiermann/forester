@@ -7,7 +7,7 @@ val path_components : t -> string list
 val with_path_components : string list -> t -> t
 
 val canonicalise : t -> t
-val relativise : host: string -> t -> t
+val relative_path_string : host: string -> t -> string
 val resolve : base: t -> t -> t
 val equal : t -> t -> bool
 val compare : t -> t -> int
