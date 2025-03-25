@@ -86,8 +86,10 @@ let default_config_str =
 trees = ["trees" ]  # The directories in which your trees are stored
 assets = ["assets"] # The directories in which your assets are stored
 theme = "theme"     # The directory in which your theme is stored
-home = "index"
 host = "CHANGEME"
+
+[renderer]
+home = "index"
 |}
 
 let index_tree_str =
