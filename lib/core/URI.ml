@@ -26,7 +26,7 @@ module Basics = struct
 
   let path_components x =
     List.filter (function "" -> false | _ -> true) @@
-    String.split_on_char '/' @@ x.path
+    String.split_on_char '/' @@ Uri.pct_decode x.path
 
   let path_string x =
     String.concat "/" @@ path_components x
@@ -51,7 +51,8 @@ module Basics = struct
     Format.fprintf fmt "%s" @@
     Uri.to_string @@ hydrate uri (* wanted it not pct-encoded, but we'll see*)
 
-  let to_string x = Uri.to_string @@ hydrate x
+  let to_string x =
+    Uri.pct_decode @@ Uri.to_string @@ hydrate x
 
   let of_string_exn str =
     dehydrate @@ Uri.canonicalize @@ Uri.of_string str
