@@ -408,12 +408,13 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
       X.backmatter [] @@ render_content forest article.backmatter
     ]
 
-let pp_xml ~forest ?stylesheet fmt (article : _ T.article) =
+let pp_xml ~(forest : State.t) ?stylesheet fmt (article : _ T.article) =
   Format.fprintf fmt {|<?xml version="1.0" encoding="UTF-8"?>|};
   Format.pp_print_newline fmt ();
   begin
     let@ xsl_path = Option.iter @~ stylesheet in
-    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"/%s\"?>" xsl_path
+    let base_url = forest.config.base_url in
+    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"%s%s\"?>" base_url xsl_path
   end;
   Format.pp_print_newline fmt ();
   P.pp_xml fmt @@ render_article forest article
