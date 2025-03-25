@@ -11,6 +11,7 @@ type t = {
   assets: string list;
   foreign: string list;
   theme: string;
+  base_url: string;
   prefixes: string list;
 }
 [@@deriving show]

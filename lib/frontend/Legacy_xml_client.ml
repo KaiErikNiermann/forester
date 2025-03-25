@@ -31,7 +31,6 @@ let uri_to_string ~(config : Config.t) uri =
   | _ -> URI.to_string uri (* used to be not percent-encoded; does it matter? *)
 
 let home_uri ~(config : Config.t) =
-  (* let config = State.get_config forest in *)
   let@ root = Option.bind config.home in
   let base = URI_scheme.base_uri ~host: config.host in
   try
@@ -46,33 +45,43 @@ let uri_is_home ~config uri =
     URI.equal home_uri uri
   | None -> false
 
+let rec map_last f xs =
+  match xs with
+  | [] -> []
+  | [x] -> [f x]
+  | x :: xs -> x :: map_last f xs
+
 let route_resource_uri ~suffix (forest : State.t) uri =
   let config = forest.config in
   let host = Option.value ~default: "" @@ URI.host uri in
-  let components = URI.path_components uri in
-  let bare_route = String.concat "-" components in
-  begin
-    if host = config.host then
-      if uri_is_home ~config uri then "index.xml"
-      else bare_route ^ suffix
-    else
-      "foreign-" ^ host ^ "-" ^ bare_route ^ suffix
-  end
+  let components =
+    map_last (fun x -> x ^ suffix) @@
+      if uri_is_home ~config uri then ["index"]
+      else URI.path_components uri
+  in
+  let prefix_components =
+    if host = config.host then []
+    else ["foreign"; host]
+  in
+  prefix_components @ components
 
-let route (forest : State.t) uri =
-  match Forest.find_opt forest.resources uri with
-  | Some resource ->
-    let suffix =
-      match resource with
-      | T.Article _ -> ".xml"
-      | T.Asset _ -> ""
-    in
-    route_resource_uri ~suffix forest uri
-  | None when URI.scheme uri = Some URI_scheme.scheme ->
-    Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp uri;
-    URI.to_string uri
-  | None ->
-    URI.to_string uri
+let route (forest : State.t) uri : URI.t =
+  let uri' =
+    match Forest.find_opt forest.resources uri with
+    | Some resource ->
+      let suffix =
+        match resource with
+        | T.Article _ -> ".xml"
+        | T.Asset _ -> ""
+      in
+      let path = route_resource_uri ~suffix forest uri in
+      URI.make ~path ()
+    | None when URI.scheme uri = Some URI_scheme.scheme ->
+      Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp uri;
+      uri
+    | None -> uri
+  in
+  URI.resolve ~base: (URI.of_string_exn forest.config.base_url) uri'
 
 module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
 module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
@@ -164,7 +173,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
         render_dates forest frontmatter.dates;
         X.conditional forest.dev (X.optional (X.source_path [] "%s") frontmatter.source_path);
         X.optional (fun uri -> X.addr [] "%s" @@ uri_to_string ~config uri) frontmatter.uri;
-        X.optional (X.route [] "%s") @@ Option.map (route forest) frontmatter.uri;
+        X.optional (X.route [] "%s") @@ Option.map (Fun.compose URI.to_string (route forest)) frontmatter.uri;
         begin
           let title = get_expanded_title frontmatter forest.resources in
           X.title [X.text_ "%s" @@ Plain_text_client.string_of_content ~forest: forest.resources ~router: (route forest) title] @@
@@ -205,7 +214,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
   | Uri uri ->
     [P.txt "%s" (URI.relative_path_string ~host: config.host uri)]
   | Route_of_uri uri ->
-    [P.txt "%s" (route forest uri)]
+    [P.txt "%s" (URI.to_string (route forest uri))]
   | Xml_elt elt ->
     let prefixes_to_add, (name, attrs, content) =
       let@ () = Xmlns.within_scope in
@@ -295,12 +304,12 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
     match article_opt with
     | None ->
       [
-        X.href "%s" @@ route forest link.href;
+        X.href "%s" @@ URI.to_string @@ route forest link.href;
         X.type_ "external"
       ]
     | Some article ->
       [
-        X.optional_ (X.href "%s") @@ Option.map (route forest) article.frontmatter.uri;
+        X.optional_ (X.href "%s") @@ Option.map (Fun.compose URI.to_string @@ route forest) article.frontmatter.uri;
         X.title_ "%s" @@
         Plain_text_client.string_of_content ~forest: forest.resources ~router: (route forest) @@
         get_expanded_title article.frontmatter forest.resources;
@@ -365,7 +374,7 @@ and render_date forest (date : Human_datetime.t) =
     let uri = URI.resolve ~base (URI.of_string_exn str) in
     match Forest.get_article uri forest.resources with
     | None -> X.null_
-    | Some _ -> X.href "%s" @@ route forest uri
+    | Some _ -> X.href "%s" @@ URI.to_string @@ route forest uri
   in
   X.date
     [href_attr]
@@ -385,7 +394,8 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
     begin
       List.map render_xmlns_prefix xmlnss @
         [
-          X.optional_ X.root @@ Option.map (uri_is_home ~config) article.frontmatter.uri
+          X.optional_ X.root @@ Option.map (uri_is_home ~config) article.frontmatter.uri;
+          P.string_attr "base-url" "%s" config.base_url
         ]
     end
     [
@@ -398,12 +408,12 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
       X.backmatter [] @@ render_content forest article.backmatter
     ]
 
-let pp_xml ~forest ?stylesheet fmt article =
+let pp_xml ~forest ?stylesheet fmt (article : _ T.article) =
   Format.fprintf fmt {|<?xml version="1.0" encoding="UTF-8"?>|};
   Format.pp_print_newline fmt ();
   begin
-    let@ uri = Option.iter @~ stylesheet in
-    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"%s\"?>" uri
+    let@ xsl_path = Option.iter @~ stylesheet in
+    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"/%s\"?>" xsl_path
   end;
   Format.pp_print_newline fmt ();
   P.pp_xml fmt @@ render_article forest article

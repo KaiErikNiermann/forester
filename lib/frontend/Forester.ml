@@ -124,7 +124,7 @@ let render_forest ~dev ~(forest : State.t) : unit =
     (* Note: this part appears to be fast! *)
     let@ (route, content) = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
     let@ () = Reporter.easy_run in
-    let path = EP.(cwd / output_dir_name / route) in
+    let path = EP.(cwd / output_dir_name / URI.path_string route) in
     Eio_util.ensure_context_of_path ~perm: 0o755 path;
     EP.save ~create: (`Or_truncate 0o644) path content;
   end

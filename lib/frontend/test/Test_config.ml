@@ -18,6 +18,7 @@ let test_parsing () =
       home = Some "index";
       prefixes = ["foo"; "bar"; "baz"];
       assets = [];
+      base_url = "http://www.forester-notes.org/";
       foreign = ["foreign/forest.json"];
       theme = "theme";
     }
@@ -28,9 +29,12 @@ let test_parsing () =
         [forest]
         host = "test"
         trees = ["trees"]
-        home = "index"
         prefixes = ["foo", "bar", "baz"]
         foreign = ["foreign/forest.json"]
+
+        [renderer]
+        home = "index"
+        base_url = "http://www.forester-notes.org/"
         |}
     end
 
@@ -44,6 +48,7 @@ let test_missing_fields () =
       theme = "theme";
       assets = [];
       foreign = [];
+      base_url = "/";
       prefixes = [];
     }
     (
@@ -53,6 +58,7 @@ let test_missing_fields () =
         [forest]
         host = "test"
         trees = ["trees"]
+        [renderer]
         home = "index"
         |}
     )
@@ -80,6 +86,7 @@ let test_missing_host () =
           {|
         [forest]
         trees = ["trees"]
+        [renderer]
         home = "index"
         |}
       in
@@ -118,6 +125,7 @@ let test_stylesheet_warning () =
       trees = ["trees"];
       home = Some "index";
       theme = "theme";
+      base_url = "/";
       assets = [];
       foreign = [];
       prefixes = [];
@@ -138,8 +146,9 @@ let test_stylesheet_warning () =
         {|[forest]
         host = "test"
         trees = ["trees"]
-        home = "index"
         stylesheet = "custom.xsl"
+        [renderer]
+        home = "index"
         |}
     end
 
@@ -151,6 +160,7 @@ let test_root_warning () =
       trees = ["trees"];
       home = None;
       theme = "theme";
+      base_url = "/";
       assets = [];
       foreign = [];
       prefixes = [];

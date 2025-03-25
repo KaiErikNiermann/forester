@@ -11,6 +11,7 @@ type t = {
   assets: string list;
   foreign: string list;
   theme: string;
+  base_url: string;
   prefixes: string list;
 }
 [@@deriving show, repr]
@@ -22,5 +23,6 @@ let default : t = {
   foreign = [];
   theme = "theme";
   home = None;
+  base_url = "/";
   prefixes = [];
 }

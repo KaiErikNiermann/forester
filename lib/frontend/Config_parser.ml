@@ -17,12 +17,13 @@ let parse lexbuf filename =
   | `Ok tbl ->
     let open Toml.Lenses in
     let forest = key "forest" |-- table in
+    let renderer = key "renderer" |-- table in
     let host =
       match get tbl (forest |-- key "host" |-- string) with
       | Some host -> String.lowercase_ascii host
       | None -> Reporter.fatalf Configuration_error "You need to set the `host' key in your configuration file; this is a global identifier that will be used to distinguish your forest from other forests (you can use your name, e.g. `johnqpublic')"
     in
-    let home = get tbl (forest |-- key "home" |-- string) in
+    let home = get tbl (renderer |-- key "home" |-- string) in
     let _ =
       match get tbl (forest |-- key "root" |-- string) with
       | None -> ()
@@ -34,6 +35,10 @@ let parse lexbuf filename =
       | None -> ()
       | Some _ ->
         Reporter.emitf Configuration_error "Custom XSL stylesheet injection is no longer supported; please remove the `stylesheet' key from the [forest] group."
+    in
+    let base_url =
+      Option.value ~default: Config.default.base_url @@
+        get tbl (renderer |-- key "base_url" |-- string)
     in
     let trees =
       Option.value ~default: Config.default.trees @@
@@ -49,13 +54,13 @@ let parse lexbuf filename =
     in
     let theme =
       Option.value ~default: Config.default.theme @@
-        get tbl (forest |-- key "theme" |-- string)
+        get tbl (renderer |-- key "theme" |-- string)
     in
     let prefixes =
       Option.value ~default: Config.default.prefixes @@
         get tbl (forest |-- key "prefixes" |-- array |-- strings)
     in
-    Config.{host; assets; trees; foreign; theme; home; prefixes}
+    Config.{host; base_url; assets; trees; foreign; theme; home; prefixes}
 
 let parse_forest_config_string str =
   let lexbuf = Lexing.from_string str in

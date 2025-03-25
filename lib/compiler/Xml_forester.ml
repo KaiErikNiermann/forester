@@ -9,8 +9,9 @@ open Pure_html
 
 let forester_xmlns = {prefix = "fr"; xmlns = "http://www.jonmsterling.com/jms-005P.xml"}
 let html_xlmns = {prefix = "html"; xmlns = "http://www.w3.org/1999/xhtml"}
+let xml_xmlns = {prefix = "xml"; xmlns = "http://www.w3.org/XML/1998/namespace"}
 
-let reserved_xmlnss = [forester_xmlns; html_xlmns]
+let reserved_xmlnss = [forester_xmlns; html_xlmns; xml_xmlns]
 
 let null = HTML.null
 let null_ = HTML.null_

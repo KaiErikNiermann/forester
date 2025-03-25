@@ -36,12 +36,12 @@ let uri_is_home ~config uri =
     URI.equal home_uri uri
   | None -> false
 
-let route (forest : State.t) addr =
+let route (forest : State.t) uri : URI.t =
   let config = forest.config in
-  if Some addr = Option.map (URI_scheme.user_uri ~host: config.host) config.home then
-    "index.html"
+  if Some uri = Option.map (URI_scheme.user_uri ~host: config.host) config.home then
+    URI.make ~scheme: "http" ~path: ["index.html"] ()
   else
-    Format.asprintf "%s" (URI.path_string addr)
+    uri
 
 let title_flags_to_http_header (flags : T.title_flags) =
   match flags with
@@ -454,7 +454,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->
-    let body = Plain_text_client.string_of_content ~forest: forest.resources ~router: URI.to_string content in
+    let body = Plain_text_client.string_of_content ~forest: forest.resources ~router: Fun.id content in
     (* [txt ~raw: true "%s%s%s" l body r] *)
     begin
       match mode with

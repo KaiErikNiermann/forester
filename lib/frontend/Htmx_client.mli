@@ -14,7 +14,7 @@ type query = {
 }
 val query_t : query Repr.t
 
-val route : State.t -> URI.t -> string
+val route : State.t -> URI.t -> URI.t
 val render_article : State.t -> T.content T.article -> Pure_html.node
 
 val render_content : State.t -> T.content -> Pure_html.node list
