@@ -7,7 +7,7 @@
 open Forester_xml_names
 open Pure_html
 
-let forester_xmlns = {prefix = "fr"; xmlns = "http://www.jonmsterling.com/jms-005P.xml"}
+let forester_xmlns = {prefix = "fr"; xmlns = "http://www.forester-notes.org"}
 let html_xlmns = {prefix = "html"; xmlns = "http://www.w3.org/1999/xhtml"}
 let xml_xmlns = {prefix = "xml"; xmlns = "http://www.w3.org/XML/1998/namespace"}
 
