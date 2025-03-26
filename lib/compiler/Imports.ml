@@ -30,17 +30,6 @@ let load_tree path =
       }
     }
 
-let _add_vertex (forest : State.t) g v =
-  try
-    let uri_v = Option.get (Vertex.uri_of_vertex v) in
-    assert (URI.Tbl.mem forest.parsed uri_v);
-    Forest_graph.add_vertex g v
-  with
-    | exn ->
-      Reporter.fatal
-        Internal_error
-        ~extra_remarks: [Asai.Diagnostic.loctextf "%a" Eio.Exn.pp exn]
-
 (* Only add edge if both vertices are already present*)
 let add_edge g v w =
   try
@@ -50,62 +39,44 @@ let add_edge g v w =
   with
     | exn -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "%a" Eio.Exn.pp exn]
 
-let register_document ~host g doc =
-  let uri = Lsp.Text_document.documentUri doc in
-  let uri = URI_scheme.lsp_uri_to_uri ~host uri in
-  Forest_graph.add_vertex g (T.Uri_vertex uri)
-
 module Analysis_env = Algaeff.Reader.Make(struct type t = analysis_env end)
 
-let resolve_uri_to_code (forest : State.t) uri =
+let resolve_uri_to_code
+    (forest : State.t)
+    (uri : URI.t)
+    : Tree.code option
+  =
   let dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
-  match Forest.find_opt forest.parsed uri, URI.Tbl.find_opt forest.resolver uri with
-  | Some tree, Some path ->
-    let doc = load_tree Eio.Path.(forest.env#fs / path) in
-    Some (tree, doc)
-  | None, Some path ->
-    begin
+  match Forest.find_opt forest.index uri with
+  | Some tree -> Tree.to_code tree
+  | None ->
+    match URI.Tbl.find_opt forest.resolver uri with
+    | Some path ->
       let doc = load_tree Eio.Path.(forest.env#fs / path) in
-      match Parse.parse_document ~host: forest.config.host doc with
-      | Ok code ->
-        Some (code, doc)
-      | Error _ -> None
-    end
-  (* TODO: Think about these cases *)
-  | Some _, None -> None
-  | None, _ ->
-    begin
+      Result.to_option @@
+        Parse.parse_document ~host: forest.config.host doc
+    | None ->
       match Dir_scanner.find_tree dirs uri with
       | Some path ->
         let native = Eio.Path.native_exn path in
         URI.Tbl.add forest.resolver uri native;
-        begin
-          let doc = load_tree path in
-          match Parse.parse_document ~host: forest.config.host doc with
-          | Ok code ->
-            Some (code, doc)
-          | Error _ -> None
-        end
-      | None -> None
-    end
+        let doc = load_tree path in
+        Result.to_option @@
+          Parse.parse_document ~host: forest.config.host doc
+      | None ->
+        Reporter.fatal (Resource_not_found uri)
 
-let rec analyse_tree (root : URI.t) (tree : Code.tree) =
+let rec analyse_tree (tree : Tree.code) =
   let env = Analysis_env.read () in
-  let uri_opt = tree.uri in
-  let code = tree.code in
-  let@ uri = Option.iter @~ uri_opt in
-  Forest_graph.add_vertex env.graph (T.Uri_vertex uri);
-  analyse_code root code;
+  let@ root = Option.iter @~ Tree.identity_to_uri tree.identity in
+  let code = tree.nodes in
+  Forest_graph.add_vertex env.graph (T.Uri_vertex root);
+  analyse_code ~root code;
 
-and analyse_tree_exn (tree : Code.tree) =
-  match tree.uri with
-  | Some uri -> analyse_tree uri tree
-  | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "Import graph: cannot analyse a tree without an address"]
+and analyse_code ~root (code : Code.t) =
+  List.iter (analyse_node ~root) code
 
-and analyse_code root (code : Code.t) =
-  List.iter (analyse_node root) code
-
-and analyse_node root (node : Code.node Asai.Range.located) =
+and analyse_node ~root (node : Code.node Asai.Range.located) =
   let env = Analysis_env.read () in
   let host = env.forest.config.host in
   match node.value with
@@ -114,70 +85,73 @@ and analyse_node root (node : Code.node Asai.Range.located) =
     let dep_uri = URI_scheme.user_uri ~host dep in
     let dependency = T.Uri_vertex dep_uri in
     let target = T.Uri_vertex root in
-    begin
-      match resolve_uri_to_code env.forest dep_uri with
-      | None ->
-        Reporter.fatal
-          ?loc: node.loc
-          (Resource_not_found dep_uri)
-      | Some (tree, doc) ->
-        register_document ~host: env.forest.config.host env.graph doc;
-        add_edge env.graph dependency target;
-        analyse_tree root tree
-    end
-  | Subtree (addr, code) ->
-    let uri = Option.map (URI_scheme.user_uri ~host) addr in
+    Forest_graph.add_vertex env.graph dependency;
+    (* add_vertex env.forest env.graph tar; *)
+    add_edge env.graph dependency target;
+    if env.follow then
+      begin
+        match resolve_uri_to_code env.forest dep_uri with
+        | None -> Reporter.fatal ?loc: node.loc (Resource_not_found dep_uri)
+        | Some code ->
+          analyse_tree code;
+          assert false
+      end
+  | Subtree (addr, nodes) ->
+    let identity =
+      match addr with
+      | None -> Tree.Anonymous
+      | Some string ->
+        URI (URI_scheme.user_uri ~host string)
+    in
     analyse_tree
-      root
-      (* Consider using the env to keep track of the current source path *)
-      (* FIXME: not passing timestamp of parent tree. Need to modify Analysis_env for that *)
-      {uri; code; source_path = None; timestamp = None;}
+      {identity; origin = Subtree {parent = URI root}; nodes; timestamp = None;}
   | Scope code | Namespace (_, code) | Group (_, code) | Math (_, code) | Let (_, _, code) | Fun (_, code) | Def (_, _, code) ->
-    analyse_code root code
+    analyse_code ~root code
   | Object {methods; _} | Patch {methods; _} ->
     let@ _, code = List.iter @~ methods in
-    analyse_code root code
+    analyse_code ~root code
   | Dx_prop (rel, args) ->
-    analyse_code root rel;
-    List.iter (analyse_code root) args
+    analyse_code ~root rel;
+    List.iter (analyse_code ~root) args
   | Dx_sequent (concl, premises) ->
-    analyse_code root concl;
-    List.iter (analyse_code root) premises
+    analyse_code ~root concl;
+    List.iter (analyse_code ~root) premises
   | Dx_query (_, positives, negatives) ->
-    List.iter (analyse_code root) positives;
-    List.iter (analyse_code root) negatives
+    List.iter (analyse_code ~root) positives;
+    List.iter (analyse_code ~root) negatives
   | Text _ | Hash_ident _ | Xml_ident (_, _) | Verbatim _ | Ident _ | Open _ | Put (_, _) | Default (_, _) | Get _ | Decl_xmlns (_, _) | Call (_, _) | Alloc _ | Dx_var _ | Dx_const_content _ | Dx_const_uri _ | Comment _ | Error _ -> ()
 
 let dependencies tree forest =
   let env = {forest; follow = true; graph = Forest_graph.create ()} in
   let@ () = Analysis_env.run ~env in
-  analyse_tree_exn tree;
+  analyse_tree tree;
   env.graph
 
-let fixup (tree : Code.tree) (forest : State.t) =
-  let@ () = Reporter.tracef "when resolving imports" in
+let fixup (tree : Tree.code) (forest : State.t) =
+  let@ () = Reporter.tracef "when updating imports for %a" Tree.pp_identity tree.identity in
+  Logs.debug (fun m -> m "updating imports for %a" Tree.pp_identity tree.identity);
+  Logs.debug (fun m -> m "%a" Code.pp tree.nodes);
   let graph = forest.import_graph in
-  let this_uri = Option.get tree.uri in
-  let this_vertex = T.Uri_vertex this_uri in
-  let old_deps = Vertex_set.of_list @@ Forest_graph.immediate_dependencies graph this_vertex in
-  let new_deps =
-    let env = {
-      forest;
-      follow = false;
-      graph;
-    }
+  match tree.identity with
+  | Tree.Anonymous -> assert false
+  | Tree.URI uri ->
+    let this_vertex = T.Uri_vertex uri in
+    let old_deps = Vertex_set.of_list @@ Forest_graph.immediate_dependencies graph this_vertex in
+    let new_deps =
+      let env = {forest; follow = false; graph;} in
+      let@ () = Analysis_env.run ~env in
+      begin
+        analyse_tree tree;
+        Vertex_set.of_list @@ Forest_graph.immediate_dependencies env.graph this_vertex
+      end;
     in
-    let@ () = Analysis_env.run ~env in
-    begin
-      analyse_tree_exn tree;
-      Vertex_set.of_list @@ Forest_graph.immediate_dependencies env.graph this_vertex
-    end;
-  in
-  let unchanged_deps = Vertex_set.inter new_deps old_deps in
-  let added_deps = Vertex_set.diff new_deps unchanged_deps in
-  let removed_deps = Vertex_set.diff old_deps unchanged_deps in
-  Vertex_set.iter (fun v -> Forest_graph.remove_edge graph v this_vertex) removed_deps;
-  Vertex_set.iter (fun v -> Forest_graph.add_edge graph v this_vertex) added_deps
+    let unchanged_deps = Vertex_set.inter new_deps old_deps in
+    let added_deps = Vertex_set.diff new_deps unchanged_deps in
+    let removed_deps = Vertex_set.diff old_deps unchanged_deps in
+    Logs.debug (fun m -> m "added %d dependencies" (Vertex_set.cardinal added_deps));
+    Logs.debug (fun m -> m "removed %d dependencies" (Vertex_set.cardinal removed_deps));
+    Vertex_set.iter (fun v -> Forest_graph.remove_edge graph v this_vertex) removed_deps;
+    Vertex_set.iter (fun v -> Forest_graph.add_edge graph v this_vertex) added_deps
 
 let _minimal_dependency_graph
   : addr: URI.t -> Forest_graph.t
@@ -192,25 +166,10 @@ let _minimal_dependency_graph
   f (T.Uri_vertex addr);
   dep_graph
 
-let run_builder ?root env =
-  let@ () = Analysis_env.run ~env in
-  begin
-    match root with
-    | Some uri ->
-      begin
-        match resolve_uri_to_code env.forest uri with
-        | None ->
-          let@ () = Reporter.trace "when building import graph" in
-          Reporter.fatal (Resource_not_found uri) (* "could not find tree `%a'" URI.pp uri *)
-        | Some (tree, _) -> analyse_tree_exn tree
-      end
-    | None ->
-      env.forest.parsed
-      |> Forest.to_seq_values
-      |> Seq.iter (analyse_tree_exn)
-  end;
-  env.graph
-
 let build forest =
   let env = {forest; follow = false; graph = Forest_graph.create ()} in
-  run_builder env
+  let@ () = Analysis_env.run ~env in
+  env.forest
+  |> State.get_all_code
+  |> Seq.iter analyse_tree;
+  env.graph

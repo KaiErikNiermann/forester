@@ -10,13 +10,13 @@ open Forester_compiler
 module T := Types
 
 val string_of_content :
-  forest: T.content T.resource Forest.t ->
+  forest: State.t ->
   router: (URI.t -> URI.t) ->
   Types.content ->
   string
 
 val pp_content :
-  forest: T.content T.resource Forest.t ->
+  forest: State.t ->
   router: (URI.t -> URI.t) ->
   Format.formatter ->
   Types.content ->

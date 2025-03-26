@@ -1,0 +1,36 @@
+(cram
+ (deps test.lua %{bin:forester} %{bin:nvim} %{bin:test-lsp}))
+
+(rule
+ (alias runtest)
+ (deps %{bin:test-lsp})
+ (targets)
+ (action
+  (progn
+   (run git clone https://git.sr.ht/~jonsterling/forester-notes.org)
+   (chdir
+    forester-notes.org
+    (run %{bin:test-lsp})))))
+
+(executable
+ (name Test_lsp)
+ (public_name test-lsp)
+ (preprocess
+  (pps ppx_yojson_conv))
+ (libraries
+  asai
+  alcotest
+  algaeff
+  fmt
+  logs
+  eio
+  eio_main
+  eio.core
+  eio.unix
+  lsp
+  yojson
+  forester.prelude
+  forester.core
+  forester.compiler
+  forester.frontend
+  forester.language_server))

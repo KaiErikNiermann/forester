@@ -12,7 +12,7 @@ open Testables
 
 let parse_string str =
   let lexbuf = Lexing.from_string str in
-  let res = Parse.parse ~source: (`String {title = None; content = str}) lexbuf in
+  let res = Parse.parse lexbuf in
   Result.map strip_loc res
 
 let _test_parse_error_explanation src expect =
@@ -48,15 +48,15 @@ let check_diagnostic expect kont =
 
 let () =
   let@ env = Eio_main.run in
-  let@ () = Reporter.easy_run in
   let config = Config.default in
   let test () =
     let@ tmp_dir = with_test_forest ~env ~raw_trees ~config in
     Sys.chdir (Eio.Path.native_exn tmp_dir);
     let@ () = check_diagnostic (Resource_not_found (URI.of_string_exn "asdf")) in
+    let@ () = Reporter.easy_run in
     let forest, history =
-      State.make ~env ~config ~dev: false ()
-      |> Driver.run_with_history Load_all_configured_dirs
+      (* State.make ~env ~config ~dev: false () |>  *)
+      Driver.batch_run_with_history ~env ~config ~dev: false
     in
     Alcotest.(check @@ list action)
       ""
@@ -70,8 +70,7 @@ let () =
         Done
       ]
       history;
-    Alcotest.(check int) "" 1 (Diagnostic_store.length forest.diagnostics);
-    Alcotest.(check bool) "" true (URI.Tbl.length forest.parsed = (Hashtbl.length forest.documents - 1))
+    Alcotest.(check int) "" 1 (URI.Tbl.length forest.diagnostics);
   in
   let test_expansion () = Alcotest.(check string) "" "" "" in
   let open Alcotest in

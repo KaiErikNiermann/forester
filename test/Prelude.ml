@@ -55,15 +55,13 @@ type raw_tree = {path: string; content: string}
 
 let parse_string str =
   let lexbuf = Lexing.from_string str in
-  let res = Parse.parse ~source: (`String {title = None; content = str}) lexbuf in
+  let res = Parse.parse lexbuf in
   Result.map strip_loc res
 
 let with_open_tmp_dir ~env kont =
   let open Eio in
-  (* let dir_name = string_of_int @@ Oo.id (object end) in *)
   let cwd = Eio.Stdenv.cwd env in
   let tmp = "_tmp" in
-  (* Path.rmtree ~missing_ok: true tmp_path; *)
   Path.mkdirs ~exists_ok: true ~perm: 0o755 Path.(cwd / tmp);
   let tmp_dir =
     Filename.temp_dir

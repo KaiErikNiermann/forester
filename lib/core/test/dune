@@ -2,7 +2,13 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
-(test
+(cram
+ (deps %{bin:test-errors}))
+
+(executable
+ (preprocess
+  (pps ppx_deriving.show))
+ (public_name test-errors)
  (name Test_errors)
  (libraries
   eio
@@ -13,4 +19,6 @@
   forester.compiler
   forester.core
   forester.prelude
+  forester.frontend
+  pure-html
   asai))

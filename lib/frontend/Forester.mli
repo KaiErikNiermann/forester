@@ -42,6 +42,6 @@ val json_manifest :
 val complete :
   forest: State.t ->
   string ->
-  (string * string) Seq.t
+  (string * string) List.t
 
 val export : forest: State.t -> unit

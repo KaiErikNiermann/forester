@@ -10,6 +10,7 @@ open Forester_frontend
 open Forester_compiler
 
 module L = Lsp.Types
+open State.Syntax
 
 let (let*) = Option.bind
 
@@ -18,7 +19,7 @@ let compute (params : L.DocumentLinkParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let render =
     Plain_text_client.string_of_content
-      ~forest: forest.resources
+      ~forest
       ~router: (Legacy_xml_client.route forest)
   in
   let config = forest.config in
@@ -27,11 +28,12 @@ let compute (params : L.DocumentLinkParams.t) =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let links =
       let uri = URI_scheme.lsp_uri_to_uri ~host: config.host textDocument.uri in
-      match Imports.resolve_uri_to_code forest uri with
+      (* match Imports.resolve_uri_to_code forest uri with *)
+      match Option.bind forest.={uri} Tree.to_code with
       | None -> []
-      | Some (tree, _) ->
+      | Some tree ->
         begin
-          Code.(tree.code)
+          tree.nodes
           |> List.filter_map
               (fun node ->
                 match Range.(node.value) with
@@ -42,7 +44,7 @@ let compute (params : L.DocumentLinkParams.t) =
                   let range = (Lsp_shims.Loc.lsp_range_of_range node.loc) in
                   let uri = (URI_scheme.user_uri ~host: config.host addr) in
                   let* target = Option.map Lsp.Uri.of_path @@ URI.Tbl.find_opt forest.resolver uri in
-                  let* {frontmatter; _} = Forest.get_article uri forest.resources in
+                  let* {frontmatter; _} = State.get_article uri forest in
                   let* tooltip = Option.map (fun c -> render c) frontmatter.title in
                   let link =
                     L.DocumentLink.create

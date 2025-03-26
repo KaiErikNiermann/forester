@@ -5,7 +5,6 @@
  *
  *)
 
-open Forester_prelude
 open Forester_core
 
 module L = Lsp.Types
@@ -23,14 +22,18 @@ let extract_addr (node : Code.node Range.located) : string option =
 
 (* TODO: Think about this some more. *)
 let rec flatten (tree : Code.t) : Code.t =
-  let@ node = List.concat_map @~ tree in
-  match node.value with
-  | Code.Subtree (_, nodes)
-  | Code.Scope nodes ->
-    flatten nodes
-  | _ -> [node]
+  tree
+  |> List.concat_map @@ fun (node : 'a Range.located) ->
+    match node.value with
+    | Code.Subtree (_, nodes)
+    | Code.Scope nodes ->
+      flatten nodes
+    | _ -> [node]
 
-let contains ~(position : Lsp.Types.Position.t) (located : _ Range.located) =
+let contains = fun
+    ~(position : Lsp.Types.Position.t)
+    (located : _ Range.located)
+  ->
   let L.Position.{line = cursor_line; character = cursor_character} = position in
   match located.loc with
   | Some loc ->

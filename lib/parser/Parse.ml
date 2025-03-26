@@ -67,10 +67,9 @@ let is_closing_delim = function
 
 let parse
   : ?stop_on_err: bool ->
-  source: [`File of string | `String of Range.string_source] ->
   lexbuf ->
   (Code.t, Reporter.diagnostic) Result.t
-= fun ?(stop_on_err = true) ~source lexbuf ->
+= fun ?(stop_on_err = true) lexbuf ->
   let initial_checkpoint = (Grammar.Incremental.main lexbuf.lex_curr_p) in
   let delim_stack = Stack.create () in
   let rec run
@@ -110,30 +109,30 @@ let parse
         Error
           (
             Asai.Diagnostic.of_text
-              ~loc: (Range.of_lexbuf ~source lexbuf)
+              ~loc: (Range.of_lexbuf lexbuf)
               Error
               Reporter.Message.Parse_error
               (Asai.Diagnostic.text "")
           )
       else
-        let range_of_last_unclosed =
-          Option.map snd @@ Stack.top_opt delim_stack
-        in
-        let loc = Range.of_lexbuf ~source lexbuf in
-        let extra_remarks =
-          if Option.is_some range_of_last_unclosed then
-            [
-              Asai.Diagnostic.loctext
-                ?loc: range_of_last_unclosed
-                "This delimiter is never closed";
-            ]
-          else []
-        in
+        (* let range_of_last_unclosed = *)
+        (*   Option.map snd @@ Stack.top_opt delim_stack *)
+        (* in *)
+        let loc = Range.of_lexbuf lexbuf in
+        (* let extra_remarks = *)
+        (*   if Option.is_some range_of_last_unclosed then *)
+        (*     [ *)
+        (*       Asai.Diagnostic.loctext *)
+        (*         ?loc: range_of_last_unclosed *)
+        (*         "This delimiter is never closed"; *)
+        (*     ] *)
+        (*   else [] *)
+        (* in *)
         Error
           (
             Asai.Diagnostic.(
               of_loctext
-                ~extra_remarks
+                (* ~extra_remarks *)
                 Error
                 Forester_core.Reporter.Message.Parse_error
                 (loctext ~loc Format.(sprintf "syntax error, unexpected %S" (Lexing.lexeme lexbuf)))
@@ -153,7 +152,7 @@ let parse
        that we can safely use the returned diagnostic without worrying that
        there might be an unhandled Asai effect. *)
     | Lexer.SyntaxError lexeme ->
-      let loc = Range.of_lexbuf ~source lexbuf in
+      let loc = Range.of_lexbuf lexbuf in
       Error
         (
           Asai.Diagnostic.(

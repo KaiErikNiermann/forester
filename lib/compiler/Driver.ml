@@ -6,16 +6,9 @@
 
 open Forester_core
 open Forester_prelude
-
-(* TODO:
-   - Come up with error hadling/merging strategy
-   *)
-
-type target = HTML | JSON | XML | STRING
+open State.Syntax
 
 module T = Types
-
-type state = State.t
 
 module Action = struct
   type exit =
@@ -32,24 +25,30 @@ module Action = struct
     | Parse_all
     | Expand_all
     | Eval_all
-    | Load_tree of string
+    | Load_tree of (Eio.Fs.dir_ty Eio.Path.t [@printer Eio.Path.pp])
     | Parse of (Lsp.Uri.t [@printer fun fmt uri -> fprintf fmt "%s" (Lsp.Uri.to_string uri)])
     | Expand of URI.t
     | Eval of URI.t
     | Query of (string, Vertex.t) Datalog_expr.query
-    | Cache_results of (Vertex_set.t [@opaque])
+    | Query_results of (Vertex_set.t [@opaque])
+    | Report_errors of ((Reporter.Message.t Asai.Diagnostic.t [@opaque]) list * t)
     | Run_jobs of Job.job Range.located list
   [@@deriving show]
+
+  let report ~next_action ~errors =
+    if List.length errors > 0 then
+      Report_errors (errors, next_action)
+    else next_action
 end
 
 let update
   : Action.t -> State.t -> Action.t * State.t
 = fun action forest ->
   let open Action in
+  let host = forest.config.host in
   match action with
   | Quit e ->
     begin
-      (* TODO: Graciously exit, i.e. persist cache *)
       match e with
       | Fail -> exit 1
       | Finished -> exit 0
@@ -57,7 +56,9 @@ let update
   | Query q ->
     let@ () = Reporter.trace "when running query" in
     let r = Forest.run_datalog_query forest.graphs q in
-    Cache_results r, forest
+    Query_results r, forest
+  | Query_results _ -> Done, forest
+  | Report_errors (_, next_action) -> next_action, forest
   | Load_all_configured_dirs ->
     let@ () = Reporter.trace "when loading files from disk" in
     let tree_dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
@@ -65,107 +66,77 @@ let update
     let docs = Phases.load tree_dirs in
     Seq.iter
       (fun doc ->
-        Imports.register_document ~host: forest.config.host forest.import_graph doc;
         let lsp_uri = Lsp.Text_document.documentUri doc in
         let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
         URI.Tbl.replace forest.resolver uri (Lsp.Uri.to_path lsp_uri);
-        Hashtbl.replace forest.documents lsp_uri doc;
+        forest.={uri} <- Document doc
       )
       docs;
     Logs.debug (fun m -> m "loaded %d trees" (Seq.length docs));
     Parse_all, forest
   | Parse_all ->
     let@ () = Reporter.trace "when parsing trees" in
-    let errors, trees =
-      Phases.parse forest
-      |> Seq.partition_map (fun res ->
-          match res with
-          | Ok tree -> Right tree
-          | Error err -> Left err
-        )
-    in
-    Seq.iter Reporter.Tty.display errors;
-    Seq.iter
-      (fun tree ->
-        (* Every tree that comes from the filesystem has an URI *)
-        let uri = Option.get Code.(tree.uri) in
-        URI.Tbl.add
-          forest.parsed
-          uri
-          tree
+    let errors, succeeded = Phases.parse forest in
+    List.iter
+      (fun (code : Tree.code) ->
+        let@ uri = Option.iter @~ Tree.(identity_to_uri code.identity) in
+        forest.={uri} <- Parsed code
       )
-      trees;
-    Logs.debug (fun m -> m "parsed %d trees" (URI.Tbl.length forest.parsed));
-    Build_import_graph, forest
+      succeeded;
+    if (List.length errors = 0) then
+      assert (
+        Seq.for_all
+          Tree.is_parsed
+          (URI.Tbl.to_seq_values forest.index)
+      );
+    List.iter
+      (fun diag ->
+        let@ uri =
+          Option.iter @~ Option.map (URI_scheme.lsp_uri_to_uri ~host: forest.config.host) (Reporter.guess_uri diag)
+        in
+        forest.?{uri} <- [diag]
+      )
+      errors;
+    Action.report ~errors ~next_action: Build_import_graph, forest
   | Build_import_graph ->
     let@ () = Reporter.trace "when building import graph" in
-    let import_graph, diagnostics = Phases.build_import_graph forest in
-    if Diagnostic_store.length diagnostics = 0 then
-      assert (Forest_graph.nb_vertex import_graph >= URI.Tbl.length forest.parsed);
-    Logs.debug (fun m -> m "%d vertices@." (Forest_graph.nb_vertex import_graph));
-    Diagnostic_store.iter (fun _ d -> Diagnostic_store.add forest.diagnostics d) diagnostics;
-    Expand_all, {forest with import_graph}
+    let errors, import_graph = Phases.build_import_graph forest in
+    Logs.debug (fun m -> m "import graph has %d vertices@." (Forest_graph.nb_vertex import_graph));
+    Action.report ~errors ~next_action: Expand_all, {forest with import_graph}
   | Expand_all ->
     let@ () = Reporter.tracef "when expanding trees" in
-    let units, expanded_trees = Phases.expand forest in
-    Logs.debug (fun m -> m "Expand: got %d trees" (List.length expanded_trees));
-    assert (List.length expanded_trees <= URI.Tbl.length forest.parsed);
-    begin
-      let@ (diagnostics, source_path, (syn : Syn.tree)) = List.iter @~ expanded_trees in
-      let@ uri = Option.iter @~ syn.uri in
-      Forest.replace forest.expanded uri syn.syn;
-      match source_path with
-      | None ->
-        Logs.warn (fun m -> m "tree at %a has no source path." URI.pp uri);
-        (* There is an implicit assumption here that diagnostics are only
-            emitted for trees that have a source path. I should think about
-            this.*)
-        if forest.dev then assert false
-      | Some path ->
-        assert (not (Filename.is_relative path));
-        match diagnostics with
-        | [] -> ()
-        | diagnostics ->
-          (* If we obtained some diagnostics from expanding, we have
-          succesfully parsed the tree and can thus overwrite the parsing
-          diagnostics *)
-          Diagnostic_store.replace forest.diagnostics diagnostics
-    end;
-    let patched_units =
-      let open Expand in
-      Unit_map.fold
-        (fun uri exports acc ->
-          match Unit_map.find_opt uri units with
-          | None ->
-            Unit_map.add uri exports acc
-          | Some _ ->
-            Unit_map.add uri exports acc
-        )
-        units
-        units
-    in
-    Eval_all, {forest with units = patched_units}
+    Logs.debug (fun m -> m "expanding trees");
+    let errors = Phases.expand_all forest in
+    Action.report ~errors ~next_action: Eval_all, forest
   | Expand uri ->
     let@ () = Reporter.tracef "when expanding %a" URI.pp uri in
-    let result, _err = Phases.expand_only uri forest in
-    Eval uri, result
+    begin
+      match Option.bind forest.={uri} Tree.to_code with
+      | None ->
+        Action.report ~errors: [Reporter.diagnostic (Resource_not_found uri)] ~next_action: Done, forest
+      | Some code ->
+        let result, errors = Phases.expand forest code in
+        forest.={uri} <- Expanded result;
+        Action.report ~errors ~next_action: (Eval uri), forest
+    end
   | Eval_all ->
     let@ () = Reporter.tracef "when evaluating" in
-    let trees, _errors = Phases.eval forest in
-    Logs.debug (fun m -> m "Eval: got %d trees" (Seq.length trees));
-    let jobs =
-      trees
+    Logs.debug (fun m -> m "evaluating");
+    let result = Phases.eval forest in
+    let jobs, errors =
+      result
       |> List.of_seq
-      |> List.concat_map
-          (fun Eval.{articles; jobs} ->
+      |> List.map
+          (fun (Eval.{articles; jobs}, diagnostics) ->
             begin
               let@ article = List.iter @~ articles in
-              Forest.plant_resource (T.Article article) forest.graphs forest.resources
+              State.plant_resource (T.Article article) forest
             end;
-            jobs
+            jobs, diagnostics
           )
+      |> List.split |> fun (j, e) -> List.concat j, List.concat e
     in
-    Run_jobs jobs, forest
+    Action.report ~errors ~next_action: (Run_jobs jobs), forest
   | Eval uri ->
     let@ () = Reporter.tracef "when evaluating %a" URI.pp uri in
     let result, _err = Phases.eval_only uri forest in
@@ -184,66 +155,113 @@ let update
       let source_path = EP.native_exn path in
       let uri = Asset_router.install ~host: forest.config.host ~source_path ~content in
       Logs.debug (fun m -> m "Installed %s at %a" source_path URI.pp uri);
-      Forest.plant_resource (T.Asset {uri; content}) forest.graphs forest.resources;
+      State.plant_resource (T.Asset {uri; content}) forest
     end;
     Done, forest
   | Plant_foreign ->
     let@ () = Reporter.tracef "when planting foreign forest" in
+    Logs.debug (fun m -> m "Planting foreign forests");
     let result, err = Phases.implant_foreign forest in
-    Option.iter Reporter.Tty.display err;
-    Done, result
+    Report_errors (err, Done), result
   | Run_jobs jobs ->
     Phases.run_jobs forest jobs;
     Done, forest
   | Load_tree path ->
-    begin
-      let@ () = Reporter.tracef "when loading %s" path in
-      let tree_dirs = Eio_util.paths_of_dirs ~env: forest.env forest.config.trees in
-      let uri = URI_scheme.path_to_uri ~host: forest.config.host path in
-      match Dir_scanner.find_tree tree_dirs uri with
-      | None ->
-        Reporter.fatal (Resource_not_found uri)
-      (* "could not find tree %a in the configured directories" URI.pp uri *)
-      | Some path ->
-        let doc = Imports.load_tree path in
-        let uri = Lsp.Text_document.documentUri doc in
-        Imports.register_document ~host: forest.config.host forest.import_graph doc;
-        Hashtbl.replace forest.documents uri doc;
-        Parse uri, forest
-    end
+    let@ () = Reporter.tracef "when loading %a" Eio.Path.pp path in
+    let doc = Imports.load_tree path in
+    Logs.debug (fun m -> m "%s" (Lsp.Text_document.text doc));
+    let lsp_uri = Lsp.Text_document.documentUri doc in
+    let uri = URI_scheme.lsp_uri_to_uri ~host lsp_uri in
+    forest.={uri} <- Document doc;
+    Parse lsp_uri, forest
   | Parse uri ->
     let@ () = Reporter.tracef "when parsing %s" (Lsp.Uri.to_string uri) in
     Logs.debug (fun m -> m "Reparsing");
+    let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
     begin
-      match Hashtbl.find_opt forest.documents uri with
-      | None -> assert false
+      match Option.bind forest.={uri} Tree.to_doc with
       | Some doc ->
-        match Parse.parse_document ~host: forest.config.host doc with
-        | Ok tree ->
-          Logs.debug (fun m -> m "doc has content %s" @@ Lsp.Text_document.text doc);
-          Imports.fixup tree forest;
-          URI.Tbl.replace forest.parsed (Option.get tree.uri) tree;
-          Done, forest
-        | Error _ ->
-          Done, forest
+        begin
+          match Parse.parse_document ~host doc with
+          | Ok code ->
+            forest.={uri} <- Parsed code;
+            Imports.fixup code forest;
+            Expand uri, forest
+          | Error diagnostic ->
+            forest.?{uri} <- [diagnostic];
+            (Report_errors ([diagnostic], Done)), forest
+        end
+      | None ->
+        match Imports.resolve_uri_to_code forest uri with
+        | None -> Reporter.fatal (Resource_not_found uri)
+        | Some code ->
+          Imports.fixup code forest;
+          forest.={uri} <- Parsed code;
+          Expand uri, forest
     end
-  | Cache_results _
   | Done ->
     Done, forest
 
-let run_action a s : state =
+let run_until_done a s : State.t =
+  let fatal d =
+    Reporter.Tty.display d;
+    exit 1
+  in
+  let emit = Reporter.Tty.display in
+  Reporter.run ~emit ~fatal @@ fun () ->
   let rec go action state =
-    match update action state with
-    | new_action, new_state ->
-      if action = Done then new_state
-      else
-        begin
-          let fatal d = Reporter.Tty.display d; new_state in
-          let@ () = Reporter.try_with ~emit: Reporter.Tty.display ~fatal in
-          go new_action new_state
-        end
+    let new_action, new_state = update action state in
+    match action with
+    | Quit Fail -> exit 1
+    | Quit Finished -> exit 0
+    | Done -> new_state
+    | _ ->
+      go new_action new_state
   in
   go a s
+
+let implant_foreign = run_until_done Plant_foreign
+let plant_assets = run_until_done Plant_assets
+
+let batch_run_with_history ~env ~(config : Config.t) ~dev =
+  let history = ref [] in
+  let init =
+    State.make ~env ~config ~dev ()
+    |> plant_assets
+    |> implant_foreign
+  in
+  let rec go action state =
+    history := action :: !history;
+    let new_action, new_state = update action state in
+    match action with
+    | Quit Fail -> exit 1
+    | Quit Finished -> exit 0
+    | Done -> new_state
+    | Report_errors (errors, _) ->
+      assert (List.length errors > 0);
+      Logs.debug (fun m -> m "got %d errors" (List.length errors));
+      List.iter Reporter.Tty.display errors;
+      go (Quit Fail) new_state
+    | _ ->
+      go new_action new_state
+  in
+  let history = !history in
+  go Load_all_configured_dirs init, history
+
+let batch_run ~env ~config ~dev = fst @@ batch_run_with_history ~env ~config ~dev
+
+let language_server ~env ~config =
+  let init = State.make ~env ~config ~dev: true () in
+  let rec go action state =
+    let new_action, new_state = update action state in
+    match action with
+    | Quit Fail -> exit 1
+    | Quit Finished -> exit 0
+    | Done -> new_state
+    | _ ->
+      go new_action new_state
+  in
+  go Load_all_configured_dirs init
 
 let run_with_history a s =
   let history = ref [] in
@@ -254,33 +272,35 @@ let run_with_history a s =
       if action = Done then new_state
       else
         begin
-          let fatal d = Reporter.Tty.display d; new_state in
-          let@ () = Reporter.try_with ~emit: Reporter.Tty.display ~fatal in
           go new_action new_state
         end
   in
   let forest = go a s in
   forest, List.rev !history
 
+let collect_emitted_errors a s =
+  let errors = ref [] in
+  let rec go action state =
+    match update action state with
+    | new_action, new_state ->
+      match action with
+      | Done -> new_state
+      | Report_errors (errs, _) ->
+        begin
+          errors := errs @ !errors;
+          go new_action new_state
+        end
+      | _ ->
+        go new_action new_state
+  in
+  let forest = go a s in
+  forest, List.rev !errors
+
 let rec force
-  : Action.t list -> state -> unit
+  : Action.t list -> State.t -> State.t
 = fun msgs state ->
   match msgs with
-  | [] -> ()
+  | [] -> state
   | msg :: remaining ->
     let _discard, new_state = update msg state in
     force remaining new_state
-
-let implant_foreign = run_action Plant_foreign
-
-let plant_assets = run_action Plant_assets
-
-let batch_run ~env ~(config : Config.t) ~dev =
-  State.make ~env ~config ~dev ()
-  |> plant_assets
-  |> implant_foreign
-  |> run_action Load_all_configured_dirs
-
-let language_server
-  : state -> unit
-= fun _ -> ()

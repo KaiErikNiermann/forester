@@ -30,7 +30,7 @@ and pp_content_node
   | Results_of_datalog_query _ | Artefact _ | Datalog_script _ -> ()
 
 and pp_transclusion ~forest ~(router : URI.t -> URI.t) fmt (transclusion : T.transclusion) =
-  match Forest.get_content_of_transclusion transclusion forest with
+  match State.get_content_of_transclusion transclusion forest with
   | None -> Format.fprintf fmt "<could not resolve transclusion of %a>" URI.pp transclusion.href
   | Some content -> pp_content ~forest ~router fmt content
 

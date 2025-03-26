@@ -9,7 +9,7 @@ module L = Lsp.Types
 module RPC = Jsonrpc
 module Server = Lsp_server
 module Analysis = Analysis
-module State = Lsp_state
+module Lsp_state = Lsp_state
 module LspEio = LspEio
 
 open Forester_compiler
@@ -182,6 +182,8 @@ let rec event_loop () =
 
 let start ~env ~(config : Config.t) =
   let lsp_io = LspEio.init env in
+  (* FIXME: A "batch run" should fail early. The lsp should start even when
+     there are errors *)
   let forest = Driver.batch_run ~env ~config ~dev: true in
   Server.run
     ~init: {forest; lsp_io; should_shutdown = false;}

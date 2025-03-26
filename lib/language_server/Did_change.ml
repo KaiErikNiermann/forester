@@ -5,18 +5,24 @@
  *
  *)
 
-module L = Lsp.Types
+open Forester_core
+open Forester_compiler
 
-let compute
-    (params : L.DidChangeTextDocumentParams.t)
-  =
+module L = Lsp.Types
+open State.Syntax
+
+let compute (params : L.DidChangeTextDocumentParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   match params with
   | {textDocument = {uri; _}; contentChanges} ->
-    match Hashtbl.find_opt forest.documents uri with
-    | None -> assert false
-    | Some doc ->
-      let new_doc = Lsp.Text_document.apply_content_changes doc contentChanges in
-      Eio.traceln "After change, doc has content %s" (Lsp.Text_document.text new_doc);
-      Hashtbl.replace forest.documents uri new_doc;
-      Diagnostics.compute new_doc
+    let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
+    match forest.={uri} with
+    | None -> ()
+    | Some tree ->
+      match Tree.to_doc tree with
+      | None -> assert false
+      | Some doc ->
+        let new_doc = Lsp.Text_document.apply_content_changes doc contentChanges in
+        Eio.traceln "After change, doc has content %s" (Lsp.Text_document.text new_doc);
+        forest.={uri} <- Document new_doc;
+        Diagnostics.compute new_doc

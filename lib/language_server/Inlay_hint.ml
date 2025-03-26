@@ -8,6 +8,7 @@
 open Forester_core
 open Forester_frontend
 open Forester_compiler
+open State.Syntax
 
 module L = Lsp.Types
 
@@ -21,20 +22,13 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let config = forest.config in
     let host = config.host in
-    match Forest.find_opt forest.parsed (URI_scheme.lsp_uri_to_uri ~host textDocument.uri) with
+    let uri = URI_scheme.lsp_uri_to_uri ~host textDocument.uri in
+    (* match Forest.find_opt forest.parsed  with *)
+    match Option.bind forest.={uri} Tree.to_code with
     | None ->
       None
-    | Some {code; _} ->
-      forest.resources
-      |> Forest.get_all_resources
-      |> List.iter
-          (fun resource ->
-            match resource with
-            | Types.Article {frontmatter; _} ->
-              Eio.traceln "%a" (Types.(pp_frontmatter pp_content)) frontmatter
-            | Types.Asset _ -> ()
-          );
-      code
+    | Some {nodes; _} ->
+      nodes
       |> Analysis.flatten
       |> List.filter_map
           (fun
@@ -48,7 +42,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
               | None -> None
               | Some str ->
                 let uri = URI_scheme.user_uri ~host str in
-                match Forest.get_article uri forest.resources with
+                match State.get_article uri forest with
                 | None ->
                   None
                 | Some {frontmatter; _} ->
@@ -58,7 +52,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
                     let content =
                       " " ^
                         Plain_text_client.string_of_content
-                          ~forest: forest.resources
+                          ~forest
                           ~router: (Legacy_xml_client.route forest)
                           title
                     in

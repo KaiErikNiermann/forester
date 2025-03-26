@@ -288,12 +288,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
     match frontmatter.uri with
     | None -> null []
     | Some uri ->
-      let uri_str =
-        if URI.host uri = Some forest.config.host then
-          Scanf.(sscanf (URI.path_string uri) "/%s") Fun.id
-        else
-          Format.asprintf "%a" URI.pp uri
-      in
+      let uri_str = URI.to_string uri in
       a
         [class_ "slug"; href "%s" uri_str;]
         [txt "[%s]" uri_str]
@@ -326,7 +321,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
   in
   let to_string =
     Plain_text_client.string_of_content
-      ~forest: forest.resources
+      ~forest
       ~router: (Legacy_xml_client.route forest)
   in
   let position = render_meta "position" default_meta_item in
@@ -430,7 +425,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
     render_transclusion transclusion
   | Contextual_number addr ->
     begin
-      match (Forest.get_article addr) forest.resources with
+      match (State.get_article addr) forest with
       | Some a ->
         [
           contextual_number
@@ -454,7 +449,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->
-    let body = Plain_text_client.string_of_content ~forest: forest.resources ~router: Fun.id content in
+    let body = Plain_text_client.string_of_content ~forest ~router: Fun.id content in
     (* [txt ~raw: true "%s%s%s" l body r] *)
     begin
       match mode with
@@ -492,7 +487,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
 (* TODO: links need to be flattened in order to produce valid HTML. *)
 and render_link (forest : State.t) (link : T.content T.link) : node list =
   let attrs =
-    match Forest.get_article link.href forest.resources with
+    match State.get_article link.href forest with
     | None ->
       (* TODO: rendering of hrefs is suboptimal... *)
       [
@@ -508,7 +503,7 @@ and render_link (forest : State.t) (link : T.content T.link) : node list =
             Option.map
               (
                 Plain_text_client.string_of_content
-                  ~forest: forest.resources
+                  ~forest
                   ~router: (Legacy_xml_client.route forest)
               )
               article.frontmatter.title;
@@ -566,7 +561,7 @@ and _tree_taxon_with_number (_tree : T.content T.section) cfg =
   contextual_number _tree cfg
 
 and _render_toc_item (forest : State.t) (item : T.content T.section) =
-  let to_str = Plain_text_client.string_of_content ~forest: forest.resources ~router: (Legacy_xml_client.route forest) in
+  let to_str = Plain_text_client.string_of_content ~forest ~router: (Legacy_xml_client.route forest) in
   null
     [
       a
@@ -626,7 +621,7 @@ let render_query_result (forest : State.t) (vs : Vertex_set.t) =
   let module C = Types.Comparators(struct
     let string_of_content =
       Plain_text_client.string_of_content
-        ~forest: forest.resources
+        ~forest
         ~router: (route forest)
   end) in
   let make_section =
@@ -642,7 +637,7 @@ let render_query_result (forest : State.t) (vs : Vertex_set.t) =
     vs
     |> Vertex_set.to_seq
     |> Seq.filter_map Vertex.uri_of_vertex
-    |> Seq.filter_map (Forest.get_article @~ forest.resources)
+    |> Seq.filter_map (State.get_article @~ forest)
     |> List.of_seq
     |> List.sort C.compare_article
     |> List.map (Fun.compose (render_section forest) make_section)

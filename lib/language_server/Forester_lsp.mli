@@ -8,7 +8,7 @@
 open Forester_compiler
 
 (**/**)
-module State = Lsp_state
+module Lsp_state = Lsp_state
 module LspEio = LspEio
 (**/**)
 

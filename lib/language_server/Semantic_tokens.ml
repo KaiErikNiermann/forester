@@ -303,8 +303,8 @@ let tokenize_document
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
   match Imports.resolve_uri_to_code forest uri with
-  | Some (Code.{code; _}, _) ->
-    let tokens = tokens code in
+  | Some Tree.{nodes; _} ->
+    let tokens = tokens nodes in
     Format.(
       Eio.traceln
         "%a"
@@ -318,7 +318,7 @@ let tokenize_document
     let encoded = List.concat_map encode tokens in
     let data = Array.of_list @@ encoded in
     Some {data; resultId = None}
-  | None ->
+  | _ ->
     None
 
 let tokenize_document_delta
@@ -330,8 +330,8 @@ let tokenize_document_delta
   let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri in
   match Imports.resolve_uri_to_code forest uri with
   | None -> None
-  | Some (tree, _) ->
-    Some (semantic_tokens_delta tree.code)
+  | Some tree ->
+    Some (semantic_tokens_delta tree.nodes)
 
 let on_full_request
   : L.SemanticTokensParams.t ->

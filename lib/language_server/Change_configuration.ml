@@ -20,12 +20,17 @@ let compute (params : L.DidChangeConfigurationParams.t) =
         begin
           match List.assoc_opt "configuration_file" xs with
           | Some (`String f) ->
-            let config = Config_parser.parse_forest_config_file f in
-            Lsp_state.modify (fun state ->
-              {state with
-                forest = {state.forest with config = config}
-              }
-            )
+            begin
+              try
+                let config = Config_parser.parse_forest_config_file f in
+                Lsp_state.modify (fun state ->
+                  {state with
+                    forest = {state.forest with config = config}
+                  }
+                )
+              with
+                | _ -> Eio.traceln "failed to parse configuration file"
+            end
           | _ ->
             Eio.traceln "invalid value for configuration_file"
           (* RPC.Response.Error.raise *)

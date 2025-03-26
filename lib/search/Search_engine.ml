@@ -12,19 +12,45 @@ open Forester_frontend
 open Cmdliner
 open Cmdliner.Term.Syntax
 
+module T = Types
+
+let ranked_search
+  : ?fuzz: int -> State.t -> string -> (URI.t * float) list
+= fun ?fuzz forest terms ->
+  Tokenizer.tokenize terms |> function
+    | tokens ->
+      (* In order to rank documents, I search for the first token and then
+         rank the returned documents according to all tokens. This duplicates the
+         search for the first token, so this should be changed.*)
+      let first_token = List.hd tokens in
+      let matches = Index.search ~fuzz: 1 forest.search_index first_token in
+      let uris =
+        List.filter_map
+          (fun (_, uri) ->
+            match URI.Tbl.find_opt forest.index uri with
+            | Some (Resource ({tree = T.Article a; _})) ->
+              Some (uri, Index.BM_25.score a terms forest.search_index)
+            | None -> assert false
+            | _ -> None
+          )
+          matches
+      in
+      List.sort
+        (fun (_, score_a) (_, score_b) -> Float.compare score_a score_b)
+        uris
+
 let test_ranked (forest : State.t) =
   let ranked_results =
     Reporter.profile "Ranked search" @@ fun () ->
-    Index.ranked_search
+    ranked_search
       ~fuzz: 2
-      forest.search_index
-      forest.resources
+      forest
       "hyprtext format"
   in
   Format.printf "got %i ranked results.@." (List.length ranked_results);
   List.iter
     (fun (uri, score) ->
-      match Forest.get_article uri forest.resources with
+      match State.get_article uri forest with
       | Some article ->
         Format.printf "%a, %f@." URI.pp uri score;
       | None -> assert false
@@ -43,7 +69,7 @@ let main ~env () =
   let config = Config_parser.parse_forest_config_file "forest.toml" in
   let dev = true in
   let forest = Driver.batch_run ~env ~dev ~config in
-  let articles = Forest.get_all_articles forest.resources in
+  let articles = List.of_seq @@ State.get_all_articles forest in
   let index =
     (* Reporter.profile "Building index" @@ fun () -> *)
     Index.create articles

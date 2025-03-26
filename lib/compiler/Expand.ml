@@ -6,22 +6,17 @@
 
 open Forester_prelude
 open Forester_core
+open State.Syntax
 
 module Unit_map = URI.Map
 
 module R = Resolver
 module Sc = R.Scope
 
-type exports = (R.P.data, Asai.Range.t option) Trie.t
+module F = Algaeff.State.Make(struct type t = State.t end)
+module Parent = Algaeff.Reader.Make(struct type t = Tree.identity end)
 
-module Env = struct
-  type t = exports Unit_map.t
-  let empty = Unit_map.empty
-end
-
-module U = Algaeff.State.Make(struct type t = Env.t end)
-module H = Algaeff.Reader.Make(struct type t = string end)
-
+(* TODO: remove this in favor of https://github.com/ocaml/ocaml/pull/13760 *)
 let edit_distance ~cutoff x y =
   let len_x, len_y = String.length x, String.length y in
   let grid = Array.make_matrix (len_x + 1) (len_y + 1) 0 in
@@ -160,9 +155,23 @@ let rec expand : Code.t -> Syn.t = function
   | {value = Group (d, xs); loc} :: rest ->
     {value = Syn.Group (d, expand xs); loc} :: expand rest
   | {value = Subtree (addr, nodes); loc} :: rest ->
-    let host = H.read () in
-    let subtree = expand_tree_inner @@ Code.{source_path = None; timestamp = None; uri = Option.map (URI_scheme.user_uri ~host) addr; code = nodes} in
-    {value = Syn.Subtree (addr, subtree); loc} :: expand rest
+    let host = (F.get ()).config.host in
+    let parent_uri = Parent.read () in
+    let identity =
+      match addr with
+      | Some addr -> Tree.URI (URI_scheme.user_uri ~host addr)
+      | None -> Tree.Anonymous
+    in
+    let subtree =
+      expand_tree_inner @@
+        Tree.{
+          identity;
+          timestamp = None;
+          origin = Subtree {parent = parent_uri};
+          nodes
+        }
+    in
+    {value = Syn.Subtree (addr, subtree.nodes); loc} :: expand rest
   | {value = Math (m, xs); loc} :: rest ->
     {value = Syn.Math (m, expand xs); loc} :: expand rest
   | {value = Ident path; loc} :: rest ->
@@ -230,14 +239,13 @@ let rec expand : Code.t -> Syn.t = function
   | {value = Call (obj, method_name); loc} :: rest ->
     {value = Syn.Call (expand obj, method_name); loc} :: expand rest
   | {value = Import (vis, dep); loc} :: rest ->
-    let units = U.get () in
-    let host = H.read () in
+    let forest = F.get () in
+    let host = forest.config.host in
     let dep_uri = URI_scheme.user_uri ~host dep in
-    let import = Unit_map.find_opt dep_uri units in
     begin
-      match import with
+      match forest./{dep_uri} with
       | None ->
-        Reporter.emit ?loc: loc (Resource_not_found dep_uri)
+        Reporter.emit ?loc: loc (Import_not_found dep_uri)
       | Some tree ->
         begin
           match vis with
@@ -270,9 +278,10 @@ let rec expand : Code.t -> Syn.t = function
     Sc.include_singleton path @@ (Term [Range.locate_opt loc (Syn.Sym symbol)], loc);
     expand rest
   | {value = Comment _; _} :: rest ->
+    ignore @@ assert false;
     expand rest
-  | {value = Error _; loc} :: rest ->
-    Reporter.emit ?loc Parse_error;
+  | {value = Error _; loc = _} :: rest ->
+    ignore @@ assert false;
     expand rest
 
 and expand_method (key, body) =
@@ -313,9 +322,6 @@ and expand_ident loc path =
           ?loc
           ~extra_remarks
           (Expansion_error (`Resolution_error (visible, path)))
-      (* "path %a could not be resolved" *)
-      (* Sc.pp_path *)
-      (* path *)
       | Some (cs, rest) ->
         let rest = match rest with "" -> [] | _ -> [Range.{value = Syn.Text rest; loc}] in
         Range.{value = Syn.TeX_cs cs; loc} :: rest
@@ -323,14 +329,7 @@ and expand_ident loc path =
   | None, _ ->
     let extra_remarks = create_suggestions path in
     let visible = Sc.get_visible () in
-    Reporter.fatal
-      ?loc
-      ~extra_remarks
-      (Expansion_error (`Resolution_error (visible, path)))
-  (* Resolution_error *)
-  (* "path %a could not be resolved" *)
-  (* Sc.pp_path *)
-  (* path *)
+    Reporter.fatal ?loc ~extra_remarks (Expansion_error (`Resolution_error (visible, path)))
   | Some (Term x, _), _ ->
     let relocate Range.{value; _} = Range.{value; loc} in
     List.map relocate x
@@ -338,7 +337,6 @@ and expand_ident loc path =
     let visible = Sc.get_visible () in
     Reporter.fatal
       ?loc
-      (Expansion_error (`Resolution_error (visible, path)))
       ~extra_remarks: [
         Asai.Diagnostic.loctextf
           "path %a resolved to xmlns:%s=\"%s\" instead of term"
@@ -347,7 +345,7 @@ and expand_ident loc path =
           xmlns
           prefix
       ]
-(* Resolution_error *)
+      (Expansion_error (`Resolution_error (visible, path)))
 
 and expand_xml_ident loc (prefix, uname) =
   match prefix with
@@ -360,26 +358,25 @@ and expand_xml_ident loc (prefix, uname) =
       Reporter.fatal
         ?loc
         (Expansion_error `Xmlns_error)
-        ~extra_remarks: [Asai.Diagnostic.loctextf "expected path `%s` to resolve to xmlns" prefix]
+        ~extra_remarks: [
+          Asai.Diagnostic.loctextf
+            "expected path `%s` to resolve to xmlns"
+            prefix
+        ]
 
-and expand_tree_inner (tree : Code.tree) : Syn.tree =
-  let trace f =
-    match tree.uri with
-    | Some uri -> Reporter.tracef "when expanding tree `%a`" URI.pp uri f
-    | None -> f ()
+and expand_tree_inner (code : Tree.code) : Tree.syn =
+  let trace k =
+    match Tree.identity_to_uri code.identity with
+    | None -> k ()
+    | Some uri ->
+      let@ () = Reporter.tracef "when expanding tree %s" (URI.to_string uri) in
+      k ()
   in
   let@ () = trace in
   let@ () = Sc.section [] in
-  let units = U.get () in
-  let syn = expand tree.code in
+  let nodes = expand code.nodes in
   let exports = Sc.get_export () in
-  let units =
-    match tree.uri with
-    | None -> units
-    | Some uri -> Unit_map.add uri exports units
-  in
-  U.set units;
-  Syn.{syn; uri = tree.uri}
+  Tree.{nodes; identity = code.identity; code; units = exports;}
 
 let builtins = [
   ["p"], Syn.Prim `P;
@@ -428,40 +425,32 @@ let builtins = [
 ]
 
 let expand_tree
-  : host: string ->
-  Env.t ->
-  Code.tree ->
-  Reporter.diagnostic list
-  * exports Unit_map.t
-  * Syn.tree
-= fun
-    ~host
-    units
-    tree
-  ->
+  : forest: State.t -> Tree.code -> Tree.syn * Reporter.Message.t Asai.Diagnostic.t list
+= fun ~forest code ->
   let diagnostics = ref [] in
   let push d = diagnostics := d :: !diagnostics in
-  let units, syn =
-    Reporter.run
-      ~emit: push
-      ~fatal: (fun d ->
-        push d;
-        (*Return `units` here?*)
-        Unit_map.empty,
-        Syn.{syn = []; uri = tree.uri}
-      )
-      @@ fun () ->
-      let@ () = U.run ~init: units in
-      let@ () = H.run ~env: host in
-      let@ () = Sc.easy_run in
-      Builtins.register_builtins builtins;
-      Builtins.Transclude.alloc_expanded ();
-      Builtins.Transclude.alloc_show_heading ();
-      Builtins.Transclude.alloc_toc ();
-      Builtins.Transclude.alloc_numbered ();
-      Builtins.Transclude.alloc_show_metadata ();
-      let tree = expand_tree_inner tree in
-      let units = U.get () in
-      units, tree
-  in
-  !diagnostics, units, syn
+  Reporter.run
+    ~emit: push
+    ~fatal: (fun d ->
+      (* TODO: Use error type that allows us to recover *)
+      push d;
+      Tree.{
+        nodes = [];
+        identity = code.identity;
+        code = code;
+        units = Trie.empty;
+      },
+      !diagnostics
+    )
+    @@ fun () ->
+    let@ () = F.run ~init: forest in
+    let@ () = Parent.run ~env: code.identity in
+    let@ () = Sc.easy_run in
+    Builtins.register_builtins builtins;
+    Builtins.Transclude.alloc_expanded ();
+    Builtins.Transclude.alloc_show_heading ();
+    Builtins.Transclude.alloc_toc ();
+    Builtins.Transclude.alloc_numbered ();
+    Builtins.Transclude.alloc_show_metadata ();
+    let expanded_tree = expand_tree_inner code in
+    expanded_tree, !diagnostics

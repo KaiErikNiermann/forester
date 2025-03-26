@@ -8,6 +8,5 @@ open Forester_core
 
 val parse :
   ?stop_on_err: bool ->
-  source: [`File of string | `String of Range.string_source] ->
   Lexing.lexbuf ->
   (Code.t, Reporter.diagnostic) result

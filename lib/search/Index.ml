@@ -114,31 +114,6 @@ module BM_25 = struct
         tokens
 end
 
-let ranked_search
-  : ?fuzz: int -> t -> T.content T.resource URI.Tbl.t -> string -> (URI.t * float) list
-= fun ?fuzz index forest terms ->
-  Tokenizer.tokenize terms |> function
-    | tokens ->
-      (* In order to rank documents, I search for the first token and then
-         rank the returned documents according to all tokens. This duplicates the
-         search for the first token, so this should be changed.*)
-      let first_token = List.hd tokens in
-      let matches = search ~fuzz: 1 index first_token in
-      let uris =
-        List.filter_map
-          (fun (_, uri) ->
-            match URI.Tbl.find_opt forest uri with
-            | Some (T.Article a) ->
-              Some (uri, BM_25.score a terms index)
-            | None -> assert false
-            | _ -> None
-          )
-          matches
-      in
-      List.sort
-        (fun (_, score_a) (_, score_b) -> Float.compare score_a score_b)
-        uris
-
 let create articles =
   let index = {
     index = Index.empty;

@@ -23,7 +23,7 @@ let output_dir_name = "output"
 
 let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.t) =
   let addrs =
-    let@ article = List.filter_map @~ Forest.get_all_articles forest.resources in
+    let@ article = List.filter_map @~ List.of_seq @@ State.get_all_articles forest in
     let@ uri = Option.bind article.frontmatter.uri in
     let* path = article.frontmatter.source_path in
     Some (uri, path)
@@ -55,16 +55,16 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
   EP.save ~create path @@ body ^ template_content;
   EP.native_exn path
 
-let complete ~(forest : State.t) prefix : (string * string) Seq.t =
+let complete ~(forest : State.t) prefix : (string * string) List.t =
   let config = forest.config in
-  let@ article = Seq.filter_map @~ List.to_seq @@ Forest.get_all_articles forest.resources in
+  let@ article = List.filter_map @~ List.of_seq @@ State.get_all_articles forest in
   let@ uri = Option.bind article.frontmatter.uri in
   let@ uri = Option.bind @@ Option_util.guard URI_scheme.is_named_uri uri in
   let uri = URI.relative_path_string ~host: config.host uri in
   let@ title = Option.bind article.frontmatter.title in
   let title =
     Plain_text_client.string_of_content
-      ~forest: forest.resources
+      ~forest
       ~router: (Legacy_xml_client.route forest)
       title
   in
@@ -87,17 +87,18 @@ let copy_contents_of_dir ~env dir =
 
 let json_manifest ~dev ~(forest : State.t) : string =
   let render = Json_manifest_client.render_tree ~forest in
-  forest.resources
-  |> Forest.get_all_articles
-  |> List.filter_map (fun tree -> render ~dev tree)
+  forest
+  |> State.get_all_articles
+  |> Seq.filter_map (fun tree -> render ~dev tree)
+  |> List.of_seq
   |> (fun t -> `Assoc t)
   |> Yojson.Safe.to_string
 
 let render_forest ~dev ~(forest : State.t) : unit =
   let cwd = Eio.Stdenv.cwd forest.env in
-  let all_resources = forest.resources |> Forest.get_all_resources in
-  List.iter (fun t -> Forest.plant_resource t forest.graphs forest.resources) all_resources;
-  Logs.debug (fun m -> m "Rendering %i resources" (List.length all_resources));
+  let all_resources = forest |> State.get_all_resources in
+  Seq.iter (fun t -> State.plant_resource t forest) all_resources;
+  Logs.debug (fun m -> m "Rendering %i resources" (Seq.length all_resources));
   begin
     let json_string = json_manifest ~dev ~forest in
     let json_path = EP.(cwd / output_dir_name / "forest.json") in
@@ -107,7 +108,7 @@ let render_forest ~dev ~(forest : State.t) : unit =
   let module Graphs = (val forest.graphs) in
   let jobs =
     (* TODO: this takes a long time, but it does not seem to be the case that parallising helps at all. *)
-    let@ resource = List.filter_map @~ all_resources in
+    let@ resource = Seq.filter_map @~ all_resources in
     match resource with
     | T.Article article ->
       let@ uri = Option.map @~ article.frontmatter.uri in
@@ -119,10 +120,10 @@ let render_forest ~dev ~(forest : State.t) : unit =
         let route = Legacy_xml_client.route forest asset.uri in
         route, asset.content
   in
-  Logs.debug (fun m -> m "Writing %i files to output" (List.length jobs));
+  Logs.debug (fun m -> m "Writing %i files to output" (Seq.length jobs));
   begin
     (* Note: this part appears to be fast! *)
-    let@ (route, content) = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
+    let@ (route, content) = Eio.Fiber.List.iter ~max_fibers: 20 @~ (List.of_seq jobs) in
     let@ () = Reporter.easy_run in
     let path = EP.(cwd / output_dir_name / URI.path_string route) in
     Eio_util.ensure_context_of_path ~perm: 0o755 path;
@@ -132,7 +133,7 @@ let render_forest ~dev ~(forest : State.t) : unit =
 let export ~(forest : State.t) : unit =
   Reporter.log Format.pp_print_string "Exporting forest";
   let local_resources =
-    let@ resource = List.filter @~ Forest.get_all_resources forest.resources in
+    let@ resource = Seq.filter @~ State.get_all_resources forest in
     match resource with
     | T.Article {frontmatter = {uri = Some uri; _}; _} ->
       URI.host uri = Some forest.config.host
@@ -140,7 +141,7 @@ let export ~(forest : State.t) : unit =
     | _ -> false
   in
   let cwd = Eio.Stdenv.cwd forest.env in
-  let result = Repr.to_json_string ~minify: true (T.forest_t T.content_t) @@ local_resources in
+  let result = Repr.to_json_string ~minify: true (T.forest_t T.content_t) @@ List.of_seq local_resources in
   let dir = Eio.Path.(cwd / "export") in
   let filename = forest.config.host ^ ".json" in
   Eio.Path.mkdirs ~exists_ok: true ~perm: 0o755 dir;

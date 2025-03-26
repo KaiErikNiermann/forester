@@ -61,3 +61,4 @@ module Symbol = Symbol
 module Value = Value
 module Resolver = Resolver
 module Code = Code
+module Tree = Tree

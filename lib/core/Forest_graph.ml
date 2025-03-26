@@ -22,6 +22,7 @@ end)
 
 module Topo = Graph.Topological.Make(G)
 let topo_fold = Topo.fold
+let topo_iter = Topo.iter
 
 let safe_succ g x =
   if mem_vertex g x then succ g x else []

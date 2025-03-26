@@ -104,7 +104,7 @@ let handler
               (* If we fail to parse a target, just render the article.*)
               | None ->
                 begin
-                  match Forest.get_article href forest.resources with
+                  match State.get_article href forest with
                   | None ->
                     (* TODO: Some sort of 404 template *)
                     Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
@@ -114,7 +114,7 @@ let handler
                 end
               | Some target ->
                 let modifier = Option.value ~default: T.Identity (Headers.parse_modifier request_headers) in
-                match Forest.get_content_of_transclusion {target; href; modifier;} forest.resources with
+                match State.get_content_of_transclusion {target; href; modifier;} forest with
                 | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
                 | Some content ->
                   (* TODO: Remove any sort of HTML generation from the handler. *)
@@ -122,7 +122,7 @@ let handler
                   Cohttp_eio.Server.respond_string ~status: `OK ~body: response ()
             end
           else
-            match Forest.get_article href forest.resources with
+            match State.get_article href forest with
             | Some article ->
               let content = Pure_html.to_string @@ Index.v ~c: (Htmx_client.render_article forest article) () in
               let headers = Http.Header.of_list ["Content-Type", "text/html"] in
@@ -181,7 +181,7 @@ let handler
             Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
           | Some home ->
             let home = URI_scheme.user_uri ~host: forest.config.host home in
-            match Forest.get_article home forest.resources with
+            match State.get_article home forest with
             | None ->
               Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
             | Some home_tree ->

@@ -8,13 +8,6 @@ open Forester_core
 
 module Unit_map = URI.Map
 
-type exports = (Resolver.P.data, Asai.Range.t option) Trie.t
-
-module Env : sig
-  type t = exports Unit_map.t
-  val empty : t
-end
-
 val builtins : (string list * Syn.node) list
 
 module Builtins :
@@ -31,8 +24,4 @@ end
 
 val suggestions : string list -> ('a, 'b) Trie.t -> (Trie.path * 'a * int) list
 
-val expand_tree :
-  host: string ->
-  Env.t ->
-  Code.tree ->
-  Reporter.diagnostic list * exports Unit_map.t * Syn.tree
+val expand_tree : forest:State.t -> Tree.code -> Tree.syn * Reporter.Message.t Asai.Diagnostic.t list

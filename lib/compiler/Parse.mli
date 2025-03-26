@@ -9,7 +9,7 @@ include module type of Forester_parser.Parse
 val parse_document :
   host: string ->
   Lsp.Text_document.t ->
-  (Forester_core.Code.tree, Forester_core.Reporter.diagnostic) result
+  (Forester_core.Tree.code, Forester_core.Reporter.diagnostic) result
 
 val parse_file :
   string ->

@@ -13,7 +13,7 @@ type node =
   | Group of delim * t
   | Math of math_mode * t
   | Link of {dest: t; title: t option}
-  | Subtree of string option * tree
+  | Subtree of string option * t
   | Fun of Symbol.t binding list * t
   | Var of Symbol.t
   | Sym of Symbol.t
@@ -51,5 +51,3 @@ type node =
 
 and t = node Range.located list
 [@@deriving show]
-
-and tree = {syn: t; uri: URI.t option}

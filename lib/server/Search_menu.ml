@@ -68,7 +68,7 @@ let results (forest : State.t) (links : URI.t list) =
       (
         List.filter_map
           (fun uri ->
-            let title = Forest.get_content_of_transclusion {href = uri; target = Title {empty_when_untitled = false}; modifier = Sentence_case;} forest.resources in
+            let title = State.get_content_of_transclusion {href = uri; target = Title {empty_when_untitled = false}; modifier = Sentence_case;} forest in
             Option.map
               (fun t ->
                 a

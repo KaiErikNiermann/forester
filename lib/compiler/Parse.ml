@@ -13,7 +13,7 @@ let parse_channel filename ch =
   let lexbuf = Lexing.from_channel ch in
   if filename = "" then assert false;
   lexbuf.lex_curr_p <- {lexbuf.lex_curr_p with pos_fname = filename};
-  parse ~source: (`File filename) lexbuf
+  parse lexbuf
 
 let parse_document ~host doc =
   let uri = Lsp.Text_document.documentUri doc in
@@ -21,15 +21,15 @@ let parse_document ~host doc =
   let text = Lsp.Text_document.text doc in
   let lexbuf = Lexing.from_string text in
   lexbuf.lex_curr_p <- {lexbuf.lex_curr_p with pos_fname = path};
-  Result.map (fun code ->
-    Code.{
-      code;
-      source_path = Some path;
-      uri = Some (URI_scheme.path_to_uri ~host path);
-      timestamp = Some (Unix.time ());
-    }
-  ) @@
-    parse ~source: (`File path) lexbuf
+  parse lexbuf
+  |> Result.map (fun nodes ->
+      Tree.{
+        nodes;
+        origin = Physical doc;
+        identity = URI (URI_scheme.path_to_uri ~host path);
+        timestamp = Some (Unix.time ());
+      }
+    )
 
 let parse_file filename =
   let@ () = Reporter.tracef "when parsing file `%s`" filename in

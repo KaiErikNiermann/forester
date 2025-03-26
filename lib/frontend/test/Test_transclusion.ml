@@ -39,27 +39,33 @@ let () =
   Logs.set_level (Some Debug);
   let@ () = Reporter.easy_run in
   let uri = URI_scheme.user_uri ~host "transcludee" in
-  let resources = URI.Tbl.create 10 in
+  let index = URI.Tbl.create 10 in
   URI.Tbl.add
-    resources
+    index
     uri
     (
-      T.(
-        Article
+      Tree.Resource
+        (
           {
-            frontmatter =
-            default_frontmatter
-              ~uri: (URI.of_string_exn "forest://test/transcludee")
-              ~title: (Content [Text "I am being transcluded"])
-              ();
-            mainmatter = Content [Text "Hello"];
-            backmatter = Content []
+            tree = T.(
+              Article
+                {
+                  frontmatter =
+                  default_frontmatter
+                    ~uri: (URI.of_string_exn "forest://test/transcludee")
+                    ~title: (Content [Text "I am being transcluded"])
+                    ();
+                  mainmatter = Content [Text "Hello"];
+                  backmatter = Content []
+                }
+            );
+            expanded = None
           }
-      )
+        )
     );
-  let forest = {(State.make ~env ~config ~dev: false ()) with resources} in
+  let forest = {(State.make ~env ~config ~dev: false ()) with index} in
   let print_transclusion : T.transclusion -> unit = fun t ->
-    let content = Option.get @@ Forest.get_content_of_transclusion t forest.resources in
+    let content = Option.get @@ State.get_content_of_transclusion t forest in
     Format.printf
       "%a"
       Legacy_xml_client.(pp_xml ~forest ?stylesheet: None)

@@ -10,165 +10,100 @@ open Forester_core
 
 module T = Types
 
-type diagnostic = Reporter.Message.t Asai.Diagnostic.t
+open State.Syntax
 
 let load (tree_dirs : Eio.Fs.dir_ty Eio.Path.t list) =
   Logs.debug (fun m -> m "loading trees from %i directories" (List.length tree_dirs));
   Dir_scanner.scan_directories tree_dirs
   |> Seq.map Imports.load_tree
 
-let parse (forest : State.t) =
+let parse
+    (forest : State.t)
+    : Reporter.Message.t Asai.Diagnostic.t list * Tree.code list
+  =
   let host = forest.config.host in
-  forest.documents
-  |> Hashtbl.to_seq
-  |> Seq.map @@ fun (lsp_uri, doc) ->
-    let uri = URI_scheme.lsp_uri_to_uri ~host lsp_uri in
-    let source_path = Lsp.Uri.to_path lsp_uri in
-    let@ () = Reporter.tracef "when parsing %a (%s)" URI.pp uri source_path in
-    Parse.parse_document ~host doc
+  let trees = forest.index |> URI.Tbl.to_seq_values |> List.of_seq in
+  let f tree =
+    if Tree.is_unparsed tree then
+      tree
+      |> Tree.to_doc
+      |> Option.map (Parse.parse_document ~host)
+    else None
+  in
+  let results = List.filter_map f trees in
+  results
+  |> List.partition_map
+      (function
+        | Ok t -> Right t
+        | Error d ->
+          Left d
+      )
 
-(* Fix signature. Should not mutate the forest*)
-let reparse (doc : Lsp.Text_document.t) : State.t -> State.t * diagnostic option = fun forest ->
+let reparse (doc : Lsp.Text_document.t) (forest : State.t) =
   Logs.debug (fun m -> m "reparsing");
   let host = forest.config.host in
-  let uri = Lsp.Text_document.documentUri doc in
-  match Parse.parse_document ~host doc with
-  | Ok tree ->
-    Forest.replace forest.parsed (URI_scheme.lsp_uri_to_uri ~host uri) tree;
-    Imports.fixup tree forest;
-    Diagnostic_store.remove forest.diagnostics uri;
-    forest, None
-  | Error d ->
-    (* When we get a parsing diagnostic, we don't need to merge the value
-       with the diagnostics from previous passes*)
-    Diagnostic_store.replace forest.diagnostics [d];
-    forest, None
+  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host @@ Lsp.Text_document.documentUri doc in
+  begin
+    match Parse.parse_document ~host doc with
+    | Ok code ->
+      forest.={uri} <- Parsed code;
+      Imports.fixup code forest
+    | Error d ->
+      forest.?{uri} <- [d]
+  end;
+  forest
 
 let build_import_graph (forest : State.t) =
-  (* Now that I am adding caching, is this function still correct?*)
   let@ () = Reporter.trace "when resolving imports" in
-  let diagnostics = Diagnostic_store.create 100 in
-  let push d = Diagnostic_store.add diagnostics [d] in
+  let errors = ref [] in
+  let push d = errors := d :: !errors in
   let new_graph =
     Reporter.run
       ~emit: push
-      ~fatal: (fun d -> push d; forest.import_graph)
+      ~fatal: (fun d ->
+        push d;
+        Reporter.Tty.display d;
+        forest.import_graph
+      )
       @@ fun () ->
       Imports.build forest
   in
-  new_graph, diagnostics
+  !errors, new_graph
 
 let expand (forest : State.t) =
-  (* This should only return the units for trees that have actually changed.
-     Then the driver can just merge the maps without checking anything.*)
-  let parsed = forest.parsed in
-  let module Graphs = (val forest.graphs) in
-  let task (addr : Vertex.t) (units, trees) =
-    match addr with
-    | T.Content_vertex _ ->
-      (* when creating the import graph we are only adding uri vertices *)
-      assert false
+  Expand.expand_tree ~forest
+
+let expand_all (forest : State.t) =
+  let diagnostics = ref [] in
+  let task vertex =
+    match vertex with
+    | T.Content_vertex _ -> assert false
     | T.Uri_vertex uri ->
-      match Forest.find_opt parsed uri with
+      match forest.={uri} with
       | None ->
-        (* The import graph has subtrees for vertices, which do not correspond to a source file *)
-        units, trees
+        ()
       | Some tree ->
-        let diagnostics, units, syn =
-          Expand.expand_tree
-            ~host: forest.config.host
-            units
-            tree
-        in
-        let source_path = tree.source_path in
-        units, (diagnostics, source_path, syn) :: trees
+        match Tree.to_code tree with
+        | Some tree ->
+          let expanded, errors = Expand.expand_tree ~forest tree in
+          diagnostics := errors @ !diagnostics;
+          forest.={uri} <- Expanded expanded;
+          forest.?{uri} <- errors
+        | None ->
+          Logs.debug (fun m -> m "expanding: no source code for %a" URI.pp uri);
+          assert false;
   in
-  let units, expanded_trees =
-    Forest_graph.topo_fold
-      task
-      forest.import_graph
-      (Expand.Env.empty, [])
-  in
-  units, expanded_trees
-
-(* There is some duplicated code here. The only significant difference is the
-   fact that we are using a different graph builder, one that only traverses
-   the dependencies of a specific tree*)
-let expand_only_aux ~(addr : URI.t) (forest : State.t) : Expand.Env.t * Diagnostic_store.t * Syn.t Forest.t =
-  let import_graph = Forest_graph.dependencies forest.import_graph (T.Uri_vertex addr) in
-  assert (Forest_graph.nb_vertex import_graph >= Forest.length forest.parsed);
-  let task (addr : Vertex.t) (units, diagnostics, (trees : (Syn.t URI.Tbl.t))) =
-    match addr with
-    | T.Content_vertex _ ->
-      (* when creating the import graph we are only adding uri vertices *)
-      assert false
-    | T.Uri_vertex uri ->
-      match Imports.resolve_uri_to_code forest uri with
-      | None ->
-        (* The import graph has vertices for subtrees, which do not correspond to a source file *)
-        Logs.debug (fun m -> m "failed to resolve %a" URI.pp uri);
-        units, diagnostics, trees
-      | Some (tree, _) ->
-        let ds, units, syn = Expand.expand_tree ~host: forest.config.host units tree in
-        begin
-          Forest.add trees uri syn.syn;
-          match ds with
-          | [] -> ()
-          | ds -> Diagnostic_store.add diagnostics ds
-        end;
-        units, diagnostics, trees
-  in
-  let units, diagnostics, expanded_trees =
-    Logs.debug (fun m -> m "Folding the import graph with %i vertices" (Forest_graph.nb_vertex import_graph));
-    Forest_graph.topo_fold
-      task
-      import_graph
-      (Expand.Env.empty, Diagnostic_store.create 100, Forest.create 1000)
-  in
-  Logs.debug (fun m -> m "Got %i expanded trees" (Forest.length expanded_trees));
-  units, diagnostics, expanded_trees
-
-(* The purpose of this function is to update the exported units when a tree has
-   been changed when running with the lsp.*)
-let expand_only (uri : URI.t) : State.t -> State.t * diagnostic option = fun forest ->
-  let units, new_diagnostics, trees =
-    expand_only_aux
-      ~addr: uri
-      forest
-  in
-  assert (Forest.length trees > 0);
-  begin
-    trees
-    |> Forest.iter @@ fun uri tree ->
-      Forest.replace forest.expanded uri tree;
-      match URI.Tbl.find_opt forest.resolver uri with
-      | None ->
-        Logs.debug (fun m -> m "resolver knows about %i paths" (URI.Tbl.length forest.resolver));
-        assert false
-      | Some path ->
-        Logs.debug (fun m -> m "clearing diagnostics for %s" path);
-        Diagnostic_store.remove forest.diagnostics (Lsp.Uri.of_path path)
-  end;
-  begin
-    new_diagnostics
-    |> Diagnostic_store.iter @@ fun uri diagnostics ->
-      Logs.debug (fun m -> m "%s got some expansion diagnostics." (Lsp.Uri.to_string uri));
-      match diagnostics with
-      | [] -> ()
-      | diagnostics ->
-        Diagnostic_store.add forest.diagnostics diagnostics
-  end;
-  (*FIXME: Don't replace all units. Just update the ones that have changed!*)
-  {forest with units}, None
+  Forest_graph.topo_iter task forest.import_graph;
+  !diagnostics
 
 let export_publication ~env ~(forest : State.t) (publication : Job.publication) : unit =
   let vertices = Forest.run_datalog_query forest.graphs publication.query in
   let resources =
     let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
     match vertex with
-    | T.Content_vertex _ -> None
-    | T.Uri_vertex uri ->
-      match Forest.find_opt forest.resources uri with
+    | Content_vertex _ -> None
+    | Uri_vertex uri ->
+      match forest.@{uri} with
       | None ->
         Reporter.emit Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "Attempted to export publication but tree `%a` has not yet been planted" URI.pp uri];
         None
@@ -204,7 +139,7 @@ let run_jobs (forest : State.t) jobs =
   begin
     (* It is probably not save to plant the articles in parallel, so this is done sequentially! *)
     let@ article = List.iter @~ articles_to_plant in
-    Forest.plant_resource (T.Article article) forest.graphs forest.resources
+    State.plant_resource (T.Article article) forest
   end;
   begin
     (* Now that the articles have been planted, we can export publications. *)
@@ -217,55 +152,57 @@ let run_jobs (forest : State.t) jobs =
 
 let eval (forest : State.t) =
   let host = forest.config.host in
-  let trees, diagnostics =
-    forest.expanded
-    |> URI.Tbl.to_seq
-    |> Seq.map (fun (uri, syn) ->
-        let source_path = if forest.dev then URI.Tbl.find_opt forest.resolver uri else None in
-        Eval.eval_tree
-          ~host
-          ~source_path
-          ~uri
-          syn
+  let result =
+    State.get_all_unevaluated forest
+    |> Seq.filter Tree.is_expanded
+    |> Seq.map (fun tree ->
+        let tree = Option.get @@ Tree.to_expanded tree in
+        match Tree.identity_to_uri tree.identity with
+        | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "can't evaluate a tree with no URI"]
+        | Some uri ->
+          let source_path =
+            if forest.dev then
+              URI.Tbl.find_opt forest.resolver uri
+            else None
+          in
+          Eval.eval_tree
+            ~host
+            ~source_path
+            ~uri
+            tree.nodes
       )
-    |> Seq.split
   in
-  trees, diagnostics
+  result
 
-let eval_only
-  (uri : URI.t)
-  : State.t -> State.t * diagnostic option
-= fun forest ->
-  match Forest.find_opt forest.expanded uri with
+let eval_only (uri : URI.t) (forest : State.t) =
+  match forest.={uri} with
   | None -> assert false
-  | Some syn ->
+  | Some (Document _) -> assert false
+  | Some (Parsed _) | Some (Resource _) -> assert false
+  | Some (Expanded expanded) ->
     (* NOTE: Not running jobs. *)
-    let Eval.{articles; jobs = _}, _diagnostics =
+    let Eval.{articles; jobs = _}, diagnostics =
       Eval.eval_tree
         ~host: forest.config.host
         ~source_path: None
         ~uri
-        syn
+        expanded.nodes
     in
     begin
       let@ article = List.iter @~ articles in
-      Forest.plant_resource (Article article) forest.graphs forest.resources
+      State.plant_resource (Article article) forest
     end;
-    (* Diagnostic_store.add forest.diagnostics diagnostics; *)
-    forest, None
+    forest, diagnostics
 
-let check_status
-  _uri
-  : State.t -> State.t * diagnostic option
-= fun state ->
-  match state with
+let check_status _uri (forest : State.t) =
+  match forest with
   | {dependency_cache = _;
     _;
   } ->
-    state, None
+    forest, None
 
 let implant_foreign
-  : State.t -> State.t * diagnostic option
+  : State.t -> State.t * _
 = fun state ->
   begin
     let foreign_paths = Eio_util.paths_of_files ~env: state.env state.config.foreign in
@@ -277,10 +214,12 @@ let implant_foreign
     let blob = try EP.load path with _ -> Reporter.fatal IO_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not read foreign forest blob at `%s`" path_str] in
     match Repr.of_json_string (T.forest_t T.content_t) blob with
     | Ok foreign_forest ->
-      List.iter (fun r -> Forest.plant_resource r state.graphs state.resources) foreign_forest
+      List.iter
+        (fun r -> State.plant_resource r state)
+        foreign_forest
     | Error (`Msg err) ->
       Reporter.fatal Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not parse foreign forest blob: %s" err]
     | exception exn ->
       Reporter.fatal Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Encountered unknown error while decoding foreign forest blob: %s" (Printexc.to_string exn)]
   end;
-  state, None
+  state, []

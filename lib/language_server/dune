@@ -4,6 +4,8 @@
 
 (library
  (name Forester_lsp)
+ (instrumentation
+  (backend bisect_ppx))
  (public_name forester.language_server)
  (libraries
   algaeff
@@ -28,6 +30,4 @@
   str
   logs)
  (preprocess
-  (pps ppx_deriving.show ppx_repr ppx_yojson_conv))
- (instrumentation
-  (backend bisect_ppx)))
+  (pps ppx_deriving.show ppx_repr ppx_yojson_conv)))

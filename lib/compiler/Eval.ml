@@ -261,7 +261,7 @@ and eval_node node : Value.t =
         | Some current_uri ->
           anon_uri current_uri
     in
-    let subtree = eval_tree_inner ~uri nodes.syn in
+    let subtree = eval_tree_inner ~uri nodes in
     let frontmatter = Frontmatter.get () in
     let subtree = {subtree with frontmatter = {subtree.frontmatter with uri = Some uri; designated_parent = frontmatter.uri}} in
     Emitted_trees.modify @@ List.cons subtree;

@@ -12,6 +12,7 @@ module Sc = R.Scope
 
 module Message = struct
   type t =
+    | Import_not_found of URI.t
     | Invalid_URI
     | Tree_not_found of URI.t
     | Asset_has_no_content_address of string
@@ -65,6 +66,7 @@ module Message = struct
   [@@deriving show]
 
   let default_severity : t -> Asai.Diagnostic.severity = function
+    | Import_not_found _ -> Error
     | Expansion_error _ -> Error
     | Invalid_URI -> Error
     | Unbound_method _ -> Error
@@ -92,10 +94,37 @@ module Message = struct
     | IO_error -> Error
     | Missing_argument -> Error
 
-  let short_code : t -> string =
-    show
+  let short_code : t -> string = function
+    | Import_not_found _ -> "import_not_found"
+    | Invalid_URI -> "invalid_uri"
+    | Tree_not_found _ -> "tree_not_found"
+    | Asset_has_no_content_address _ -> "asset_not_found" (* This is taken from the original wording of the message, but I think this is very confusing.*)
+    | Duplicate_tree _ -> "duplicate_tree"
+    | Parse_error -> "parse_error"
+    | Unbound_method _ -> "unbound_method"
+    | Type_warning -> "type_warning"
+    | Type_error _ -> "type_error"
+    | Resolution_error _ -> "resolution_error"
+    | Expansion_error _ -> "expansion_error"
+    | Resolution_warning -> "resolution_warning"
+    | Reference_error _ -> "reference_error"
+    | Duplicate_attribute -> "duplicate_attribute"
+    | Unhandled_case -> "unhandled_case"
+    | Transclusion_loop -> "transclusion_loop"
+    | Internal_error -> "internal_error"
+    | Configuration_error -> "configuration_error"
+    | Initialization_warning -> "initialization_warning"
+    | Routing_error -> "routing_error"
+    | Profiling (_, _) -> "profiling"
+    | External_error -> "external_error"
+    | Resource_not_found _ -> "resource_not_found"
+    | Broken_link _ -> "broken_link"
+    | IO_error -> "io_error"
+    | Log -> "log"
+    | Missing_argument -> "missing_argument"
 
   let default_text : t -> Asai.Diagnostic.text = function
+    | Import_not_found uri -> Asai.Diagnostic.textf "%a not found" URI.pp uri
     | Expansion_error _
     | Invalid_URI
     | Unbound_method _

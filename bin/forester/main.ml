@@ -48,7 +48,7 @@ let build ~env _ config_filename dev no_theme =
   end;
   let forest = Driver.batch_run ~env ~dev ~config in
   forest.diagnostics
-  |> Diagnostic_store.iter (fun _ d -> List.iter Reporter.Tty.display d);
+  |> URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d);
   Forester.render_forest ~dev ~forest;
   Logs.app (fun m -> m "Success!")
 
@@ -57,7 +57,7 @@ let export ~env _ config_filename dev =
   Logs.debug (fun m -> m "Parsed config file %s" config_filename);
   let forest = Driver.batch_run ~env ~dev ~config in
   forest.diagnostics
-  |> Diagnostic_store.iter (fun _ d -> List.iter Reporter.Tty.display d);
+  |> URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d);
   Forester.export ~forest
 
 let new_tree ~env config_filename dest_dir prefix template random =
@@ -72,7 +72,7 @@ let complete ~env config_filename title =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
   let forest = Driver.batch_run ~env ~dev: true ~config in
-  let@ uri, title = Seq.iter @~ Forester.complete ~forest title in
+  let@ uri, title = List.iter @~ Forester.complete ~forest title in
   Format.printf "%s, %s\n" uri title
 
 let query_all ~env config_filename =

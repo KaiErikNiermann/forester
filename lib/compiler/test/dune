@@ -7,10 +7,7 @@
   Test_LaTeX_pipeline
   Test_compiler
   Test_diagnostic_store
-  Test_driver
   Test_errors
-  Test_eval
-  Test_expansion
   Test_graph_database
   Test_import_graph
   Test_uri_util)

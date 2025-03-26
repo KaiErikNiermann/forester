@@ -26,23 +26,23 @@ let compute
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let render =
     Plain_text_client.string_of_content
-      ~forest: forest.resources
+      ~forest
       ~router: (Legacy_xml_client.route forest)
   in
   let config = forest.config in
   let host = config.host in
   let content =
-    match Forest.find_opt
-      forest.parsed
+    match State.get_code
+      forest
       (URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri) with
     | None -> "code of current tree is not stored. this is a bug"
     | Some tree ->
       (* TODO: use node_at and provide hover for things other than links.*)
-      match Analysis.addr_at ~position tree.code with
+      match Analysis.addr_at ~position tree.nodes with
       | None -> Format.asprintf "character: %i, line: %i." position.character position.line;
       | Some addr_at_cursor ->
         let uri_under_cursor = URI_scheme.user_uri ~host addr_at_cursor in
-        match Forest.get_article uri_under_cursor forest.resources with
+        match State.get_article uri_under_cursor forest with
         | None ->
           Format.asprintf "Could not get article %a." URI.pp uri_under_cursor
         | Some {mainmatter; frontmatter; _} ->

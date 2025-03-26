@@ -7,6 +7,7 @@
 module Message :
 sig
   type t =
+    | Import_not_found of URI.t
     | Invalid_URI
     | Tree_not_found of URI.t
     | Asset_has_no_content_address of string

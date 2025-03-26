@@ -9,20 +9,22 @@
    the emitted diagnostics should be reported to the same URI?
    *)
 
+open Forester_core
 open Forester_compiler
 
 module L = Lsp.Types
+open State.Syntax
 
 let compute (document : Lsp.Text_document.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let uri = Lsp.Text_document.documentUri document in
-  match Diagnostic_store.find_opt forest.diagnostics uri with
-  | None -> ()
-  | Some [] ->
-    Eio.traceln "Clearing diagnostics for %s" (Lsp.Uri.to_path uri);
-    Publish.publish uri []
-  | Some diagnostics ->
-    Eio.traceln "publishing %i diagnostics to %s" (List.length diagnostics) (Lsp.Uri.to_path uri);
+  let lsp_uri = Lsp.Text_document.documentUri document in
+  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
+  match forest.?{uri} with
+  | [] ->
+    Eio.traceln "Clearing diagnostics for %s" (Lsp.Uri.to_path lsp_uri);
+    Publish.publish lsp_uri []
+  | diagnostics ->
+    Eio.traceln "publishing %i diagnostics to %s" (List.length diagnostics) (Lsp.Uri.to_path lsp_uri);
     List.iter
       (fun d ->
         Eio.traceln
@@ -33,4 +35,4 @@ let compute (document : Lsp.Text_document.t) =
           )
       )
       diagnostics;
-    Publish.publish uri diagnostics
+    Publish.publish lsp_uri diagnostics

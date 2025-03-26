@@ -11,6 +11,8 @@ open Forester_compiler
 module T = Types
 module L = Lsp.Types
 
+(* The plan is to use this for transclusion/context *)
+
 let incoming (params : L.CallHierarchyIncomingCallsParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let config = forest.config in
@@ -69,9 +71,9 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
     let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri in
     match Imports.resolve_uri_to_code forest uri with
     | None -> None
-    | Some (tree, _) ->
+    | Some tree ->
       let item =
-        match Analysis.node_at ~position Code.(tree.code) with
+        match Analysis.node_at ~position tree.nodes with
         | None -> None
         | Some {loc = _; value} ->
           match value with
