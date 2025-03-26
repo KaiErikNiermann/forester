@@ -18,4 +18,4 @@ val eval_tree :
   uri: URI.t ->
   source_path: string option ->
   Syn.t ->
-  result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t
+  result * Reporter.diagnostic list

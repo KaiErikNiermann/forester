@@ -77,7 +77,7 @@ let route (forest : State.t) uri : URI.t =
       let path = route_resource_uri ~suffix forest uri in
       URI.make ~path ()
     | None when URI.scheme uri = Some URI_scheme.scheme ->
-      Reporter.emitf Broken_link "Could not route link to resource %a" URI.pp uri;
+      Reporter.emit (Broken_link uri) ~extra_remarks: [Asai.Diagnostic.loctextf "Could not route link to resource %a" URI.pp uri];
       uri
     | None -> uri
   in
@@ -291,7 +291,7 @@ and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.n
   | None ->
     match Forest.get_content_of_transclusion transclusion forest.resources with
     | None ->
-      Reporter.fatalf Resource_not_found "Could not find tree %a" URI.pp transclusion.href
+      Reporter.fatal (Resource_not_found transclusion.href)
     | Some content ->
       let nodes = render_content forest content in
       Hashtbl.add transclusion_cache transclusion nodes;

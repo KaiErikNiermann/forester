@@ -15,12 +15,15 @@ let path_of_dir ~env dir =
     path
   with
     | Unix.Unix_error (e, _, m) ->
-      Reporter.fatalf
+      Reporter.fatal
+        IO_error
+        ~extra_remarks: [
+          Asai.Diagnostic.loctextf "%s: %s" (Unix.error_message e) m
+        ]
+    | Assert_failure (_, _, _) ->
+      Reporter.fatal
         Configuration_error
-        "%s: %s"
-        (Unix.error_message e)
-        m
-    | Assert_failure (_, _, _) -> Reporter.fatalf Configuration_error "%s is not a directory" dir
+        ~extra_remarks: [Asai.Diagnostic.loctextf "%s is not a directory" dir]
 
 let path_of_file ~env file =
   try
@@ -28,7 +31,8 @@ let path_of_file ~env file =
     assert (Path.is_file path);
     path
   with
-    | Unix.Unix_error (e, _, m) -> Reporter.fatalf Configuration_error "%s: %s" (Unix.error_message e) m
+    | Unix.Unix_error (e, _, m) ->
+      Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctextf "%s: %s" (Unix.error_message e) m]
 
 let paths_of_dirs ~env =
   List.map (path_of_dir ~env)

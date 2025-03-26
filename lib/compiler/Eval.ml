@@ -8,81 +8,43 @@ open Forester_prelude
 open Forester_core
 
 module T = Types
+module Env = Value.Env
 
-module Env = struct
-  include Map.Make(Symbol)
-  let pp (pp_el : Format.formatter -> 'a -> unit) (fmt : Format.formatter) (map : 'a t) =
-    Format.fprintf fmt "@[<v1>{";
-    begin
-      let@ k, v = Seq.iter @~ to_seq map in
-      Format.fprintf fmt "@[%a ~> %a@]@;" Symbol.pp k pp_el v
-    end;
-    Format.fprintf fmt "}@]"
-end
+type located = Value.t Range.located
 
-module V = struct
-  type t =
-    | Content of T.content
-    | Clo of t Env.t * Symbol.t binding list * Syn.t
-    | Dx_prop of (string, T.content T.vertex) Datalog_expr.prop
-    | Dx_sequent of (string, T.content T.vertex) Datalog_expr.sequent
-    | Dx_query of (string, T.content T.vertex) Datalog_expr.query
-    | Dx_var of string
-    | Dx_const of Vertex.t
-    | Sym of Symbol.t
-    | Obj of Symbol.t
-  [@@deriving show]
+let extract_content (node : located) =
+  match node.value with
+  | Content content -> content
+  | v -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Content]; got = Some v})
 
-  type obj_method = {
-    body: Syn.t;
-    self: Symbol.t;
-    super: Symbol.t;
-    env: t Env.t
-  }
+let extract_text (node : located) =
+  let content = extract_content node in
+  let rec loop acc = function
+    | [] -> Option.some @@ String.concat "" @@ Bwd.prepend acc []
+    | (T.Text txt | T.CDATA txt) :: content -> loop (Bwd.snoc acc txt) content
+    | T.Uri uri :: content -> loop (Bwd.snoc acc (URI.to_string uri)) content
+    | _ -> None
+  in
+  match loop Emp (T.extract_content content) with
+  | Some txt -> String.trim txt
+  | None -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Text]; got = None})
 
-  module Method_table = Map.Make(String)
+let extract_obj_ptr (x : located) =
+  match x.value with
+  | Obj sym -> sym
+  (* TODO: Rephrase, should be something like "this is a thing of type foo, cannot access method bar"*)
+  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [`Obj]; got = Some other})
 
-  type obj = {
-    prototype: Symbol.t option;
-    methods: obj_method Method_table.t
-  }
+let extract_sym (x : located) =
+  match x.value with
+  | Sym sym -> sym
+  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [`Sym]; got = Some other})
 
-  type located = t Range.located
-
-  let extract_content (node : located) =
-    match node.value with
-    | Content content -> content
-    | _ -> Reporter.fatal ?loc: node.loc Type_error @@ Format.asprintf "Expected content but got: %a" pp node.value
-
-  let extract_text (node : located) =
-    let content = extract_content node in
-    let rec loop acc = function
-      | [] -> Option.some @@ String.concat "" @@ Bwd.prepend acc []
-      | (T.Text txt | T.CDATA txt) :: content -> loop (Bwd.snoc acc txt) content
-      | T.Uri uri :: content -> loop (Bwd.snoc acc (URI.to_string uri)) content
-      | _ -> None
-    in
-    match loop Emp (T.extract_content content) with
-    | Some txt -> String.trim txt
-    | None -> Reporter.fatalf ?loc: node.loc Type_error "Expected text but got: %a" pp node.value
-
-  let extract_obj_ptr (x : located) =
-    match x.value with
-    | Obj sym -> sym
-    (* TODO: Rephrase, should be something like "this is a thing of type foo, cannot access method bar"*)
-    | other -> Reporter.fatalf ?loc: x.loc Type_error "Expected object, but got %s" (show other)
-
-  let extract_sym (x : located) =
-    match x.value with
-    | Sym sym -> sym
-    | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected symbol"
-
-  let extract_bool (x : located) =
-    match x.value with
-    | Content (T.Content [Text "true"]) -> true
-    | Content (T.Content [Text "false"]) -> false
-    | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected boolean but got %a" pp x.value
-end
+let extract_bool (x : located) =
+  match x.value with
+  | Content (T.Content [Text "true"]) -> true
+  | Content (T.Content [Text "false"]) -> false
+  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [`Bool]; got = Some other})
 
 let default_backmatter ~(uri : URI.t) : T.content =
   let vtx = T.Uri_vertex uri in
@@ -107,10 +69,10 @@ let default_backmatter ~(uri : URI.t) : T.content =
 type result = {articles: T.content T.article list; jobs: Job.job Range.located list} [@@deriving show]
 
 module Tape = Tape_effect.Make ()
-module Lex_env = Algaeff.Reader.Make(struct type t = V.t Env.t end)
-module Dyn_env = Algaeff.Reader.Make(struct type t = V.t Env.t end)
+module Lex_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
+module Dyn_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
 module Host_env = Algaeff.Reader.Make(struct type t = string end)
-module Heap = Algaeff.State.Make(struct type t = V.obj Env.t end)
+module Heap = Algaeff.State.Make(struct type t = Value.obj Env.t end)
 module Anon_subtree_ix = Algaeff.State.Make(struct type t = int end)
 module Emitted_trees = Algaeff.State.Make(struct type t = T.content T.article list end)
 module Jobs = Algaeff.State.Make(struct type t = Job.job Range.located list end)
@@ -120,7 +82,7 @@ let get_transclusion_flags ~loc =
   let dynenv = Dyn_env.read () in
   let get_bool key =
     let@ value = Option.map @~ Env.find_opt key dynenv in
-    V.extract_bool @@ Range.locate_opt loc value
+    extract_bool @@ Range.locate_opt loc value
   in
   let module S = Expand.Builtins.Transclude in
   let open Option_util in
@@ -139,30 +101,32 @@ let resolve_uri ~loc: _ str =
   | uri -> Ok (URI.resolve ~base uri)
   | exception _ -> Error "Invalid URI"
 
-let extract_uri (node : V.located) =
-  let text = V.extract_text node in
+let extract_uri (node : located) =
+  let text = extract_text node in
   resolve_uri ~loc: node.loc text
 
-let extract_dx_term (node : V.located) =
+let extract_dx_term (node : located) =
   match node.value with
   | Dx_var name -> Datalog_expr.Var name
   | Dx_const vtx -> Datalog_expr.Const vtx
-  | _ -> Reporter.fatalf Type_error "Expected datalog term"
+  (* | other -> Reporter.fatalf Type_error "Expected datalog term" *)
+  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Datalog_term]; got = Some other})
 
-let extract_dx_prop (node : V.located) =
+let extract_dx_prop (node : located) =
   match node.value with
   | Dx_prop prop -> prop
-  | _ -> Reporter.fatalf Type_error "Expected datalog proposition"
+  (* | _ -> Reporter.fatalf Type_error "Expected datalog proposition" *)
+  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Dx_prop]; got = Some other})
 
-let extract_dx_sequent (x : V.located) =
-  match x.value with
+let extract_dx_sequent (node : located) =
+  match node.value with
   | Dx_sequent sequent -> sequent
-  | _ -> Reporter.fatalf ?loc: x.loc Type_error "Expected datalog sequent"
+  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Dx_sequent]; got = Some other})
 
-let extract_vertex ~type_ (node : V.located) =
+let extract_vertex ~type_ (node : located) =
   match type_ with
   | `Content ->
-    Ok (T.Content_vertex (V.extract_content node))
+    Ok (T.Content_vertex (extract_content node))
   | `Uri ->
     let@ uri = Result.map @~ extract_uri node in
     T.Uri_vertex uri
@@ -180,7 +144,7 @@ let pp_tex_cs fmt = function
 
 let rec process_tape () =
   match Tape.pop_node_opt () with
-  | None -> V.Content (T.Content [])
+  | None -> Value.Content (T.Content [])
   | Some node -> eval_node node
 
 and eval_tape tape =
@@ -192,13 +156,13 @@ and eval_pop_arg ~loc =
 
 and pop_content_arg ~loc =
   eval_pop_arg ~loc
-  |> V.extract_content
+  |> extract_content
 
 and pop_text_arg ~loc =
   eval_pop_arg ~loc
-  |> V.extract_text
+  |> extract_text
 
-and eval_node node : V.t =
+and eval_node node : Value.t =
   let loc = node.loc in
   match node.value with
   | Var x ->
@@ -225,9 +189,15 @@ and eval_node node : V.t =
         in
         emit_content_node ~loc @@ Link {href; content}
       | Ok uri ->
-        Reporter.fatalf ?loc Type_error "Cannot refer to content with non-forester URI %a" URI.pp uri
+        Reporter.fatal
+          ?loc
+          (Reference_error uri)
+          ~extra_remarks: [Asai.Diagnostic.loctextf "Cannot refer to content with non-forester URI %a" URI.pp uri]
       | Error _ ->
-        Reporter.fatalf ?loc Type_error "Expected valid URI in ref"
+        Reporter.fatal
+          ?loc
+          (Type_error {got = None; expected = [`URI]})
+          ~extra_remarks: [Asai.Diagnostic.loctextf "Expected valid URI in ref"]
     end
   | Link {title; dest} ->
     let _host = Host_env.read () in
@@ -235,27 +205,32 @@ and eval_node node : V.t =
     let href =
       match extract_uri dest with
       | Ok uri -> uri
-      | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid URI in link"
+      | Error error ->
+        Reporter.fatal
+          ?loc
+          (Type_error {expected = [`URI]; got = None})
+          ~extra_remarks: [Asai.Diagnostic.loctext error]
+    (* "Expected valid URI in link") *)
     in
     let content =
       match title with
       | None -> T.Content [T.Transclude {href; target = T.Title {empty_when_untitled = false}; modifier = Identity}]
-      | Some title -> {node with value = eval_tape title} |> V.extract_content
+      | Some title -> {node with value = eval_tape title} |> extract_content
     in
     emit_content_node ~loc @@ Link {href; content}
   | Math (mode, body) ->
     let content =
-      {node with value = eval_tape body} |> V.extract_content
+      {node with value = eval_tape body} |> extract_content
     in
     emit_content_node ~loc @@ KaTeX (mode, content)
   | Xml_tag (name, attrs, body) ->
     let rec process : _ list -> _ T.xml_attr list = function
       | [] -> []
       | (key, v) :: attrs ->
-        T.{key; value = V.extract_content {node with value = eval_tape v}} :: process attrs
+        {T.key; value = extract_content {node with value = eval_tape v}} :: process attrs
     in
     let name = T.{prefix = name.prefix; uname = name.uname; xmlns = name.xmlns} in
-    let content = {node with value = eval_tape body} |> V.extract_content in
+    let content = {node with value = eval_tape body} |> extract_content in
     emit_content_node ~loc @@ T.Xml_elt {name; attrs = process attrs; content}
   | TeX_cs cs ->
     emit_content_node ~loc @@ T.Text (Format.asprintf "%a" pp_tex_cs cs)
@@ -266,9 +241,9 @@ and eval_node node : V.t =
       match extract_uri href_arg with
       | Ok uri when URI.scheme uri = Some URI_scheme.scheme -> uri
       | Ok uri ->
-        Reporter.fatalf ?loc Type_error "Cannot transclude content with non-forester URI %a" URI.pp uri
+        Reporter.fatal ?loc (Type_error {got = None; expected = []}) ~extra_remarks: [Asai.Diagnostic.loctextf "Cannot transclude content with non-forester URI %a" URI.pp uri]
       | Error _ ->
-        Reporter.fatalf ?loc Type_error "Expected valid URI in transclusion"
+        Reporter.fatal ?loc (Type_error {got = None; expected = [`URI]}) ~extra_remarks: [Asai.Diagnostic.loctext "Expected valid URI in transclusion"]
     in
     emit_content_node ~loc @@ T.Transclude {href; target = Full flags; modifier = Identity}
   | Subtree (addr_opt, nodes) ->
@@ -296,20 +271,20 @@ and eval_node node : V.t =
     let arg = eval_pop_arg ~loc in
     begin
       match arg.value with
-      | V.Dx_query query ->
+      | Value.Dx_query query ->
         emit_content_node ~loc @@ Results_of_datalog_query query
-      | _ -> Reporter.fatalf ?loc: arg.loc Type_error "Expected datalog query expression"
+      | other -> Reporter.fatal ?loc: arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
     end
   | Publish_results_of_query ->
     let name = pop_text_arg ~loc in
     let query_arg = eval_pop_arg ~loc in
     begin
       match query_arg.value with
-      | V.Dx_query query ->
+      | Dx_query query ->
         let job = Job.Publish {name; query; format = Json_blob} in
         Jobs.modify (List.cons (Range.locate_opt loc job));
         process_tape ()
-      | _ -> Reporter.fatalf ?loc: query_arg.loc Type_error "Expected datalog query expression"
+      | other -> Reporter.fatal ?loc: query_arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
     end
   | Embed_tex ->
     let preamble = pop_content_arg ~loc |> T.TeX_like.string_of_content in
@@ -370,42 +345,42 @@ and eval_node node : V.t =
       let env = Lex_env.read () in
       let add (name, body) =
         let super = Symbol.fresh () in
-        V.Method_table.add name V.{body; self; super; env}
+        Value.Method_table.add name Value.{body; self; super; env}
       in
-      List.fold_right add methods V.Method_table.empty
+      List.fold_right add methods Value.Method_table.empty
     in
     let sym = Symbol.named ["obj"] in
-    Heap.modify @@ Env.add sym V.{prototype = None; methods = table};
-    focus ?loc: node.loc @@ V.Obj sym
+    Heap.modify @@ Env.add sym Value.{prototype = None; methods = table};
+    focus ?loc: node.loc @@ Value.Obj sym
   | Patch {obj; self; super; methods} ->
-    let obj_ptr = {node with value = obj} |> Range.map eval_tape |> V.extract_obj_ptr in
+    let obj_ptr = {node with value = obj} |> Range.map eval_tape |> extract_obj_ptr in
     let table =
       let env = Lex_env.read () in
       let add (name, body) =
-        V.Method_table.add
+        Value.Method_table.add
           name
-          V.{body; self; super; env}
+          Value.{body; self; super; env}
       in
-      List.fold_right add methods V.Method_table.empty
+      List.fold_right add methods Value.Method_table.empty
     in
     let sym = Symbol.named ["obj"] in
-    Heap.modify @@ Env.add sym V.{prototype = Some obj_ptr; methods = table};
-    focus ?loc: node.loc @@ V.Obj sym
+    Heap.modify @@ Env.add sym Value.{prototype = Some obj_ptr; methods = table};
+    focus ?loc: node.loc @@ Value.Obj sym
   | Group (d, body) ->
     let l, r = delim_to_strings d in
     let content =
-      let body = V.extract_content {node with value = eval_tape body} in
+      let body = extract_content {node with value = eval_tape body} in
       T.Content (T.Text l :: T.extract_content body @ [T.Text r])
     in
-    focus ?loc: node.loc @@ V.Content content
+    focus ?loc: node.loc @@ Value.Content content
   | Call (obj, method_name) ->
-    let sym = {node with value = obj} |> Range.map eval_tape |> V.extract_obj_ptr in
-    let rec call_method (obj : V.obj) =
-      let proto_val = obj.prototype |> Option.map @@ fun ptr -> V.Obj ptr in
-      match V.Method_table.find_opt method_name obj.methods with
+    let sym = {node with value = obj} |> Range.map eval_tape |> extract_obj_ptr in
+    let rec call_method (obj : Value.obj) =
+      let proto_val = obj.prototype |> Option.map @@ fun ptr -> Value.Obj ptr in
+      match Value.Method_table.find_opt method_name obj.methods with
       | Some mthd ->
         let env =
-          let env = Env.add mthd.self (V.Obj sym) mthd.env in
+          let env = Env.add mthd.self (Value.Obj sym) mthd.env in
           match proto_val with
           | None -> env
           | Some proto_val ->
@@ -418,23 +393,21 @@ and eval_node node : V.t =
         | Some proto ->
           call_method @@ Env.find proto @@ Heap.get ()
         | None ->
-          Reporter.fatalf
+          Reporter.fatal
             ?loc: node.loc
-            Type_error
-            "tried to call unbound method `%s`"
-            method_name
+            (Unbound_method (method_name, obj))
     in
     let result = call_method @@ Env.find sym @@ Heap.get () in
     focus ?loc: node.loc result
   | Put (k, v, body) ->
-    let k = {node with value = k} |> Range.map eval_tape |> V.extract_sym in
+    let k = {node with value = k} |> Range.map eval_tape |> extract_sym in
     let body =
       let@ () = Dyn_env.scope (Env.add k (eval_tape v)) in
       eval_tape body
     in
     focus ?loc: node.loc body
   | Default (k, v, body) ->
-    let k = {node with value = k} |> Range.map eval_tape |> V.extract_sym in
+    let k = {node with value = k} |> Range.map eval_tape |> extract_sym in
     let body =
       let upd flenv = if Env.mem k flenv then flenv else Env.add k (eval_tape v) flenv in
       let@ () = Dyn_env.scope upd in
@@ -442,19 +415,14 @@ and eval_node node : V.t =
     in
     focus ?loc: node.loc body
   | Get k ->
-    let k = {node with value = k} |> Range.map eval_tape |> V.extract_sym in
+    let k = {node with value = k} |> Range.map eval_tape |> extract_sym in
     let env = Dyn_env.read () in
     begin
       match Env.find_opt k env with
       | None ->
-        Reporter.fatalf
+        Reporter.fatal
           ?loc: node.loc
-          Resolution_error
-          "could not find fluid binding named %a in environment %a"
-          Symbol.pp
-          k
-          (Env.pp V.pp)
-          env
+          (Resolution_error (k, env))
       | Some v -> focus ?loc: node.loc v
     end
   | Verbatim str ->
@@ -469,7 +437,7 @@ and eval_node node : V.t =
     let parent =
       match extract_uri parent_arg with
       | Ok uri -> uri
-      | Error _ -> Reporter.fatalf ?loc Type_error "Expected valid URI in parent declaration"
+      | Error _ -> Reporter.fatal ?loc Invalid_URI ~extra_remarks: [Asai.Diagnostic.loctext "Expected valid URI in parent declaration"]
     in
     Frontmatter.modify (fun fm -> {fm with designated_parent = Some parent});
     process_tape ()
@@ -489,8 +457,11 @@ and eval_node node : V.t =
           | Author -> "\\author/literal"
           | Contributor -> "\\contributor/literal"
         in
-        Reporter.emitf ?loc Type_warning "Expected valid URI in attribution. Use `%s` instead if you intend an unlinked attribution." corrected_attribution_code;
-        T.Content_vertex (V.extract_content arg)
+        Reporter.emit
+          ?loc
+          Type_warning
+          ~extra_remarks: [Asai.Diagnostic.loctextf "Expected valid URI in attribution. Use `%s` instead if you intend an unlinked attribution." corrected_attribution_code];
+        T.Content_vertex (extract_content arg)
     in
     let attribution = T.{role; vertex} in
     Frontmatter.modify (fun fm -> {fm with attributions = fm.attributions @ [attribution]});
@@ -502,8 +473,8 @@ and eval_node node : V.t =
       | Ok vtx -> vtx
       | Error _ ->
         let corrected = "\\tag/content" in
-        Reporter.emitf ?loc Type_warning "Expected valid URI in tag. Use `%s` instead if you intend an unlinked attribution." corrected;
-        T.Content_vertex (V.extract_content arg)
+        Reporter.emit ?loc Type_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Expected valid URI in tag. Use `%s` instead if you intend an unlinked attribution." corrected];
+        T.Content_vertex (extract_content arg)
     in
     Frontmatter.modify (fun fm -> {fm with tags = fm.tags @ [vertex]});
     process_tape ()
@@ -512,7 +483,7 @@ and eval_node node : V.t =
     begin
       match Human_datetime.parse_string date_str with
       | None ->
-        Reporter.fatalf ?loc: node.loc Parse_error "Invalid date string `%s`" date_str
+        Reporter.fatal ?loc: node.loc Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Invalid date string `%s`" date_str]
       | Some date ->
         Frontmatter.modify (fun fm -> {fm with dates = fm.dates @ [date]});
         process_tape ()
@@ -526,21 +497,21 @@ and eval_node node : V.t =
     Frontmatter.modify (fun fm -> {fm with taxon});
     process_tape ()
   | Sym sym ->
-    focus ?loc: node.loc @@ V.Sym sym
+    focus ?loc: node.loc @@ Value.Sym sym
   | Dx_prop (rel, args) ->
-    let rel = {node with value = eval_tape rel} |> V.extract_text in
+    let rel = {node with value = eval_tape rel} |> extract_text in
     let args =
       let@ arg = List.map @~ args in
       {node with value = eval_tape arg} |> extract_dx_term
     in
-    focus ?loc: node.loc @@ V.Dx_prop {rel; args}
+    focus ?loc: node.loc @@ Dx_prop {rel; args}
   | Dx_sequent (conclusion, premises) ->
     let conclusion = {node with value = eval_tape conclusion} |> extract_dx_prop in
     let premises =
       let@ premise = List.map @~ premises in
       {node with value = eval_tape premise} |> extract_dx_prop
     in
-    focus ?loc: node.loc @@ V.Dx_sequent {conclusion; premises}
+    focus ?loc: node.loc @@ Dx_sequent {conclusion; premises}
   | Dx_query (var, positives, negatives) ->
     let positives =
       let@ premise = List.map @~ positives in
@@ -550,23 +521,23 @@ and eval_node node : V.t =
       let@ premise = List.map @~ negatives in
       {node with value = eval_tape premise} |> extract_dx_prop
     in
-    focus ?loc: node.loc @@ V.Dx_query {var; positives; negatives}
+    focus ?loc: node.loc @@ Dx_query {var; positives; negatives}
   | Dx_var name ->
-    focus ?loc: node.loc @@ V.Dx_var name
+    focus ?loc: node.loc @@ Dx_var name
   | Dx_const (type_, arg) ->
     let arg = {node with value = eval_tape arg} in
     let const =
       match type_ with
-      | `Content -> T.Content_vertex (V.extract_content arg)
+      | `Content -> T.Content_vertex (extract_content arg)
       | `Uri ->
         begin
           match extract_uri arg with
           | Ok uri -> T.Uri_vertex uri
           | Error _ ->
-            Reporter.fatalf ?loc: node.loc Type_error "Expected valid URI in datalog constant expression."
+            Reporter.fatal ?loc: node.loc Invalid_URI ~extra_remarks: [Asai.Diagnostic.loctext "Expected valid URI in datalog constant expression."]
         end
     in
-    focus ?loc: node.loc @@ V.Dx_const const
+    focus ?loc: node.loc @@ Dx_const const
   | Dx_execute ->
     let script = eval_pop_arg ~loc: node.loc |> extract_dx_sequent in
     emit_content_node ~loc: node.loc @@ T.Datalog_script [script]
@@ -574,35 +545,37 @@ and eval_node node : V.t =
     let uri =
       match (Frontmatter.get ()).uri with
       | Some uri -> uri
-      | None -> Reporter.fatalf ?loc: node.loc Internal_error "No uri for tree"
+      | None -> Reporter.fatal ?loc: node.loc Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "No uri for tree"]
     in
     emit_content_node ~loc: node.loc @@ T.Uri uri
 
 and eval_var ~loc x =
-  match Env.find_opt x @@ Lex_env.read () with
+  let env = Lex_env.read () in
+  match Env.find_opt x env with
   | Some v -> focus ?loc v
   | None ->
-    Reporter.fatalf
+    Reporter.fatal
       ?loc
-      Resolution_error
-      "could not find variable named %a"
-      Symbol.pp
-      x
+      (Resolution_error (x, env))
 
 and focus ?loc = function
-  | V.Clo (rho, xs, body) ->
+  | Clo (rho, xs, body) ->
     focus_clo ?loc rho xs body
-  | V.Content (T.Content content) ->
+  | Content (T.Content content) ->
     begin
       match process_tape () with
-      | V.Content (T.Content content') -> V.Content (T.Content (content @ content'))
+      | Value.Content (T.Content content') -> Value.Content (T.Content (content @ content'))
       | value -> value
     end
-  | V.Sym _ | V.Obj _ | V.Dx_prop _ | V.Dx_sequent _ | V.Dx_query _ | V.Dx_var _ | V.Dx_const _ as v ->
+  | Sym _ | Obj _ | Dx_prop _ | Dx_sequent _ | Dx_query _ | Dx_var _ | Dx_const _ as v ->
     begin
       match process_tape () with
-      | V.Content content when T.strip_whitespace content = T.Content [] -> v
-      | v' -> Reporter.fatalf ?loc Type_error "Expected solitary node but got %a / %a" V.pp v V.pp v'
+      | Content content when T.strip_whitespace content = T.Content [] -> v
+      | v' ->
+        Reporter.fatal
+          ?loc
+          (Type_error {expected = []; got = None})
+          ~extra_remarks: [Asai.Diagnostic.loctextf "Expected solitary node but got %a / %a" Value.pp v Value.pp v']
     end
 
 and focus_clo ?loc rho xs body =
@@ -617,7 +590,7 @@ and focus_clo ?loc rho xs body =
       let yval =
         match strategy with
         | Strict -> eval_tape arg.value
-        | Lazy -> V.Clo (Lex_env.read (), [(Strict, Symbol.fresh ())], arg.value)
+        | Lazy -> Clo (Lex_env.read (), [(Strict, Symbol.fresh ())], arg.value)
       in
       let rhoy = Env.add y yval rho in
       focus_clo ?loc rhoy ys body
@@ -625,7 +598,7 @@ and focus_clo ?loc rho xs body =
       begin
         match process_tape () with
         | Content nodes when T.strip_whitespace nodes = T.Content [] -> Clo (rho, xs, body)
-        | _ -> Reporter.fatalf ?loc Type_error "Expected %i additional arguments" (List.length xs)
+        | _ -> Reporter.fatal ?loc Missing_argument ~extra_remarks: [Asai.Diagnostic.loctextf "Expected %i additional arguments" (List.length xs)]
       end
 
 and emit_content_nodes ~loc content =
@@ -652,7 +625,7 @@ and eval_tree_inner ~(uri : URI.t) (syn : Syn.t) : T.content T.article =
   in
   let@ () = Anon_subtree_ix.run ~init: 0 in
   let@ () = Frontmatter.run ~init: frontmatter in
-  let mainmatter = {value = eval_tape syn; loc = None} |> V.extract_content in
+  let mainmatter = {value = eval_tape syn; loc = None} |> extract_content in
   let frontmatter = Frontmatter.get () in
   let backmatter = default_backmatter ~uri in
   T.{frontmatter; mainmatter; backmatter}
@@ -662,20 +635,19 @@ let empty_result = {
   jobs = []
 }
 
-let recover_tree _d = empty_result
-
 let eval_tree
     ~(host : string)
     ~(uri : URI.t)
     ~(source_path : string option)
     (tree : Syn.t)
-    : result * (Lsp.Uri.t, Reporter.diagnostic list) Hashtbl.t
+    : result * Reporter.diagnostic list
   =
-  let diagnostics = ref (Hashtbl.create 0) in
+  let diagnostics = ref [] in
+  let push d = diagnostics := d :: !diagnostics in
   let res =
-    Reporter.lsp_run
-      ~recover: recover_tree
-      (fun ds -> diagnostics := ds;)
+    Reporter.run
+      ~fatal: (fun d -> push d; empty_result)
+      ~emit: push
       @@ fun () ->
       let fm = T.default_frontmatter ~uri ?source_path () in
       let@ () = Frontmatter.run ~init: fm in

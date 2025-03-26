@@ -47,7 +47,7 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
     | None ->
       match next_dir with
       | Some next_dir -> next_dir
-      | None -> Reporter.fatalf Missing_argument "Unable to guess destination director for new tree; please supply one."
+      | None -> Reporter.fatal Missing_argument ~extra_remarks: [Asai.Diagnostic.loctext "Unable to guess destination director for new tree; please supply one."]
   in
   let path =
     EP.(env#fs / dir / fname)

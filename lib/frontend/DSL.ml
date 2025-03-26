@@ -109,7 +109,7 @@ module Code = struct
 end
 
 module Syn = struct
-  open Forester_compiler.Syn
+  open Forester_core.Syn
   open Asai.Range
   let fun_ b t = locate_opt None @@ Fun (b, t)
   let prim p = locate_opt None @@ Prim p

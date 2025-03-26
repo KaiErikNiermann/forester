@@ -55,3 +55,8 @@ module TeX_cs = TeX_cs
 module Types = Types
 
 module Trie = Trie
+
+module Syn = Syn
+module Symbol = Symbol
+module Value = Value
+module Resolver = Resolver

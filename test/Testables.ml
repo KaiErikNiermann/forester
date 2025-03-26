@@ -30,8 +30,7 @@ type 'a diagnostic =
   'a Asai.Diagnostic.t = {
   severity: Asai.Diagnostic.severity; [@printer pp_severity]
   message: 'a;
-  explanation: Asai.Diagnostic.loctext;
-    [@printer pp_loctext]
+  explanation: Asai.Diagnostic.loctext; [@printer pp_loctext]
   backtrace: Asai.Diagnostic.backtrace; [@printer pp_bwd pp_loctext]
   extra_remarks: Asai.Diagnostic.loctext Bwd.bwd; [@printer pp_bwd pp_loctext]
 }

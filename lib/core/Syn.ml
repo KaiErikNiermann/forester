@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Forester_core
+open Base
 open Forester_xml_names
 
 type node =

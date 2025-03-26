@@ -11,10 +11,6 @@
 module Code = Code
 (** Abstract syntax *)
 
-module Syn = Syn
-
-module Symbol = Symbol
-
 module Xml_forester = Xml_forester
 (** Definition of the forester XML schema. This is the compilation target.*)
 
@@ -25,8 +21,6 @@ module Xml_forester = Xml_forester
     The lexer and parser are implemented with {{: https://ocaml.org/manual/5.3/lexyacc.html} ocamllex} and {{: https://gallium.inria.fr/~fpottier/menhir/} menhir}*)
 
 module Parse = Parse
-
-module Resolver = Resolver
 
 module Imports = Imports
 (** Create {{!Forester_core.Forest_graph.t}import and dependency graphs}.

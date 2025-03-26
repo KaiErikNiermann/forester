@@ -35,15 +35,16 @@ let pipe_latex_dvi ~env ~tex_source ?loc: _ kont =
       Eio.Process.run ~cwd: tmp ~stdout ~stderr mgr cmd
     with
       | _ ->
-        (* Eio.traceln "%a" (Format.pp_print_option Asai.Range.dump) loc; *)
         let formatted_output = Buffer.contents out_buf |> indent_string in
-        Reporter.fatalf
+        Reporter.fatal
           External_error
-          (* ?loc *)
-          "Encountered fatal LaTeX error: @.@.%s@.@. while running `%s` in directory `%s`."
-          formatted_output
-          (String.concat " " cmd)
-          (Eio.Path.native_exn tmp)
+          ~extra_remarks: [
+            Asai.Diagnostic.loctextf
+              "Encountered fatal LaTeX error: @.@.%s@.@. while running `%s` in directory `%s`."
+              formatted_output
+              (String.concat " " cmd)
+              (Eio.Path.native_exn tmp)
+          ]
   end;
   EP.with_open_in EP.(tmp / "job.dvi") kont
 
@@ -57,12 +58,13 @@ let pipe_dvi_svg ~env ?loc: _ ~dvi_source ~svg_sink () =
     Eio.Process.run ~cwd ~stdin: dvi_source ~stdout: svg_sink ~stderr mgr cmd
   with
     | _ ->
-      (* Eio.traceln "%a" (Format.pp_print_option Asai.Range.dump) loc; *)
-      Reporter.fatalf
-        (* ?loc *)
+      Reporter.fatal
         External_error
-        "Encountered fatal error running `dvisvgm`: %s"
-        (Buffer.contents err_buf)
+        ~extra_remarks: [
+          Asai.Diagnostic.loctextf
+            "Encountered fatal error running `dvisvgm`: %s"
+            (Buffer.contents err_buf)
+        ]
 
 let pipe_latex_svg ~env ?loc ~tex_source ~svg_sink () =
   let@ dvi_source = pipe_latex_dvi ~env ~tex_source ?loc in

@@ -21,7 +21,9 @@ let replace
       (fun d ->
         match Reporter.guess_uri d with
         | None ->
-          Reporter.fatalf Internal_error "Dropped a diagnostic because its URI could not be guessed"
+          Reporter.fatal
+            Internal_error
+            ~extra_remarks: [Asai.Diagnostic.loctextf "Dropped a diagnostic because its URI could not be guessed"]
         | Some uri ->
           Hashtbl.replace diags uri [d]
       );
@@ -42,7 +44,9 @@ let add
       (fun d ->
         match Reporter.guess_uri d with
         | None ->
-          Reporter.fatalf Internal_error "Dropped a diagnostic because its URI could not be guessed"
+          Reporter.fatal
+            Internal_error
+            ~extra_remarks: [Asai.Diagnostic.loctextf "Dropped a diagnostic because its URI could not be guessed"]
         | Some uri ->
           match Hashtbl.find_opt diagnostics uri with
           | None -> Hashtbl.replace diagnostics uri [d]

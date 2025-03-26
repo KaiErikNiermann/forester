@@ -202,7 +202,8 @@ let update
       let uri = URI_scheme.path_to_uri ~host: forest.config.host path in
       match Dir_scanner.find_tree tree_dirs uri with
       | None ->
-        Reporter.fatalf Resource_not_found "could not find tree %a in the configured directories" URI.pp uri
+        Reporter.fatal (Resource_not_found uri)
+      (* "could not find tree %a in the configured directories" URI.pp uri *)
       | Some path ->
         let doc = Imports.load_tree path in
         let uri = Lsp.Text_document.documentUri doc in

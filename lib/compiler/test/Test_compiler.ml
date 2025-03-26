@@ -67,7 +67,7 @@ let test_includes_paths ~env () =
     let uri = (URI.of_string_exn "forest://my-forest/t8") in
     let path =
       match Forest.get_article uri forest.resources with
-      | None -> Reporter.fatalf Internal_error ""
+      | None -> Reporter.fatal Internal_error
       | Some {frontmatter = {source_path; _}; _} ->
         source_path
     in

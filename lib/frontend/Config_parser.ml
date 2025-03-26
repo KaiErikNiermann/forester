@@ -13,7 +13,7 @@ let parse lexbuf filename =
   | `Error (desc, {source; _}) ->
     let@ () = Reporter.tracef "when parsing configuration file" in
     let loc = Asai.Range.of_lexbuf ~source: (`File source) lexbuf in
-    Reporter.fatalf ~loc Configuration_error "%s" desc
+    Reporter.fatal ~loc Configuration_error ~extra_remarks: [Asai.Diagnostic.loctextf "%s" desc]
   | `Ok tbl ->
     let open Toml.Lenses in
     let forest = key "forest" |-- table in
@@ -21,20 +21,20 @@ let parse lexbuf filename =
     let host =
       match get tbl (forest |-- key "host" |-- string) with
       | Some host -> String.lowercase_ascii host
-      | None -> Reporter.fatalf Configuration_error "You need to set the `host' key in your configuration file; this is a global identifier that will be used to distinguish your forest from other forests (you can use your name, e.g. `johnqpublic')"
+      | None -> Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "You need to set the `host' key in your configuration file; this is a global identifier that will be used to distinguish your forest from other forests (you can use your name, e.g. `johnqpublic')"]
     in
     let home = get tbl (renderer |-- key "home" |-- string) in
     let _ =
       match get tbl (forest |-- key "root" |-- string) with
       | None -> ()
       | Some _ ->
-        Reporter.emitf Configuration_error "In your configuration file, change `root' key to `home' in the [forest] group."
+        Reporter.emit Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "In your configuration file, change `root' key to `home' in the [forest] group."]
     in
     let _ =
       match get tbl (forest |-- key "stylesheet" |-- string) with
       | None -> ()
       | Some _ ->
-        Reporter.emitf Configuration_error "Custom XSL stylesheet injection is no longer supported; please remove the `stylesheet' key from the [forest] group."
+        Reporter.emit Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "Custom XSL stylesheet injection is no longer supported; please remove the `stylesheet' key from the [forest] group."]
     in
     let base_url =
       Option.value ~default: Config.default.base_url @@
@@ -75,4 +75,4 @@ let parse_forest_config_file filename =
     Sys.chdir @@ Filename.dirname filename;
     result
   with
-    | exn -> Reporter.fatalf Configuration_error "%a" Eio.Exn.pp exn
+    | exn -> Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctextf "%a" Eio.Exn.pp exn]

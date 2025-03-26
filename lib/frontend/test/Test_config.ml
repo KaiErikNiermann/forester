@@ -9,6 +9,9 @@ open Testables
 open Forester_compiler
 open Forester_frontend
 
+let extra_remarks_to_strings remarks =
+  List.map (fun Asai.Range.{value; _} -> Asai.Diagnostic.string_of_text value) @@ Bwd.Bwd.to_list remarks
+
 let test_parsing () =
   Alcotest.(check config)
     "is the same"
@@ -69,12 +72,12 @@ let test_missing_host () =
     ()
     begin
       let fatal = function
-        | {message; explanation; _} ->
+        | {message; extra_remarks; _} ->
           Alcotest.(check Testables.message) "" Configuration_error message;
-          Alcotest.(check string)
+          Alcotest.(check @@ list string)
             ""
-            (Asai.Diagnostic.string_of_text explanation.value)
-            "You need to set the `host' key in your configuration file; this is a global identifier that will be used to distinguish your forest from other forests (you can use your name, e.g. `johnqpublic')";
+            ["You need to set the `host' key in your configuration file; this is a global identifier that will be used to distinguish your forest from other forests (you can use your name, e.g. `johnqpublic')"]
+            (extra_remarks_to_strings extra_remarks)
       in
       let emit = function
         | {message; _} ->
@@ -100,11 +103,12 @@ let test_parse_error () =
     begin
       Forester_core.Reporter.run
         ~fatal: (function
-          | {explanation; _} ->
-            Alcotest.(check string)
+          | {extra_remarks; _} ->
+            Alcotest.(check @@ list string)
               ""
-              (Asai.Diagnostic.string_of_text explanation.value)
-              "Error in <anonymous> at line 2 at column 11 (position 12)";
+              ["Error in <anonymous> at line 2 at column 11 (position 12)"]
+              (extra_remarks_to_strings extra_remarks);
+        (* (Asai.Diagnostic.string_of_text explanation.value) *)
         )
         ~emit: (fun _ -> ())
         @@ fun () ->
@@ -133,12 +137,12 @@ let test_stylesheet_warning () =
     begin
       let fatal _ = assert false in
       let emit = function
-        | {explanation; _} ->
+        | {extra_remarks; _} ->
           (
-            Alcotest.(check string)
+            Alcotest.(check @@ list string)
               ""
-              "Custom XSL stylesheet injection is no longer supported; please remove the `stylesheet' key from the [forest] group."
-              (Asai.Diagnostic.string_of_text explanation.value)
+              ["Custom XSL stylesheet injection is no longer supported; please remove the `stylesheet' key from the [forest] group."]
+              (extra_remarks_to_strings extra_remarks);
           )
       in
       Forester_core.Reporter.run ~fatal ~emit @@ fun () ->
@@ -168,11 +172,12 @@ let test_root_warning () =
     begin
       let fatal _ = assert false in
       let emit = function
-        | {explanation; _} ->
-          Alcotest.(check string)
+        | {extra_remarks; _} ->
+          Alcotest.(check @@ list string)
             ""
-            "In your configuration file, change `root' key to `home' in the [forest] group."
-            (Asai.Diagnostic.string_of_text explanation.value)
+            ["In your configuration file, change `root' key to `home' in the [forest] group."]
+            (extra_remarks_to_strings extra_remarks)
+      (* (Asai.Diagnostic.string_of_text explanation.value) *)
       in
       Forester_core.Reporter.run ~fatal ~emit @@ fun () ->
       Config_parser.parse_forest_config_string

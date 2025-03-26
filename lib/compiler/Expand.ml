@@ -237,7 +237,7 @@ let rec expand : Code.t -> Syn.t = function
     begin
       match import with
       | None ->
-        Reporter.emitf ?loc: loc Resource_not_found "Could not import tree named `%s'" dep
+        Reporter.emit ?loc: loc (Resource_not_found dep_uri)
       | Some tree ->
         begin
           match vis with
@@ -272,7 +272,7 @@ let rec expand : Code.t -> Syn.t = function
   | {value = Comment _; _} :: rest ->
     expand rest
   | {value = Error _; loc} :: rest ->
-    Reporter.emitf ?loc Parse_error "";
+    Reporter.emit ?loc Parse_error;
     expand rest
 
 and expand_method (key, body) =
@@ -308,38 +308,46 @@ and expand_ident loc path =
       match TeX_cs.parse name with
       | None ->
         let extra_remarks = create_suggestions path in
-        Reporter.fatalf
+        let visible = Sc.get_visible () in
+        Reporter.fatal
           ?loc
           ~extra_remarks
-          Resolution_error
-          "path %a could not be resolved"
-          Sc.pp_path
-          path
+          (Expansion_error (`Resolution_error (visible, path)))
+      (* "path %a could not be resolved" *)
+      (* Sc.pp_path *)
+      (* path *)
       | Some (cs, rest) ->
         let rest = match rest with "" -> [] | _ -> [Range.{value = Syn.Text rest; loc}] in
         Range.{value = Syn.TeX_cs cs; loc} :: rest
     end
   | None, _ ->
     let extra_remarks = create_suggestions path in
-    Reporter.fatalf
+    let visible = Sc.get_visible () in
+    Reporter.fatal
       ?loc
       ~extra_remarks
-      Resolution_error
-      "path %a could not be resolved"
-      Sc.pp_path
-      path
+      (Expansion_error (`Resolution_error (visible, path)))
+  (* Resolution_error *)
+  (* "path %a could not be resolved" *)
+  (* Sc.pp_path *)
+  (* path *)
   | Some (Term x, _), _ ->
     let relocate Range.{value; _} = Range.{value; loc} in
     List.map relocate x
   | Some (Xmlns {xmlns; prefix}, _), _ ->
-    Reporter.fatalf
+    let visible = Sc.get_visible () in
+    Reporter.fatal
       ?loc
-      Resolution_error
-      "path %a resolved to xmlns:%s=\"%s\" instead of term"
-      Sc.pp_path
-      path
-      xmlns
-      prefix
+      (Expansion_error (`Resolution_error (visible, path)))
+      ~extra_remarks: [
+        Asai.Diagnostic.loctextf
+          "path %a resolved to xmlns:%s=\"%s\" instead of term"
+          Sc.pp_path
+          path
+          xmlns
+          prefix
+      ]
+(* Resolution_error *)
 
 and expand_xml_ident loc (prefix, uname) =
   match prefix with
@@ -349,11 +357,10 @@ and expand_xml_ident loc (prefix, uname) =
     | Some (Xmlns {xmlns; prefix}, _) ->
       {xmlns = Some xmlns; prefix = prefix; uname}
     | _ ->
-      Reporter.fatalf
+      Reporter.fatal
         ?loc
-        Resolution_error
-        "expected path `%s` to resolve to xmlns"
-        prefix
+        (Expansion_error `Xmlns_error)
+        ~extra_remarks: [Asai.Diagnostic.loctextf "expected path `%s` to resolve to xmlns" prefix]
 
 and expand_tree_inner (tree : Code.tree) : Syn.tree =
   let trace f =

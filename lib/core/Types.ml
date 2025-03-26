@@ -270,7 +270,16 @@ module TeX_like : sig
     | CDATA str -> Format.fprintf fmt "%s" str
     | KaTeX (_, xs) -> pp_content fmt xs
     | Xml_elt _ | Transclude _ | Contextual_number _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
-      Reporter.fatalf Type_error "Cannot render this kind of content as TeX-like string"
+      (*Temporary workaround, this causes a dependency cycle
+           Vertex_set
+        -> Reporter
+        -> Reporter
+        -> required by _build/default/lib/core/Forester_core.a
+        -> required by alias lib/core/all
+        -> required by alias default
+      *)
+      (* Reporter.fatal (Internal_error "Cannot render this kind of content as TeX-like string") *)
+      assert false
 
   let string_of_content =
     Format.asprintf "%a" pp_content

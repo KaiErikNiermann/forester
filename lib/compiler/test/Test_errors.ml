@@ -53,7 +53,7 @@ let () =
   let test () =
     let@ tmp_dir = with_test_forest ~env ~raw_trees ~config in
     Sys.chdir (Eio.Path.native_exn tmp_dir);
-    let@ () = check_diagnostic Resource_not_found in
+    let@ () = check_diagnostic (Resource_not_found (URI.of_string_exn "asdf")) in
     let forest, history =
       State.make ~env ~config ~dev: false ()
       |> Driver.run_with_history Load_all_configured_dirs

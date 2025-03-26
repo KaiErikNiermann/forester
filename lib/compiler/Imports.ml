@@ -36,7 +36,10 @@ let _add_vertex (forest : State.t) g v =
     assert (URI.Tbl.mem forest.parsed uri_v);
     Forest_graph.add_vertex g v
   with
-    | exn -> Reporter.fatalf Internal_error "%a" Eio.Exn.pp exn
+    | exn ->
+      Reporter.fatal
+        Internal_error
+        ~extra_remarks: [Asai.Diagnostic.loctextf "%a" Eio.Exn.pp exn]
 
 (* Only add edge if both vertices are already present*)
 let add_edge g v w =
@@ -45,7 +48,7 @@ let add_edge g v w =
     assert (Forest_graph.mem_vertex g w);
     Forest_graph.add_edge g v w
   with
-    | exn -> Reporter.fatalf Internal_error "%a" Eio.Exn.pp exn
+    | exn -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "%a" Eio.Exn.pp exn]
 
 let register_document ~host g doc =
   let uri = Lsp.Text_document.documentUri doc in
@@ -97,7 +100,7 @@ let rec analyse_tree (root : URI.t) (tree : Code.tree) =
 and analyse_tree_exn (tree : Code.tree) =
   match tree.uri with
   | Some uri -> analyse_tree uri tree
-  | None -> Reporter.fatalf Internal_error "Import graph: cannot analyse a tree without an address"
+  | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "Import graph: cannot analyse a tree without an address"]
 
 and analyse_code root (code : Code.t) =
   List.iter (analyse_node root) code
@@ -114,19 +117,13 @@ and analyse_node root (node : Code.node Asai.Range.located) =
     begin
       match resolve_uri_to_code env.forest dep_uri with
       | None ->
-        Reporter.fatalf
+        Reporter.fatal
           ?loc: node.loc
-          Resource_not_found
-          "could not find tree %a"
-          URI.pp
-          dep_uri
+          (Resource_not_found dep_uri)
       | Some (tree, doc) ->
         register_document ~host: env.forest.config.host env.graph doc;
         add_edge env.graph dependency target;
         analyse_tree root tree
-      (* | Some (_tree, None) -> *)
-      (*   (* TODO: *) *)
-      (*   Reporter.fatalf ?loc: node.loc Resource_not_found "could not find tree %a" URI.pp dep_uri *)
     end
   | Subtree (addr, code) ->
     let uri = Option.map (URI_scheme.user_uri ~host) addr in
@@ -204,7 +201,7 @@ let run_builder ?root env =
         match resolve_uri_to_code env.forest uri with
         | None ->
           let@ () = Reporter.trace "when building import graph" in
-          Reporter.fatalf Resource_not_found "could not find tree `%a'" URI.pp uri
+          Reporter.fatal (Resource_not_found uri) (* "could not find tree `%a'" URI.pp uri *)
         | Some (tree, _) -> analyse_tree_exn tree
       end
     | None ->

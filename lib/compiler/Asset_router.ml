@@ -13,7 +13,9 @@ let normalize source_path =
     Unix.realpath source_path
   with
     | Unix.Unix_error (e, _, m) ->
-      Reporter.fatalf Configuration_error "%s: %s" (Unix.error_message e) m
+      Reporter.fatal
+        IO_error
+        ~extra_remarks: [Asai.Diagnostic.loctextf "%s: %s" (Unix.error_message e) m]
 
 let install ~host ~source_path ~content =
   let normalized = normalize source_path in
@@ -34,4 +36,4 @@ let uri_of_asset ?loc ~source_path () =
   match Hashtbl.find_opt router normalized with
   | Some uri -> uri
   | None ->
-    Reporter.fatalf ?loc Resource_not_found "Asset located at `%s' does not have a content address" normalized
+    Reporter.fatal ?loc (Asset_has_no_content_address normalized)

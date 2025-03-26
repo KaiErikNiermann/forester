@@ -170,7 +170,7 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
     | T.Uri_vertex uri ->
       match Forest.find_opt forest.resources uri with
       | None ->
-        Reporter.emitf Internal_error "Attempted to export publication but tree `%a` has not yet been planted" URI.pp uri;
+        Reporter.emit Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "Attempted to export publication but tree `%a` has not yet been planted" URI.pp uri];
         None
       | Some result -> Some result
   in
@@ -218,7 +218,8 @@ let run_jobs (forest : State.t) jobs =
 let eval (forest : State.t) =
   let host = forest.config.host in
   let trees, diagnostics =
-    URI.Tbl.to_seq forest.expanded
+    forest.expanded
+    |> URI.Tbl.to_seq
     |> Seq.map (fun (uri, syn) ->
         let source_path = if forest.dev then URI.Tbl.find_opt forest.resolver uri else None in
         Eval.eval_tree
@@ -229,22 +230,7 @@ let eval (forest : State.t) =
       )
     |> Seq.split
   in
-  let diags =
-    match List.of_seq diagnostics with
-    | [] -> None
-    | hd :: rest ->
-      List.iter
-        (fun tbl ->
-          Hashtbl.to_seq tbl
-          |> Seq.iter (fun (uri, diags) ->
-              assert (not @@ Hashtbl.mem hd uri);
-              Hashtbl.add hd uri diags
-            )
-        )
-        rest;
-      Some hd
-  in
-  trees, diags
+  trees, diagnostics
 
 let eval_only
   (uri : URI.t)
@@ -288,13 +274,13 @@ let implant_foreign
     let@ path = List.iter @~ foreign_paths in
     let path_str = EP.native_exn path in
     Reporter.log Format.pp_print_string (Format.sprintf "Implant foreign forest from `%s'" path_str);
-    let blob = try EP.load path with _ -> Reporter.fatalf IO_error "Could not read foreign forest blob at `%s`" path_str in
+    let blob = try EP.load path with _ -> Reporter.fatal IO_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not read foreign forest blob at `%s`" path_str] in
     match Repr.of_json_string (T.forest_t T.content_t) blob with
     | Ok foreign_forest ->
       List.iter (fun r -> Forest.plant_resource r state.graphs state.resources) foreign_forest
     | Error (`Msg err) ->
-      Reporter.fatalf Parse_error "Could not parse foreign forest blob: %s" err
+      Reporter.fatal Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not parse foreign forest blob: %s" err]
     | exception exn ->
-      Reporter.fatalf Parse_error "Encountered unknown error while decoding foreign forest blob: %s" (Printexc.to_string exn)
+      Reporter.fatal Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Encountered unknown error while decoding foreign forest blob: %s" (Printexc.to_string exn)]
   end;
   state, None

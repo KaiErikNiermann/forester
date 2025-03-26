@@ -21,7 +21,7 @@ let latex_to_svg ~env ?loc source =
     Eio.Path.load svg_path
   with
     | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) ->
-      Reporter.emitf Log "Building %s" (Eio.Path.native_exn svg_path);
+      Reporter.emit Log ~extra_remarks: [Asai.Diagnostic.loctextf "Building %s" (Eio.Path.native_exn svg_path)];
       let svg_code = LaTeX_pipeline.latex_to_svg ~env ?loc source in
       Eio.Path.save ~create: (`Or_truncate perm) svg_path svg_code;
       svg_code

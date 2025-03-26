@@ -7,15 +7,47 @@
 open Forester_prelude
 open Base
 
+module R = Resolver
+module Sc = R.Scope
+
 module Message = struct
   type t =
+    | Invalid_URI
     | Tree_not_found of URI.t
+    | Asset_has_no_content_address of string
     | Duplicate_tree of URI.t
     | Parse_error
-    | Type_error
+    | Unbound_method of (string * Value.obj)
     | Type_warning
-    | Resolution_error
+    | Type_error of
+      {
+        got: Value.t option;
+        expected:
+        [
+          | `Content
+          | `Text
+          | `Obj
+          | `Bool
+          | `Sym
+          | `Dx_query
+          | `Dx_sequent
+          | `Dx_prop
+          | `Datalog_term
+          | `Node
+          | `URI
+          | `Argument
+        ] list
+      }
+    | Resolution_error of (Symbol.t * Value.t Value.Env.t)
+    | Expansion_error of
+      [
+        | `Resolution_error of
+        (((Sc.data, R.P.tag) Trie.t [@opaque])
+        * (Yuujinchou.Trie.Untagged.path [@printer Format.(pp_print_list pp_print_string)]))
+        | `Xmlns_error
+      ]
     | Resolution_warning
+    | Reference_error of URI.t
     | Duplicate_attribute
     | Unhandled_case
     | Transclusion_loop
@@ -23,22 +55,27 @@ module Message = struct
     | Configuration_error
     | Initialization_warning
     | Routing_error
-    | Profiling
+    | Profiling of float * float
     | External_error
-    | Resource_not_found
-    | Broken_link
+    | Resource_not_found of URI.t
+    | Broken_link of URI.t
     | IO_error
     | Log
     | Missing_argument
   [@@deriving show]
 
   let default_severity : t -> Asai.Diagnostic.severity = function
+    | Expansion_error _ -> Error
+    | Invalid_URI -> Error
+    | Unbound_method _ -> Error
+    | Asset_has_no_content_address _ -> Error
+    | Reference_error _ -> Error
     | Duplicate_tree _ -> Error
     | Tree_not_found _ -> Error
     | Parse_error -> Error
-    | Type_error -> Error
+    | Type_error _ -> Error
     | Type_warning -> Warning
-    | Resolution_error -> Error
+    | Resolution_error _ -> Error
     | Resolution_warning -> Warning
     | Duplicate_attribute -> Error
     | Unhandled_case -> Bug
@@ -47,19 +84,48 @@ module Message = struct
     | Configuration_error -> Error
     | Initialization_warning -> Warning
     | Routing_error -> Error
-    | Profiling -> Info
+    | Profiling _ -> Info
     | External_error -> Error
     | Log -> Info
-    | Resource_not_found -> Error
-    | Broken_link -> Warning
+    | Resource_not_found _ -> Error
+    | Broken_link _ -> Warning
     | IO_error -> Error
     | Missing_argument -> Error
 
   let short_code : t -> string =
     show
+
+  let default_text : t -> Asai.Diagnostic.text = function
+    | Expansion_error _
+    | Invalid_URI
+    | Unbound_method _
+    | Asset_has_no_content_address _
+    | Reference_error _
+    | Tree_not_found _
+    | Duplicate_tree _
+    | Parse_error
+    | Type_error _
+    | Type_warning
+    | Resolution_error _
+    | Resolution_warning
+    | Duplicate_attribute
+    | Unhandled_case
+    | Transclusion_loop
+    | Internal_error
+    | Configuration_error
+    | Initialization_warning
+    | Routing_error
+    | Profiling _
+    | External_error
+    | Resource_not_found _
+    | Broken_link _
+    | IO_error
+    | Log
+    | Missing_argument ->
+      Asai.Diagnostic.text ""
 end
 
-include Asai.Reporter.Make(Message)
+include Asai.StructuredReporter.Make(Message)
 
 type diagnostic = Message.t Asai.Diagnostic.t
 
@@ -70,7 +136,8 @@ let profile msg body =
   let before = Unix.gettimeofday () in
   let result = body () in
   let after = Unix.gettimeofday () in
-  emitf Profiling "[%fs] %s" (after -. before) msg;
+  emit (Profiling (after, before));
+  (* "[%fs] %s" (after -. before) msg; *)
   result
 
 module Tty = Asai.Tty.Make(Message)
@@ -117,28 +184,7 @@ let guess_uri (d : diagnostic) =
             Some (Lsp.Uri.of_path path)
           else None
 
-let lsp_run ?init_loc ?init_backtrace ~recover publish k =
-  let diagnostics = Hashtbl.create 100 in
-  let push_diagnostic d =
-    match guess_uri d with
-    | None -> fatal Internal_error "dropped a diagnostic because URI could not be guessed."
-    | Some uri ->
-      match Hashtbl.find_opt diagnostics uri with
-      | None ->
-        Hashtbl.add diagnostics uri [d];
-        recover d
-      | Some previous ->
-        Hashtbl.add diagnostics uri (d :: previous);
-        recover d
-  in
-  let emit d = ignore @@ push_diagnostic d in
-  let fatal = push_diagnostic in
-  let@ () = run ~emit ~fatal ?init_loc ?init_backtrace in
-  let result = k () in
-  publish diagnostics;
-  result
-
 let ignore =
   let emit _ = () in
-  let fatal _ = fatalf Message.Internal_error "ignoring error" in
+  let fatal _ = fatal Message.Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "ignoring error"] in
   run ~emit ~fatal
