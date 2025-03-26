@@ -6,7 +6,6 @@
  *)
 
 open Forester_core
-open Forester_compiler
 
 (** {1 Syntactic analysis}
 

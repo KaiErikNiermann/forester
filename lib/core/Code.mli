@@ -4,20 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Forester_core
+open Base
 
-type 'a _object = {
-  self: Trie.path option;
-  methods: (string * 'a) list
-}
-[@@deriving show, repr]
-
-type 'a patch = {
-  obj: 'a;
-  self: Trie.path option;
-  methods: (string * 'a) list
-}
-[@@deriving show, repr]
+module T = Types 
 
 type node =
   | Text of string
@@ -28,7 +17,10 @@ type node =
   | Hash_ident of string
   | Xml_ident of string option * string
   | Subtree of string option * t
-  | Let of Trie.path * Trie.path binding list * t
+  | Let of
+    Trie.path
+    * Trie.path binding list
+    * t
   | Open of Trie.path
   | Scope of t
   | Put of Trie.path * t
@@ -39,7 +31,10 @@ type node =
   | Patch of t patch
   | Call of t * string
   | Import of visibility * string
-  | Def of Trie.path * Trie.path binding list * t
+  | Def of
+    Trie.path
+    * Trie.path binding list
+    * t
   | Decl_xmlns of string * string
   | Alloc of Trie.path
   | Namespace of Trie.path * t
@@ -51,24 +46,36 @@ type node =
   | Dx_const_uri of t
   | Comment of string
   | Error of string
-[@@deriving show, repr]
 
 and t = node Range.located list
-[@@deriving show, repr]
+
+and 'a _object = {
+  self: Trie.path option;
+  methods: (string * 'a) list;
+}
+
+and 'a patch = {
+  obj: 'a;
+  self: Trie.path option;
+  methods: (string * 'a) list;
+}
+
+val t : t Repr.t
+val pp : Format.formatter -> t -> unit
 
 type tree = {
   source_path: string option;
   uri: URI.t option;
   timestamp: float option;
-  code: t
+  code: t;
 }
-[@@deriving show, repr]
+[@@deriving show]
 
-let import_private x = Import (Private, x)
-let import_public x = Import (Public, x)
+val parens : t -> node
+val squares : t -> node
+val braces : t -> node
 
-let inline_math e = Math (Inline, e)
-let display_math e = Math (Display, e)
-let parens e = Group (Parens, e)
-let squares e = Group (Squares, e)
-let braces e = Group (Braces, e)
+val import_private : string -> node
+val import_public : string -> node
+val inline_math : t -> node
+val display_math : t -> node

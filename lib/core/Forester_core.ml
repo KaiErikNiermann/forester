@@ -60,3 +60,4 @@ module Syn = Syn
 module Symbol = Symbol
 module Value = Value
 module Resolver = Resolver
+module Code = Code

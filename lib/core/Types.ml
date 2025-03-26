@@ -212,6 +212,10 @@ let article_to_section ?(flags = default_section_flags) (article : 'a article) =
     flags
   }
 
+let uri_for_resource = function
+  | Article article -> article.frontmatter.uri
+  | Asset asset -> Some asset.uri
+
 module Comparators (I : sig val string_of_content : content -> string end) = struct
   let compare_content =
     Compare.under I.string_of_content String.compare

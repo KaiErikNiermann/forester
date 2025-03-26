@@ -13,10 +13,6 @@ include URI.Tbl
 
 type resource = T.content T.resource
 
-let uri_for_resource = function
-  | T.Article article -> article.frontmatter.uri
-  | T.Asset asset -> Some asset.uri
-
 type article = T.content T.article
 
 module Dx = Datalog_expr
@@ -156,7 +152,7 @@ let get_article
 let plant_resource (resource : resource) (graphs : (module Forest_graphs.S)) (resources : resource t) : unit =
   let module Graphs = (val graphs) in
   analyse_resource graphs resource;
-  let@ uri = Option.iter @~ uri_for_resource resource in
+  let@ uri = Option.iter @~ T.uri_for_resource resource in
   let uri = URI.canonicalise uri in
   Graphs.register_uri uri;
   match URI.Tbl.mem resources uri with

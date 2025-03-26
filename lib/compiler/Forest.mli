@@ -25,10 +25,6 @@ val analyse_resource : (module Forest_graphs.S) -> T.content T.resource -> unit
     - When encountering a {{!Forester_core.Types.Datalog_script}[Datalog_script script]}, it runs the script and records the results in {{!Forester_core.Forest_graphs.S}[graphs]}.
     *)
 
-val uri_for_resource :
-  'a T.resource ->
-  URI.t option
-
 val get_article :
   key ->
   T.content T.resource t ->

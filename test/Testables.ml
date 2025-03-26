@@ -38,7 +38,7 @@ type 'a diagnostic =
 
 let message = testable Reporter.Message.pp (=)
 
-let code = testable Forester_parser.Code.pp (=)
+let code = testable Forester_core.Code.pp (=)
 let syn = testable Syn.pp (=)
 let path = testable Trie.pp_path (=)
 let data = testable Resolver.P.pp_data (=)

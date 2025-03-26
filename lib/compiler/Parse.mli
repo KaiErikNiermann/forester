@@ -9,8 +9,8 @@ include module type of Forester_parser.Parse
 val parse_document :
   host: string ->
   Lsp.Text_document.t ->
-  (Forester_parser.Code.tree, Forester_core.Reporter.diagnostic) result
+  (Forester_core.Code.tree, Forester_core.Reporter.diagnostic) result
 
 val parse_file :
   string ->
-  (Forester_parser.Code.t, Forester_core.Reporter.diagnostic) result
+  (Forester_core.Code.t, Forester_core.Reporter.diagnostic) result

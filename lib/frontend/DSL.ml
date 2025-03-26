@@ -84,7 +84,6 @@ let link href content =
     }
 
 module Code = struct
-  open Forester_compiler
   open Code
   open Asai.Range
 

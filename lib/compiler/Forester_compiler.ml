@@ -8,9 +8,6 @@
 
 (** {1 Base types }*)
 
-module Code = Code
-(** Abstract syntax *)
-
 module Xml_forester = Xml_forester
 (** Definition of the forester XML schema. This is the compilation target.*)
 
