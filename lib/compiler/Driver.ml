@@ -101,7 +101,7 @@ let update
   | Build_import_graph ->
     let@ () = Reporter.trace "when building import graph" in
     let errors, import_graph = Phases.build_import_graph forest in
-    Logs.debug (fun m -> m "import graph has %d vertices@." (Forest_graph.nb_vertex import_graph));
+    Logs.debug (fun m -> m "import graph has %d vertices" (Forest_graph.nb_vertex import_graph));
     Action.report ~errors ~next_action: Expand_all, {forest with import_graph}
   | Expand_all ->
     let@ () = Reporter.tracef "when expanding trees" in
@@ -136,6 +136,7 @@ let update
           )
       |> List.split |> fun (j, e) -> List.concat j, List.concat e
     in
+    Logs.debug (fun m -> m "got %d resources " (Seq.length (State.get_all_resources forest)));
     Action.report ~errors ~next_action: (Run_jobs jobs), forest
   | Eval uri ->
     let@ () = Reporter.tracef "when evaluating %a" URI.pp uri in

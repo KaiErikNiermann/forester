@@ -71,9 +71,7 @@ let with_open_tmp_dir ~env kont =
       ""
   in
   Logs.app (fun m -> m "%s" tmp_dir);
-  (* Path.mkdirs ~exists_ok: true ~perm: 0o755 tmp_path; *)
   let tmp_path = Eio.Path.(cwd / tmp_dir) in
-  (* let@ p = Eio.Path.with_open_dir tmp_path in *)
   let result = kont tmp_path in
   Path.rmtree ~missing_ok: true tmp_path;
   result

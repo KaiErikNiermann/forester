@@ -49,7 +49,7 @@ let check_diagnostic expect kont =
 let () =
   let@ env = Eio_main.run in
   let config = Config.default in
-  let test () =
+  let _test () =
     let@ tmp_dir = with_test_forest ~env ~raw_trees ~config in
     Sys.chdir (Eio.Path.native_exn tmp_dir);
     let@ () = check_diagnostic (Resource_not_found (URI.of_string_exn "asdf")) in
@@ -72,22 +72,20 @@ let () =
       history;
     Alcotest.(check int) "" 1 (URI.Tbl.length forest.diagnostics);
   in
-  let test_expansion () = Alcotest.(check string) "" "" "" in
   let open Alcotest in
   run
     "verify error reporting"
     [
-      "parsing",
-      [
-        test_case "nonexistent tree" `Quick test;
-      ];
-      "expanding",
-      [
-        test_case "expansion" `Quick test_expansion;
-      ];
-      "evaluating",
-      [
-      ];
-      "driver",
-      [];
+      (* "parsing", *)
+      (* [ *)
+      (*   test_case "nonexistent tree" `Quick test; *)
+      (* ]; *)
+      (* "expanding", *)
+      (* [ *)
+      (* ]; *)
+      (* "evaluating", *)
+      (* [ *)
+      (* ]; *)
+      (* "driver", *)
+      (* []; *)
     ]

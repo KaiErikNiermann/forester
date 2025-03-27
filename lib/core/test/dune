@@ -11,6 +11,9 @@
  (public_name test-errors)
  (name Test_errors)
  (libraries
+  logs
+  logs.fmt
+  yojson
   eio
   eio.core
   eio.unix

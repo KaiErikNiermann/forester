@@ -24,10 +24,12 @@ let error_run ~env ~config ~raw_trees =
       URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d) forest.diagnostics
     )
 
-let import_error = [{path = "test-1.tree"; content = {|\import{nonexistent}|}};]
+module Import = struct
+  let raw_trees = [{path = "test-1.tree"; content = {|\import{nonexistent}|}};]
+  let test_case ~env ~config = error_run ~env ~config ~raw_trees
+end
 
 module Expansion = struct
-
   let raw_trees = [
     {
       path = "jon.tree";
@@ -55,10 +57,10 @@ module Expansion = struct
       content = {|
         \tag{nonexistent}
       |}
-    }
+    };
   ]
 
-  let f ~env ~config =
+  let test_case ~env ~config =
     with_test_forest
       ~raw_trees
       ~env
@@ -70,14 +72,32 @@ module Expansion = struct
           State.make ~env ~config ~dev: false ()
           |> Driver.run_until_done Load_all_configured_dirs
         in
-        URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d) forest.diagnostics
+        URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d) forest.diagnostics;
+        let@ article = Seq.iter @~ State.get_all_articles forest in
+        let@ s, json =
+          Option.iter @~ Json_manifest_client.render_tree ~forest ~dev: false article
+        in
+        Format.printf "%s: %s@." s (Yojson.Safe.to_string json)
       )
+end
+
+module Broken_link = struct
+  let raw_trees = [
+    {
+      path = "test.tree";
+      content = {|[link](nonexistent)|}
+    }
+  ]
+
+  let test_case ~env ~config = error_run ~env ~config ~raw_trees
 end
 
 let config = Config.default
 
 let () =
   let@ env = Eio_main.run in
-  error_run ~env ~config ~raw_trees: import_error;
-  Expansion.f ~env ~config
-(* error_run ~env ~config ~raw_trees: expansion_error; *)
+  (* Logs.set_level (Some Debug); *)
+  (* Logs.set_reporter (Logs.format_reporter ()); *)
+  Import.test_case ~env ~config;
+  Expansion.test_case ~env ~config;
+  Broken_link.test_case ~env ~config;
