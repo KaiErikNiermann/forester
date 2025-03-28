@@ -37,7 +37,7 @@ let next_uri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(con
     | `Sequential -> last_sequential + 1
     | `Random -> random_not_in @@ List.map fst keys
   in
-  (match prefix with None -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
+  (match prefix with None -> "" | Some "" -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
 
 let start_of_file =
   let beginning = L.Position.create ~character: 0 ~line: 0 in
