@@ -111,6 +111,14 @@ let to_article : t -> T.content T.article option = function
     | T.Article a -> Some a
     | T.Asset _ -> None
 
+let get_frontmatter : t -> T.content T.frontmatter option = function
+  | Document _
+  | Parsed _
+  | Expanded _
+  | Resource {tree = Types.Asset _; _} ->
+    None
+  | Resource {tree = Types.Article {frontmatter; _}; _} -> Some frontmatter
+
 let to_code : t -> code option = function
   | Document _doc ->
     (* Logs.debug (fun m -> m "tried to get code of unparsed document %s" (Lsp.Uri.to_string @@ Lsp.Text_document.documentUri doc)); *)

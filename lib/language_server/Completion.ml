@@ -6,7 +6,10 @@
  *)
 
 open Forester_core
+open Forester_compiler
+open Forester_frontend
 
+module T = Types
 module L = Lsp.Types
 
 let (let*) = Option.bind
@@ -84,6 +87,8 @@ let compute
   =
   match params with
   | {context;
+    position = _;
+    textDocument = _;
     _;
   } ->
     let triggerCharacter =
@@ -92,65 +97,63 @@ let compute
         triggerCharacter
       | None -> None
     in
-    let Lsp_state.{forest = _; _} = Lsp_state.get () in
-    let addr_items () = []
-    (* forest.parsed *)
-    (* |> Forest.to_seq_values *)
-    (* |> Seq.filter_map *)
-    (*     begin *)
-    (*       fun (tree : Code.tree) -> *)
-    (*         let* uri = tree.uri in *)
-    (*         let* {frontmatter; mainmatter; _} = State.get_article uri forest in *)
-    (*         let documentation = *)
-    (*           let render = *)
-    (*             Plain_text_client.string_of_content *)
-    (*               ~forest *)
-    (*               ~router: (Legacy_xml_client.route forest) *)
-    (*           in *)
-    (*           let title = frontmatter.title in *)
-    (*           let taxon = frontmatter.taxon in *)
-    (*           let content = *)
-    (*             Format.asprintf *)
-    (*               {|%s\n %s\n %s\n |} *)
-    (*               (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title) *)
-    (*               (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon) *)
-    (*               (render mainmatter) *)
-    (*           in *)
-    (*           Some (`String content) *)
-    (*         in *)
-    (*         let insertText = *)
-    (*           (* TODO if host = current_host insert shortform else insert fully qualified uri*) *)
-    (*           match triggerCharacter with *)
-    (*           | Some "{" -> URI_scheme.name uri ^ "}" *)
-    (*           | Some "(" -> URI_scheme.name uri ^ ")" *)
-    (*           | Some "[" -> URI_scheme.name uri ^ "]" *)
-    (*           | _ -> "" *)
-    (*         in *)
-    (*         Some (L.CompletionItem.create ?documentation ~label: (URI_scheme.name uri) ~insertText ()) *)
-    (*     end *)
-    (* |> List.of_seq *)
+    let Lsp_state.{forest; _} = Lsp_state.get () in
+    let addr_items () =
+      forest.index
+      |> URI.Tbl.to_seq
+      |> Seq.filter_map (fun (uri, tree) ->
+          let frontmatter = Tree.get_frontmatter tree in
+          let documentation =
+            let render =
+              Plain_text_client.string_of_content
+                ~forest
+                ~router: (Legacy_xml_client.route forest)
+            in
+            let title = Option.map (fun fm -> State.get_expanded_title fm forest) frontmatter in
+            let taxon = Option.bind frontmatter (fun fm -> T.(fm.taxon)) in
+            let content =
+              Format.asprintf
+                {|%s\n %s\n |}
+                (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
+                (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
+            in
+            Some (`String content)
+          in
+          let insertText =
+            (* TODO if host = current_host insert shortform else insert fully qualified uri*)
+            match triggerCharacter with
+            | Some "{" -> URI_scheme.name uri ^ "}"
+            | Some "(" -> URI_scheme.name uri ^ ")"
+            | Some "[" -> URI_scheme.name uri ^ "]"
+            | _ -> ""
+          in
+          Some (L.CompletionItem.create ?documentation ~label: (URI_scheme.name uri) ~insertText ())
+        )
+      |> List.of_seq
     in
-    let scope_items () = []
-    (* TODO: If the selected item is not in scope in the current tree, auto-import it.
-       reference: https://github.com/rust-lang/rust-analyzer/blob/fc98e0657abf3ce07eed513e38274c89bbb2f8ad/crates/ide-assists/src/handlers/auto_import.rs#L15
-       *)
-    (* forest.units *)
-    (* |> Expand.Unit_map.to_list *)
-    (* |> List.map snd *)
-    (* |> List.concat_map *)
-    (*     (fun trie -> *)
-    (*       let open Yuujinchou in *)
-    (*       trie *)
-    (*       |> Trie.to_seq *)
-    (*       |> List.of_seq *)
-    (*       |> List.filter_map make *)
-    (*     ) *)
-    (* |> List.append *)
-    (*     ( *)
-    (*       Expand.builtins *)
-    (*       |> List.map (fun (a, b) -> (a, (Resolver.P.Term [Range.locate_opt None b], None))) *)
-    (*       |> List.filter_map make *)
-    (*     ) *)
+    let scope_items () =
+      (* TODO: If the selected item is not in scope in the current tree, auto-import it.
+         reference: https://github.com/rust-lang/rust-analyzer/blob/fc98e0657abf3ce07eed513e38274c89bbb2f8ad/crates/ide-assists/src/handlers/auto_import.rs#L15
+         *)
+      forest.index
+      |> URI.Tbl.to_seq
+      |> Seq.map (fun (_uri, tree) ->
+          match Tree.get_units tree with
+          | None -> []
+          | Some exports ->
+            exports
+            |> Trie.to_seq
+            |> List.of_seq
+            |> List.filter_map make
+        )
+      |> List.of_seq
+      |> List.concat
+      |> List.append
+          (
+            Expand.builtins
+            |> List.map (fun (a, b) -> (a, (Resolver.P.Term [Range.locate_opt None b], None)))
+            |> List.filter_map make
+          )
     in
     let items =
       match triggerCharacter with
