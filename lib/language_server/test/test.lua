@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2024 The Forester Project Contributors
+--
+-- SPDX-License-Identifier: GPL-3.0-or-later
+
 vim.filetype.add({ extension = { tree = "forester" } })
 
 vim.cmd("edit trees/index.tree")
