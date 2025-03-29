@@ -5,10 +5,11 @@
  *
  *)
 
-(* open Forester_core *)
-(* open Forester_frontend *)
+open Forester_core
+open Forester_compiler
 
 module L = Lsp.Types
+open State.Syntax
 
 let (let*) = Option.bind
 
@@ -18,16 +19,22 @@ let compute
   =
   match params with
   | {textDocument;
+    position;
     _;
   } ->
-    (* let server = State.get () in *)
-    (* let host = server.config.host in *)
-    (* let codes = server.parsed in *)
-    (* let resolver = Compiler.make_resolver ~host: server.config.host codes in *)
-    (* let* { code; _ } = Compiler.resolve ~host textDocument.uri codes in *)
-    (* let* addr = Analysis.addr_at ~position code in *)
-    (* let uri = URI_scheme.user_uri ~host: server.config.host addr in *)
-    (* let* uri = Hashtbl.find_opt resolver uri in *)
-    let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
-    Some
-      (`Location [L.Location.{uri = textDocument.uri; range}])
+    let Lsp_state.{forest; _} = Lsp_state.get () in
+    let host = forest.config.host in
+    let uri = URI_scheme.lsp_uri_to_uri ~host textDocument.uri in
+    match Option.bind forest.={uri} Tree.to_code with
+    | None -> None
+    | Some code ->
+      match Analysis.addr_at ~position code.nodes with
+      | None -> assert false
+      | Some addr ->
+        let uri = URI_scheme.user_uri ~host addr in
+        let path = URI.Tbl.find forest.resolver uri in
+        let uri = Lsp.Uri.of_path path in
+        Logs.debug (fun m -> m "Definitions: %s" path);
+        let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
+        Some
+          (`Location [L.Location.{uri; range}])

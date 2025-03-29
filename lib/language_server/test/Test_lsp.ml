@@ -97,18 +97,21 @@ let test_definitions () =
   let@ () = Reporter.easy_run in
   let path = find_tree "tfmt-0005" in
   let textDocument : L.TextDocumentIdentifier.t = {uri = Lsp.Uri.of_path path} in
-  let position = L.Position.create ~line: 17 ~character: 1 in
+  let position = L.Position.create ~line: 16 ~character: 13 in
   let params = L.DefinitionParams.create ~position ~textDocument () in
   let result =
     Handlers.Definitions.compute params |> function
       | Some (`Location locations) -> locations
-      | _ -> assert false
+      | Some (`LocationLink _location_links) ->
+        assert false
+      (* location_links *)
+      | None -> assert false
   in
   Alcotest.(check int) "" 1 (List.length result);
   let start = L.Position.create ~character: 1 ~line: 0 in
   let end_ = L.Position.create ~character: 1 ~line: 0 in
   let range = L.Range.create ~start ~end_ in
-  let uri = Lsp.Uri.of_path path in
+  let uri = Lsp.Uri.of_path @@ find_tree "tfmt-0006" in
   Alcotest.(check location)
     ""
     (L.Location.create ~range ~uri)
@@ -269,7 +272,7 @@ let test_inlay_hint () =
   let result = Handlers.Inlay_hint.compute params in
   Alcotest.(check int)
     ""
-    11
+    25
     (List.length @@ Option.get result)
 
 let test_workspace_symbols () =
