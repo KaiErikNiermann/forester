@@ -13,15 +13,9 @@ open State.Syntax
 
 let (let*) = Option.bind
 
-let compute
-    (params : L.DefinitionParams.t)
-    : L.Locations.t option
-  =
+let compute (params : L.DefinitionParams.t) =
   match params with
-  | {textDocument;
-    position;
-    _;
-  } ->
+  | {textDocument; position; _;} ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let host = forest.config.host in
     let uri = URI_scheme.lsp_uri_to_uri ~host textDocument.uri in
@@ -29,7 +23,7 @@ let compute
     | None -> None
     | Some code ->
       match Analysis.addr_at ~position code.nodes with
-      | None -> assert false
+      | None -> None
       | Some addr ->
         let uri = URI_scheme.user_uri ~host addr in
         let path = URI.Tbl.find forest.resolver uri in
