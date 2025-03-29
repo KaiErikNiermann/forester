@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-image: nixos/24.05
+image: nixos/24.11
 
 environment:
   NIX_CONFIG: "experimental-features = nix-command flakes"
