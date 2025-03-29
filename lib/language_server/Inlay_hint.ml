@@ -40,7 +40,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
             | Some (`Range (_, pos)) ->
               match Analysis.extract_addr node with
               | None -> None
-              | Some str ->
+              | Some {value = str; _} ->
                 let uri = URI_scheme.user_uri ~host str in
                 match State.get_article uri forest with
                 | None ->

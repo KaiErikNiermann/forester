@@ -5,20 +5,23 @@
  *
  *)
 
+open Forester_prelude
 open Forester_core
 
 module L = Lsp.Types
 
-let extract_addr (node : Code.node Range.located) : string option =
-  match node.value with
-  | Group (Braces, [{value = Text addr; _}])
-  | Group (Parens, [{value = Text addr; _}])
-  | Group (Squares, [{value = Group (Squares, [{value = Text addr; _}]); _}])
-  | Text addr
-  | Import (_, addr) ->
-    Some addr
-  | Subtree (addr, _) -> addr
-  | Verbatim _ | Math (_, _) | Ident _ | Hash_ident _ | Xml_ident _ | Let (_, _, _) | Open _ | Scope _ | Put (_, _) | Default (_, _) | Get _ | Fun (_, _) | Object _ | Patch _ | Call (_, _) | Def (_, _, _) | Decl_xmlns (_, _) | Alloc _ | Namespace (_, _) | _ -> None
+module Item = struct
+  type t = [
+    | `Path of Trie.path
+    | `Addr of string
+  ]
+  let addr str = `Addr str
+  let path p = `Path p
+end
+
+module S = Algaeff.Sequencer.Make(struct
+  type t = Item.t Range.located
+end)
 
 let nodes_within (node : Code.node Range.located) =
   match node.value with
@@ -63,6 +66,75 @@ let nodes_within (node : Code.node Range.located) =
 let flatten (tree : Code.t) : Code.t =
   List.concat_map nodes_within tree
 
+let paths_in_bindings =
+  List.map snd
+
+(* This function should not descend into the nodes!*)
+let paths : Code.node Range.located -> _ = function
+  | {value; loc;} ->
+    match value with
+    | Ident path
+    | Open (path)
+    | Put (path, _)
+    | Default (path, _)
+    | Get path
+    | Alloc path
+    | Namespace (path, _) ->
+      Some ([path], loc)
+    | Def (path, bindings, _)
+    | Let (path, bindings, _) ->
+      Some (path :: paths_in_bindings bindings, loc)
+    | Patch {self; _}
+    | Object {self; _;} ->
+      (* Option.to_list self; *)
+      Option.map (fun path -> [path], loc) self
+    | Fun (bindings, _) -> Some (paths_in_bindings bindings, loc)
+    | Subtree _
+    | Group _
+    | Scope _
+    | Math _
+    | Dx_sequent _
+    | Dx_const_uri _
+    | Dx_const_content _
+    | Dx_query _
+    | Dx_prop _
+    | Text _
+    | Verbatim _
+    | Hash_ident _
+    | Xml_ident _
+    | Call _
+    | Import _
+    | Decl_xmlns _
+    | Dx_var _
+    | Comment _
+    | Error _ ->
+      None
+
+let extract_addr (node : Code.node Range.located) =
+  match node.value with
+  | Group (Braces, [{value = Text addr; _}])
+  | Group (Parens, [{value = Text addr; _}])
+  | Group (Squares, [{value = Group (Squares, [{value = Text addr; _}]); _}])
+  | Text addr
+  | Import (_, addr) ->
+    Some (Range.{value = addr; loc = node.loc})
+  | Subtree (addr, _) ->
+    Option.map (fun s -> Range.{value = s; loc = node.loc}) addr
+  | _ -> None
+
+let rec analyse (node : Code.node Range.located) =
+  begin
+    let@ {value; loc} = Option.iter @~ extract_addr node in
+    S.yield ({value = Item.addr value; loc});
+  end;
+  begin
+    let@ paths, loc = Option.iter @~ paths node in
+    let@ path = List.iter @~ paths in
+    S.yield ({value = Item.path path; loc});
+  end;
+  let children = nodes_within node in
+  List.iter analyse children
+
 let contains = fun
     ~(position : Lsp.Types.Position.t)
     (located : _ Range.located)
@@ -97,5 +169,9 @@ let rec node_at ~(position : Lsp.Types.Position.t) (code : _ list) : Code.node R
     | Some inner -> Some inner
     | None -> Some n
 
-let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : string option =
+let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located option =
   Option.bind (node_at ~position code) extract_addr
+
+let analyse_syntax nodes =
+  let@ () = S.run in
+  List.iter analyse nodes

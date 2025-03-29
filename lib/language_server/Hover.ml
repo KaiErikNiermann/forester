@@ -40,7 +40,7 @@ let compute
       (* TODO: use node_at and provide hover for things other than links.*)
       match Analysis.addr_at ~position tree.nodes with
       | None -> Format.asprintf "character: %i, line: %i." position.character position.line;
-      | Some addr_at_cursor ->
+      | Some Range.{value = addr_at_cursor; _} ->
         let uri_under_cursor = URI_scheme.user_uri ~host addr_at_cursor in
         match State.get_article uri_under_cursor forest with
         | None ->

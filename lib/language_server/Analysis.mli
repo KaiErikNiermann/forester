@@ -19,7 +19,7 @@ val contains : position: Lsp.Types.Position.t -> 'a Range.located -> bool
 *)
 val extract_addr :
   Code.node Range.located ->
-  string option
+  string Range.located option
 
 (** Attempts to find the smallest located {{!type:Forester_compiler.Code.node}node} which contains [position]*)
 val node_at :
@@ -32,7 +32,9 @@ val node_at :
 val addr_at :
   position: Lsp.Types.Position.t ->
   Code.t ->
-  string option
+  string Asai.Range.located option
 
 (** [flatten code] is a "flat" list of nodes. This function is underspecified and needs to be thought about more.*)
 val flatten : Code.t -> Code.t
+
+val analyse_syntax : Code.t -> [ `Addr of string | `Path of Trie.path ] Asai.Range.located Seq.t
