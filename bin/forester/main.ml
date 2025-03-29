@@ -65,7 +65,7 @@ let new_tree ~env config_filename dest_dir prefix template random =
   let config = Config_parser.parse_forest_config_file config_filename in
   let forest = Driver.batch_run ~env ~dev: true ~config in
   let mode = if random then `Random else `Sequential in
-  let new_tree = Forester.create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~forest in
+  let new_tree = Forester.create_tree ~env ~dest_dir ~prefix ~template ~mode ~forest in
   Format.printf "%s" new_tree
 
 let complete ~env config_filename title =

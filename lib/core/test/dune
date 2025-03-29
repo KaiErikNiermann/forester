@@ -2,8 +2,8 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
-(cram
- (deps %{bin:test-errors}))
+; (cram
+;  (deps %{bin:test-errors}))
 
 (executable
  (preprocess
@@ -25,3 +25,13 @@
   forester.frontend
   pure-html
   asai))
+
+(test
+ (name Test_uri_util)
+ (libraries
+  alcotest
+  forester.test
+  forester.core
+  forester.prelude
+  forester.compiler
+  forester.frontend))

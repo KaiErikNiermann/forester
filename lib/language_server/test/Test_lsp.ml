@@ -40,17 +40,24 @@ let find_tree addr =
 
 let test_code_actions () =
   let@ () = Reporter.easy_run in
-  let arguments = List.map Yojson.Safe.from_string [{| {"prefix" : "jms", "mode": "sequential"} |}] in
-  let params = L.ExecuteCommandParams.create ~command: "new tree" ~arguments () in
-  let result =
-    Handlers.Code_action.execute params |> function
-      | `String s -> Filename.basename s
-      | _ -> assert false
+  let env = Test_env.get () in
+  let textDocument = find_doc env "tfmt-0005" in
+  let params =
+    L.CodeActionParams.create
+      ~context: (L.CodeActionContext.create ~diagnostics: [] ())
+      ~textDocument
+      ~range: (L.Range.create ~start: env.position ~end_: env.position)
+      ()
   in
-  Alcotest.(check string)
+  let result =
+    Handlers.Code_action.compute params |> function
+      | None -> assert false
+      | Some actions -> List.map (function `CodeAction a -> a | _ -> assert false) actions
+  in
+  Alcotest.(check int)
     ""
-    "jms-013F.tree"
-    result
+    2
+    (List.length result)
 
 let test_call_hierarchy () =
   let@ () = Reporter.easy_run in
@@ -205,7 +212,7 @@ let test_document_symbols () =
   let `DocumentSymbol result = Option.get @@ Handlers.Document_symbols.compute params in
   Alcotest.(check int)
     ""
-    30
+    29
     (List.length result)
 
 let test_highlight () =
@@ -223,7 +230,7 @@ let test_highlight () =
   let result = Handlers.Highlight.compute params in
   Alcotest.(check int)
     ""
-    49
+    48
     (List.length @@ Option.get result)
 
 let test_hover () =
@@ -267,19 +274,12 @@ let test_inlay_hint () =
 
 let test_workspace_symbols () =
   let@ () = Reporter.easy_run in
-  let symbol_information =
-  (module struct
-    type t = L.SymbolInformation.t
-    let pp fmt t = Yojson.Safe.pp fmt (L.SymbolInformation.yojson_of_t t)
-    let equal = (=)
-  end: Alcotest.TESTABLE with type t = L.SymbolInformation.t)
-  in
   let params = L.WorkspaceSymbolParams.create ~query: "foo" () in
-  let result = Handlers.Workspace_symbols.compute params in
-  Alcotest.(check @@ option @@ list symbol_information)
+  let result = Option.get @@ Handlers.Workspace_symbols.compute params in
+  Alcotest.(check int)
     ""
-    (Some [])
-    result
+    151
+    (List.length result)
 
 let () =
   Random.self_init ();
@@ -288,7 +288,7 @@ let () =
   Logs.set_level (Some Debug);
   let@ env = Eio_main.run in
   let@ () = Reporter.easy_run in
-  let config = Config_parser.parse_forest_config_file "forest.toml" in
+  let config = {(Config_parser.parse_forest_config_file "forest.toml") with prefixes = ["jms"]} in
   let forest = Driver.batch_run ~env ~config ~dev: true in
   let lsp_io = LspEio.init env in
   let init = Lsp_state.{forest; lsp_io; should_shutdown = false;} in

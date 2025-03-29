@@ -17,18 +17,10 @@ type dir = Eio.Fs.dir_ty EP.t
 
 type target = HTML | JSON | XML | STRING
 
-let (let*) = Option.bind
-
 let output_dir_name = "output"
 
-let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.t) =
-  let addrs =
-    let@ article = List.filter_map @~ List.of_seq @@ State.get_all_articles forest in
-    let@ uri = Option.bind article.frontmatter.uri in
-    let* path = article.frontmatter.source_path in
-    Some (uri, path)
-  in
-  let next, next_dir = URI_util.next_uri addrs ~prefix ~mode ~config in
+let create_tree ~env ~dest_dir ~prefix ~template ~mode ~(forest : State.t) =
+  let next, next_dir = URI_util.next_uri ~prefix ~mode ~forest in
   let fname = next ^ ".tree" in
   let now = Human_datetime.now () in
   let template_content =
@@ -40,7 +32,7 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~config ~(forest : State.
   in
   let body = Format.asprintf "\\date{%a}\n" Human_datetime.pp now in
   let create = `Exclusive 0o644 in
-  (* If no dest_dir is passed, use the directory of the last previous tree *)
+  (* If no dest_dir is passed, use the directory of the previous tree *)
   let dir =
     match dest_dir with
     | Some dir -> dir

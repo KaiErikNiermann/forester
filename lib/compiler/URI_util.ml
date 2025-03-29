@@ -15,8 +15,25 @@ let rec random_not_in keys =
   else
     attempt
 
-let next_uri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(config : Config.t) (addrs : (URI.t * string) list) : string * string option =
-  let default_dir = List.nth_opt config.trees 0 in
+let next_uri
+    ~(prefix : string option)
+    ~(mode : [< `Random | `Sequential])
+    ~(forest : State.t)
+    : string * string option
+  =
+  let addrs =
+    forest.index
+    |> URI.Tbl.to_seq_keys
+    |> Seq.filter_map
+        (fun uri ->
+          match URI.Tbl.find_opt forest.resolver uri with
+          | None -> None
+          | Some path ->
+            Some (uri, path)
+        )
+    |> List.of_seq
+  in
+  let default_dir = Option.map Unix.realpath @@ List.nth_opt forest.config.trees 0 in
   let keys =
     let@ (addr, uri) = List.filter_map @~ addrs in
     let@ prefix', key = Option.bind @@ URI_scheme.split_addr addr in

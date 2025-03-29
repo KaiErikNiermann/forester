@@ -27,7 +27,6 @@ val create_tree :
   prefix: string option ->
   template: string option ->
   mode: [`Sequential | `Random] ->
-  config: Config.t ->
   forest: State.t ->
   string
 
