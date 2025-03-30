@@ -27,6 +27,7 @@
   algaeff
   fmt
   logs
+  logs.fmt
   eio
   eio_main
   eio.core

@@ -391,11 +391,10 @@ and render_transclusion transclusion =
       span
         [
           Hx.trigger "load";
-          Hx.get "/trees%s" (URI.path_string href);
+          Hx.get "/trees/%s" (URI.path_string href);
           Hx.target "this";
           Hx.swap "outerHTML";
-          (* TODO: Update dream-html: https://github.com/yawaramin/dream-html/commit/2f358cc25ef34a590937b1f1e2740141ad06efa9 *)
-          attr (Format.asprintf "data-hx-headers='%s'" headers)
+          Hx.headers "%s" headers;
         ]
         [txt "transclusion: %s" (Format.asprintf "%a" URI.pp href)]
     ]

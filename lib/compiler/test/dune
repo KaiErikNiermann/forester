@@ -24,6 +24,7 @@
   fmt
   lsp
   logs
+  logs.fmt
   yuujinchou
   ocamlgraph
   forester.test
