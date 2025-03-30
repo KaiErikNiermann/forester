@@ -86,7 +86,6 @@ let paths : Code.node Range.located -> _ = function
       Some (path :: paths_in_bindings bindings, loc)
     | Patch {self; _}
     | Object {self; _;} ->
-      (* Option.to_list self; *)
       Option.map (fun path -> [path], loc) self
     | Fun (bindings, _) -> Some (paths_in_bindings bindings, loc)
     | Subtree _
@@ -174,3 +173,27 @@ let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located
 let analyse_syntax nodes =
   let@ () = S.run in
   List.iter analyse nodes
+
+exception Found of string
+
+let word_at ~position (doc : Lsp.Text_document.t) =
+  let L.Position.{line; character;} = position in
+  let line = List.nth_opt (String.split_on_char '\n' (Lsp.Text_document.text doc)) line in
+  match line with
+  | None -> None
+  | Some line ->
+    let words = String.split_on_char ' ' line in
+    Logs.debug (fun m -> m "line has %d words" (List.length words));
+    try
+      let acc = ref 0 in
+      List.iter
+        (fun word ->
+          Logs.debug (fun m -> m "%s" word);
+          let length = String.length word in
+          if !acc + length + 1 > character then raise (Found word)
+          else acc := !acc + length + 1
+        )
+        words;
+      None
+    with
+      | Found str -> Some str

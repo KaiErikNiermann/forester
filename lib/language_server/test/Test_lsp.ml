@@ -311,6 +311,48 @@ let test_addr_at () =
   let result = Option.get @@ Analysis.addr_at ~position code in
   Alcotest.(check string) "" "tfmt-0005" (Asai.Range.(result.value))
 
+let test_word_at () =
+  let text =
+    {|Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis
+nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse
+cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat
+non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
+    |}
+  in
+  let doc
+    =
+    Lsp.Text_document.make
+      ~position_encoding: `UTF8
+      {
+        textDocument =
+        L.TextDocumentItem.create
+          ~languageId: "forester"
+          ~uri: (Lsp.Uri.of_string "")
+          ~version: 1
+          ~text
+      }
+  in
+  let lorem =
+    Option.get @@
+      let position = L.Position.create ~character: 0 ~line: 0 in
+      Analysis.word_at ~position doc
+  in
+  let dolor =
+    Option.get @@
+      let position = L.Position.create ~character: 13 ~line: 0 in
+      Analysis.word_at ~position doc
+  in
+  let irure =
+    Option.get @@
+      let position = L.Position.create ~character: 25 ~line: 3 in
+      Analysis.word_at ~position doc
+  in
+  Alcotest.(check string) "" "Lorem" lorem;
+  Alcotest.(check string) "" "dolor" dolor;
+  Alcotest.(check string) "" "irure" irure
+
 let () =
   Random.self_init ();
   Printexc.record_backtrace true;
@@ -340,6 +382,7 @@ let () =
         "contains", `Quick, test_contains;
         "node_at", `Quick, test_node_at;
         "addr_at", `Quick, test_addr_at;
+        "word_at", `Quick, test_word_at;
       ];
       "Handlers",
       [

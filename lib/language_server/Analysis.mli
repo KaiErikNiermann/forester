@@ -38,3 +38,6 @@ val addr_at :
 val flatten : Code.t -> Code.t
 
 val analyse_syntax : Code.t -> [ `Addr of string | `Path of Trie.path ] Asai.Range.located Seq.t
+
+
+val word_at : position:Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
