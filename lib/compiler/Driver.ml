@@ -48,7 +48,8 @@ let update (action : Action.t) (forest : State.t) =
     List.iter
       (fun (code : Tree.code) ->
         let@ uri = Option.iter @~ Tree.(identity_to_uri code.identity) in
-        forest.={uri} <- Parsed code
+        forest.={uri} <- Parsed code;
+        forest.?{uri} <- []
       )
       succeeded;
     if (List.length errors = 0) then
@@ -154,6 +155,7 @@ let update (action : Action.t) (forest : State.t) =
           match Parse.parse_document ~host doc with
           | Ok code ->
             forest.={uri} <- Parsed code;
+            forest.?{uri} <- [];
             Imports.fixup code forest;
             Expand uri, forest
           | Error diagnostic ->

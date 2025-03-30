@@ -25,14 +25,4 @@ let compute (document : Lsp.Text_document.t) =
     Publish.publish lsp_uri []
   | diagnostics ->
     Eio.traceln "publishing %i diagnostics to %s" (List.length diagnostics) (Lsp.Uri.to_path lsp_uri);
-    List.iter
-      (fun d ->
-        Eio.traceln
-          "%s"
-          (
-            Asai.Diagnostic.(d.explanation.value)
-            |> Asai.Diagnostic.string_of_text
-          )
-      )
-      diagnostics;
     Publish.publish lsp_uri diagnostics
