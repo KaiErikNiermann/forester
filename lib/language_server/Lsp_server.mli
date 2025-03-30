@@ -35,7 +35,7 @@ module Handlers : sig
   (** Reference: {{:https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_codeAction}[textDocument/codeAction]}
      *)
   module Code_action : sig
-    val execute : Lsp.Types.ExecuteCommandParams.t -> Yojson.Safe.t
+    (* val execute : Lsp.Types.ExecuteCommandParams.t -> Yojson.Safe.t *)
     val compute : Lsp.Types.CodeActionParams.t -> Lsp.Types.CodeActionResult.t
   end
 

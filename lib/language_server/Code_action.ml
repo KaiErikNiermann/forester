@@ -5,65 +5,11 @@
  *
  *)
 
-open Lsp_error
 open Forester_compiler
 
 module L = Lsp.Types
 
-(* This function is mainly decodes the arguments to the command*)
-let execute (params : L.ExecuteCommandParams.t) =
-  let Lsp_state.{forest; _} = Lsp_state.get () in
-  match params with
-  | {arguments; command; _} ->
-    match command with
-    | "new tree" ->
-      let open Yojson.Safe.Util in
-      let prefix, mode =
-        match arguments with
-        | Some [json_stuff] ->
-          let prefix = json_stuff |> member "prefix" |> to_string_option in
-          let mode =
-            json_stuff |> member "mode" |> to_string |> function
-              | "random" -> `Random
-              | "sequential" -> `Sequential
-              | _ ->
-                raise @@
-                decode_error @@
-                Format.asprintf
-                  "got invalid arguments when executing \"new tree\" command"
-          in
-          prefix, mode
-        | x ->
-          raise @@
-          decode_error @@
-          Format.(
-            asprintf
-              "got invalid arguments when executing \"new tree\" command. Expected data in the shape of [{\"prefix\" = ..., \"mode\" = ...}], but got: %a."
-              (pp_print_option (pp_print_list Yojson.Safe.pp))
-              x
-          )
-      in
-      let env = forest.env in
-      let template = None in
-      let res = Forester_frontend.Forester.create_tree ~env ~prefix ~template ~mode ~forest ~dest_dir: None in
-      `String res
-    | _ -> `Null
-
 let resolve (params : L.CodeAction.t) = params
-
-let create_new_tree_cmd ~prefix ~mode =
-  let mode = match mode with `Sequential -> "sequential" | `Random -> "random" in
-  L.Command.create
-    ~command: "new tree"
-    ~title: ""
-    ~arguments: [
-      `Assoc
-        [
-          "prefix", `String prefix;
-          "mode", `String mode
-        ]
-    ]
-    ()
 
 let next_addrs ~(forest : State.t) prefix =
   let seq, dir =

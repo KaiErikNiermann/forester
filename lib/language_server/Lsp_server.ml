@@ -29,6 +29,7 @@ module Handlers = struct
   module Publish = Publish
   module Semantic_tokens = Semantic_tokens
   module Workspace_symbols = Workspace_symbols
+  module Did_create_files = Did_create_files
 end
 
 module Semantic_tokens = Semantic_tokens
@@ -81,7 +82,7 @@ module Request = struct
       | Shutdown -> initiate_shutdown ()
       | CodeAction params -> Code_action.compute params
       | CodeActionResolve params -> Code_action.resolve params
-      | ExecuteCommand params -> Code_action.execute params
+      (* | ExecuteCommand params -> Code_action.execute params *)
       | TextDocumentHover params -> Hover.compute params
       | TextDocumentCompletion params -> Completion.compute params
       | InlayHint params -> Inlay_hint.compute params
@@ -132,6 +133,7 @@ module Notification = struct
       | TextDocumentDidOpen params -> Did_open.compute params
       | TextDocumentDidChange params -> Did_change.compute params
       | ChangeConfiguration params -> Change_configuration.compute params
+      (* | DidCreateFiles params -> Did_create_files.compute params *)
       | DidSaveTextDocument _ -> ()
       | TextDocumentDidClose _ -> ()
       | _ ->

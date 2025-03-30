@@ -130,7 +130,6 @@ let dependencies tree forest =
 let fixup (tree : Tree.code) (forest : State.t) =
   let@ () = Reporter.tracef "when updating imports for %a" Tree.pp_identity tree.identity in
   Logs.debug (fun m -> m "updating imports for %a" Tree.pp_identity tree.identity);
-  Logs.debug (fun m -> m "%a" Code.pp tree.nodes);
   let graph = forest.import_graph in
   match tree.identity with
   | Tree.Anonymous -> assert false

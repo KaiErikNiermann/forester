@@ -77,21 +77,30 @@ let server_capabilities =
       ~workDoneProgress: false
       ()
   in
-  let workspaceSymbolProvider =
-    `WorkspaceSymbolOptions (L.WorkspaceSymbolOptions.create ())
+  let workspaceSymbolProvider = `WorkspaceSymbolOptions (L.WorkspaceSymbolOptions.create ()) in
+  let documentSymbolProvider = `DocumentSymbolOptions (L.DocumentSymbolOptions.create ()) in
+  let workspace =
+    L.ServerCapabilities.create_workspace
+      ~fileOperations: (
+        L.FileOperationOptions.create
+          ~didCreate: {
+            filters = [
+              L.FileOperationFilter.create
+                ~pattern: (L.FileOperationPattern.create ~glob: "**/*.tree" ())
+                ()
+            ]
+          }
+          ()
+      )
+      ()
   in
-  let documentSymbolProvider =
-    `DocumentSymbolOptions (L.DocumentSymbolOptions.create ())
-  in
+
   (* [NOTE: Position Encodings]
      For various historical reasons, the spec states that we are _required_ to support UTF-16.
      This causes more trouble than it's worth, so we always select UTF-8 as our encoding, even
      if the client doesn't support it. *)
-  let positionEncoding
-    =
-    L.PositionEncodingKind.UTF8
-  in
-  (* [FIME: Reed M, 09/06/2022] The current verison of the LSP library doesn't support 'positionEncoding' *)
+  let positionEncoding = L.PositionEncodingKind.UTF8 in
+  (* [FIXME: Reed M, 09/06/2022] The current verison of the LSP library doesn't support 'positionEncoding' *)
   L.ServerCapabilities.create
     ~textDocumentSync
     ~hoverProvider
@@ -104,6 +113,7 @@ let server_capabilities =
     ~documentSymbolProvider
     ~documentLinkProvider
     ~workspaceSymbolProvider
+    ~workspace
     ()
 
 let supports_utf8_encoding (init_params : L.InitializeParams.t) =
