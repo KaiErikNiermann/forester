@@ -46,6 +46,7 @@ type node =
   | Dx_const_uri of t
   | Comment of string
   | Error of string
+[@@deriving show]
 
 and t = node Range.located list
 

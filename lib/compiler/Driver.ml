@@ -10,42 +10,10 @@ open State.Syntax
 
 module T = Types
 
-module Action = struct
-  type exit =
-    Fail | Finished
-  [@@deriving show]
-
-  type t =
-    | Quit of exit
-    | Build_import_graph
-    | Plant_assets
-    | Plant_foreign
-    | Done
-    | Load_all_configured_dirs
-    | Parse_all
-    | Expand_all
-    | Eval_all
-    | Load_tree of (Eio.Fs.dir_ty Eio.Path.t [@printer Eio.Path.pp])
-    | Parse of (Lsp.Uri.t [@printer fun fmt uri -> fprintf fmt "%s" (Lsp.Uri.to_string uri)])
-    | Expand of URI.t
-    | Eval of URI.t
-    | Query of (string, Vertex.t) Datalog_expr.query
-    | Query_results of (Vertex_set.t [@opaque])
-    | Report_errors of ((Reporter.Message.t Asai.Diagnostic.t [@opaque]) list * t)
-    | Run_jobs of Job.job Range.located list
-  [@@deriving show]
-
-  let report ~next_action ~errors =
-    if List.length errors > 0 then
-      Report_errors (errors, next_action)
-    else next_action
-end
-
-let update
-  : Action.t -> State.t -> Action.t * State.t
-= fun action forest ->
+let update (action : Action.t) (forest : State.t) =
   let open Action in
   let host = forest.config.host in
+  let forest = State.update_history forest action in
   match action with
   | Quit e ->
     begin
@@ -224,15 +192,13 @@ let run_until_done a s : State.t =
 let implant_foreign = run_until_done Plant_foreign
 let plant_assets = run_until_done Plant_assets
 
-let batch_run_with_history ~env ~(config : Config.t) ~dev =
-  let history = ref [] in
+let batch_run ~env ~(config : Config.t) ~dev =
   let init =
     State.make ~env ~config ~dev ()
     |> plant_assets
     |> implant_foreign
   in
   let rec go action state =
-    history := action :: !history;
     let new_action, new_state = update action state in
     match action with
     | Quit Fail -> exit 1
@@ -246,10 +212,7 @@ let batch_run_with_history ~env ~(config : Config.t) ~dev =
     | _ ->
       go new_action new_state
   in
-  let history = !history in
-  go Load_all_configured_dirs init, history
-
-let batch_run ~env ~config ~dev = fst @@ batch_run_with_history ~env ~config ~dev
+  go Load_all_configured_dirs init
 
 let language_server ~env ~config =
   let init = State.make ~env ~config ~dev: true () in

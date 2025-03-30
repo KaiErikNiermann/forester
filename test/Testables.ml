@@ -39,6 +39,7 @@ type 'a diagnostic =
 let message = testable Reporter.Message.pp (=)
 
 let code = testable Forester_core.Code.pp (=)
+let code_node = testable Forester_core.Code.pp_node (=)
 let syn = testable Syn.pp (=)
 let path = testable Trie.pp_path (=)
 let data = testable Resolver.P.pp_data (=)
@@ -59,4 +60,4 @@ let tree = testable Code.pp_tree (=)
 let result = testable Eval.pp_result (=)
 let content = testable Types.pp_content (=)
 
-let action = testable Driver.Action.pp (=)
+let action = testable Action.pp (=)

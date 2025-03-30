@@ -6,11 +6,12 @@
  *)
 
 open Forester_core
-open Forester_compiler.State.Syntax
+open Forester_compiler
+open State.Syntax
 module L = Lsp.Types
 
 let compute
-    ({textDocument = {uri; _}} as params: L.DidOpenTextDocumentParams.t)
+    ({textDocument = {uri = lsp_uri; _}} as params: L.DidOpenTextDocumentParams.t)
   =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let document =
@@ -18,7 +19,10 @@ let compute
       ~position_encoding: `UTF16
       params
   in
-  (* Hashtbl.replace forest.documents uri document; *)
-  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
+  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
   forest.={uri} <- Document document;
+  Lsp_state.modify (fun ({forest; _} as lsp_state) ->
+    let new_forest = Driver.run_until_done (Action.Parse lsp_uri) forest in
+    {lsp_state with forest = new_forest}
+  );
   Diagnostics.compute document

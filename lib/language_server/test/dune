@@ -33,6 +33,7 @@
   eio.unix
   lsp
   yojson
+  forester.test
   forester.prelude
   forester.core
   forester.compiler

@@ -53,10 +53,12 @@ and strip_loc_node : Code.node -> Code.node = fun node ->
 
 type raw_tree = {path: string; content: string}
 
-let parse_string str =
+let parse_string_loc str =
   let lexbuf = Lexing.from_string str in
-  let res = Parse.parse lexbuf in
-  Result.map strip_loc res
+  Parse.parse lexbuf
+
+let parse_string str =
+  Result.map strip_loc (parse_string_loc str)
 
 let with_open_tmp_dir ~env kont =
   let open Eio in

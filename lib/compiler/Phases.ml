@@ -17,27 +17,22 @@ let load (tree_dirs : Eio.Fs.dir_ty Eio.Path.t list) =
   Dir_scanner.scan_directories tree_dirs
   |> Seq.map Imports.load_tree
 
-let parse
-    (forest : State.t)
-    : Reporter.Message.t Asai.Diagnostic.t list * Tree.code list
-  =
+let parse (forest : State.t) =
   let host = forest.config.host in
   let trees = forest.index |> URI.Tbl.to_seq_values |> List.of_seq in
-  let f tree =
-    if Tree.is_unparsed tree then
-      tree
-      |> Tree.to_doc
-      |> Option.map (Parse.parse_document ~host)
-    else None
+  let results =
+    let@ tree = List.filter_map @~ trees in
+    match tree with
+    | Document doc -> Some (Parse.parse_document ~host doc)
+    | Parsed _
+    | Expanded _
+    | Resource _ ->
+      None
   in
-  let results = List.filter_map f trees in
-  results
-  |> List.partition_map
-      (function
-        | Ok t -> Right t
-        | Error d ->
-          Left d
-      )
+  let@ result = List.partition_map @~ results in
+  match result with
+  | Ok t -> Right t
+  | Error d -> Left d
 
 let reparse (doc : Lsp.Text_document.t) (forest : State.t) =
   Logs.debug (fun m -> m "reparsing");

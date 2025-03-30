@@ -11,6 +11,8 @@ open Forester_core
 open Forester_compiler
 open Forester_frontend
 open Forester_lsp
+open Forester_test
+open Testables
 
 module Handlers = Server.Handlers
 
@@ -284,6 +286,31 @@ let test_workspace_symbols () =
     151
     (List.length result)
 
+let test_contains () =
+  let position = L.Position.create ~character: 12 ~line: 0 in
+  let src = `File "foo" in
+  let start_pos = Asai.Range.{source = src; offset = 1; start_of_line = 0; line_num = 1} in
+  let end_pos = Asai.Range.{source = src; offset = 13; start_of_line = 0; line_num = 1} in
+  let loc = Option.some @@ Asai.Range.make (start_pos, end_pos) in
+  let located = Range.{value = (); loc} in
+  let result = Analysis.contains ~position located in
+  Alcotest.(check bool) "" true result
+
+let test_node_at () =
+  let position = L.Position.create ~character: 12 ~line: 0 in
+  let code = Result.get_ok @@ parse_string_loc {|\import{asdf}|} in
+  let result = Option.get @@ Analysis.node_at ~position code in
+  Alcotest.(check code_node)
+    ""
+    (Import (Private, "asdf"))
+    (Asai.Range.(result.value))
+
+let test_addr_at () =
+  let code = Result.get_ok @@ parse_string_loc {|\transclude{tfmt-0005}|} in
+  let position = L.Position.create ~character: 13 ~line: 0 in
+  let result = Option.get @@ Analysis.addr_at ~position code in
+  Alcotest.(check string) "" "tfmt-0005" (Asai.Range.(result.value))
+
 let () =
   Random.self_init ();
   Printexc.record_backtrace true;
@@ -308,6 +335,12 @@ let () =
   Alcotest.run
     "Test_lsp"
     [
+      "Analysis",
+      [
+        "contains", `Quick, test_contains;
+        "node_at", `Quick, test_node_at;
+        "addr_at", `Quick, test_addr_at;
+      ];
       "Handlers",
       [
         "call hierarchy", `Quick, test_call_hierarchy;

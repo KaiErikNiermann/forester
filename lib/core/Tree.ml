@@ -54,7 +54,7 @@ type t =
   | Resource of evaluated
 [@@deriving show]
 
-let pp_stage = function
+let show_stage = function
   | Document _ -> "document"
   | Parsed _ -> "parsed"
   | Expanded _ -> "expanded"

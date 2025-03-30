@@ -11,6 +11,7 @@ module Server = Lsp_server
 module Analysis = Analysis
 module Lsp_state = Lsp_state
 module LspEio = LspEio
+module Lsp_shims = Lsp_shims
 
 open Forester_compiler
 

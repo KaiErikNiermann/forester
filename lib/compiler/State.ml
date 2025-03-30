@@ -23,7 +23,8 @@ type t = {
   dependency_cache: Cache.t;
   resolver: string URI.Tbl.t;
   search_index: Forester_search.Index.t;
-  usages: (Tree.exports, URI.t Asai.Range.located) Hashtbl.t
+  usages: (Tree.exports, URI.t Asai.Range.located) Hashtbl.t;
+  history: Action.t list;
 }
 
 let make
@@ -39,7 +40,7 @@ let make
   ?(search_index = Forester_search.Index.create [])
   ?(dependency_cache = Cache.empty)
   ()
-= {env; dev; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages;}
+= {env; dev; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; history = []}
 
 module Syntax = struct
   let (.={}) state uri =
@@ -87,6 +88,8 @@ module Syntax = struct
 end
 
 open Syntax
+
+let update_history forest action = {forest with history = action :: forest.history}
 
 let find_opt state uri = URI.Tbl.find_opt state.index uri
 let to_seq state = URI.Tbl.to_seq state.index

@@ -43,6 +43,7 @@ module Config = Config
 module Forest = Forest
 (** Augmented hash table used throughout compilation phases.*)
 
+module Action = Action
 module State = State
 module Phases = Phases
 module Driver = Driver

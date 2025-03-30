@@ -161,8 +161,7 @@ let contains = fun
   | None -> false
 
 let rec node_at ~(position : Lsp.Types.Position.t) (code : _ list) : Code.node Range.located option =
-  let flattened = flatten code in
-  match List.find_opt (contains ~position) flattened with
+  match List.find_opt (contains ~position) code with
   | None -> None
   | Some n ->
     match (node_at ~position) (nodes_within n) with

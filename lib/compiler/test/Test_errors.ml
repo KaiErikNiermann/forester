@@ -54,10 +54,7 @@ let () =
     Sys.chdir (Eio.Path.native_exn tmp_dir);
     let@ () = check_diagnostic (Resource_not_found (URI.of_string_exn "asdf")) in
     let@ () = Reporter.easy_run in
-    let forest, history =
-      (* State.make ~env ~config ~dev: false () |>  *)
-      Driver.batch_run_with_history ~env ~config ~dev: false
-    in
+    let forest = Driver.batch_run ~env ~config ~dev: false in
     Alcotest.(check @@ list action)
       ""
       [
@@ -69,7 +66,7 @@ let () =
         (Run_jobs []);
         Done
       ]
-      history;
+      (List.rev forest.history);
     Alcotest.(check int) "" 1 (URI.Tbl.length forest.diagnostics);
   in
   let open Alcotest in

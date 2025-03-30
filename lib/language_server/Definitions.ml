@@ -19,16 +19,18 @@ let compute (params : L.DefinitionParams.t) =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let host = forest.config.host in
     let uri = URI_scheme.lsp_uri_to_uri ~host textDocument.uri in
-    match Option.bind forest.={uri} Tree.to_code with
-    | None -> None
-    | Some {nodes; _} ->
-      match Analysis.addr_at ~position nodes with
+    match forest.={uri} with
+    | None -> assert false
+    | Some tree ->
+      match Tree.to_code tree with
       | None -> None
-      | Some {value = str; _} ->
-        let uri = URI_scheme.user_uri ~host str in
-        let path = URI.Tbl.find forest.resolver uri in
-        let uri = Lsp.Uri.of_path path in
-        Logs.debug (fun m -> m "Definitions: %s" path);
-        let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
-        Some
-          (`Location [L.Location.{uri; range}])
+      | Some {nodes; _} ->
+        match Analysis.addr_at ~position nodes with
+        | None -> assert false
+        | Some {value = str; _} ->
+          let uri = URI_scheme.user_uri ~host str in
+          let path = URI.Tbl.find forest.resolver uri in
+          let uri = Lsp.Uri.of_path path in
+          let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
+          Some
+            (`Location [L.Location.{uri; range}])
