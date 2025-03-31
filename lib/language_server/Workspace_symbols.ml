@@ -89,7 +89,8 @@ let exports_to_symbols (exports : Tree.exports) =
             | Syn.Dx_const (_, _)
             | Syn.Dx_execute
             | Syn.Route_asset
-            | Syn.Publish_results_of_query
+            | Syn.Syndicate_current_tree_as_atom_feed
+            | Syn.Syndicate_query_as_json_blob
             | Syn.Current_tree ->
               Constant
           in

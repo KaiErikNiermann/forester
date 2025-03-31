@@ -90,9 +90,21 @@ type 'content article = {
 type asset = {uri: URI.t; content: string}
 [@@deriving show, repr]
 
+type 'a json_blob_syndication = {blob_uri: URI.t; query: (string, 'a vertex) Datalog_expr.query}
+[@@deriving show, repr]
+
+type atom_feed_syndication = {source_uri: URI.t; feed_uri: URI.t}
+[@@deriving show, repr]
+
+type 'content syndication =
+  | Json_blob of 'content json_blob_syndication
+  | Atom_feed of atom_feed_syndication
+[@@deriving show, repr]
+
 type 'content resource =
   | Article of 'content article
   | Asset of asset
+  | Syndication of 'content syndication
 [@@deriving show, repr]
 
 type 'content forest = 'content resource list
@@ -151,6 +163,11 @@ type content =
   Content of content content_node list
 [@@deriving show, repr]
 
+type syndication_format =
+(* | Atom_feed *)
+| Json_blob
+[@@deriving show]
+
 let html_elt uname (content : 'content) : 'content content_node =
   let name = {prefix = "html"; uname; xmlns = Some "http://www.w3.org/1999/xhtml"} in
   Xml_elt {content; name; attrs = []}
@@ -207,9 +224,14 @@ let article_to_section ?(flags = default_section_flags) (article : 'a article) =
     flags
   }
 
+let uri_for_syndication = function
+  | Atom_feed feed -> Some feed.feed_uri
+  | Json_blob blob -> Some blob.blob_uri
+
 let uri_for_resource = function
   | Article article -> article.frontmatter.uri
   | Asset asset -> Some asset.uri
+  | Syndication syndication -> uri_for_syndication syndication
 
 module Comparators (I : sig val string_of_content : content -> string end) = struct
   let compare_content =

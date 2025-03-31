@@ -419,7 +419,8 @@ let builtins = [
   ["rel"; "in-host"], Syn.Text Builtin_relation.in_host;
   ["execute"], Syn.Dx_execute;
   ["route-asset"], Syn.Route_asset;
-  ["publish-query"], Syn.Publish_results_of_query;
+  ["syndicate-query-as-json-blob"], Syn.Syndicate_query_as_json_blob;
+  ["syndicate-current-tree-as-atom-feed"], Syn.Syndicate_current_tree_as_atom_feed;
   ["current-tree"], Syn.Current_tree;
 ]
 

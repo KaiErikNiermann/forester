@@ -19,10 +19,9 @@ end
 module Xmlns = Xmlns_effect.Make ()
 module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
 module Section_depth = Algaeff.Reader.Make(struct type t = int end)
-
 module Loop_detection = Loop_detection_effect.Make ()
 
-let hx attrs children = P.std_tag (Format.sprintf "%i" @@ Section_depth.read ()) attrs children
+let hx attrs children = P.std_tag (Format.sprintf "h%i" @@ min 6 @@ Section_depth.read ()) attrs children
 
 let incr_section_depth k =
   let i = Section_depth.read () in
@@ -87,7 +86,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
       match resource with
       | T.Article article ->
         article.frontmatter.number
-      | T.Asset _ -> None
+      | _ -> None
     in
     begin
       match custom_number with
@@ -119,7 +118,7 @@ and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.n
     render_content forest content
 
 and render_section forest (section : T.content T.section) : P.node list =
-  let@ _ = Xmlns.run ~reserved: [] in
+  let@ () = Scope.run ~env: section.frontmatter.uri in
   let@ () = incr_section_depth in
   [
     P.HTML.section
@@ -143,7 +142,9 @@ and render_section forest (section : T.content T.section) : P.node list =
       ]
   ]
 
-let render_article (forest : State.t) (article : T.content T.article) : P.node =
+let render_article ?(heading_level = 0) (forest : State.t) (article : T.content T.article) : P.node =
+  let@ () = Section_depth.run ~env: heading_level in
+  let@ () = Scope.run ~env: article.frontmatter.uri in
   let@ () = Loop_detection.run in
   let reserved = [
     {prefix = ""; xmlns = "http://www.w3.org/1999/xhtml"}

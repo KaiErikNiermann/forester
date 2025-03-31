@@ -148,8 +148,8 @@ let get_article : URI.t -> t -> T.content T.article option = fun uri forest ->
     None
   | Some (Resource {tree; _}) ->
     match tree with
-    | T.Asset _ -> None
     | T.Article a -> Some a
+    | _ -> None
 
 let section_symbol = "§"
 

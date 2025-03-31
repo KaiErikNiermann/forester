@@ -61,6 +61,9 @@ module Make () = struct
     let env = E.get () in
     String_map.find_opt prefix env.prefix_to_xmlns
 
+  let smallest_string strings =
+    List.hd @@ List.sort (fun s1 s2 -> compare (String.length s1) (String.length s2)) strings
+
   let rec normalise_qname (qname : xml_qname) =
     let scope = E.get () in
     match qname.xmlns with
@@ -80,11 +83,11 @@ module Make () = struct
           qname
         | Some xmlns', Some prefixes ->
           if xmlns' = xmlns && List.mem qname.prefix prefixes then
-            qname
+            {qname with prefix = try smallest_string prefixes with _ -> qname.prefix}
           else
             normalise_qname {qname with prefix = qname.prefix ^ "_"}
-        | _, Some (prefix' :: _) ->
-          {qname with prefix = prefix'}
+        | None, Some prefixes ->
+          {qname with prefix = try smallest_string prefixes with _ -> qname.prefix}
         | Some _, None ->
           normalise_qname {qname with prefix = qname.prefix ^ "_"}
       end

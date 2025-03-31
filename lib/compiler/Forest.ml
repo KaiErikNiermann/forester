@@ -137,7 +137,7 @@ let analyse_article graphs (article : article) : unit =
 
 let analyse_resource graphs = function
   | T.Article article -> analyse_article graphs article
-  | T.Asset _ -> ()
+  | _ -> ()
 
 let get_article
   : URI.t -> _ t -> T.content T.article option
@@ -146,6 +146,9 @@ let get_article
   | None -> None
   | Some (T.Asset _) ->
     Logs.debug (fun m -> m "%a is an asset, not an article" URI.pp uri);
+    None
+  | Some (T.Syndication _) ->
+    Logs.debug (fun m -> m "%a is a syndication, not an article" URI.pp uri);
     None
   | Some (T.Article article) -> Some article
 
@@ -219,7 +222,7 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
 let get_all_articles resources =
   let extract_article = function
     | T.Article a -> Some a
-    | T.Asset _ -> None
+    | _ -> None
   in
   resources
   |> to_seq_values
@@ -229,7 +232,7 @@ let get_all_articles resources =
 let get_all_assets resources =
   let extract_asset = function
     | T.Asset a -> Some a
-    | T.Article _ -> None
+    | _ -> None
   in
   resources
   |> to_seq_values

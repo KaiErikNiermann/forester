@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_prelude
 open Forester_core
 open Forester_compiler
 
@@ -13,12 +14,14 @@ open struct
 end
 
 module Atom = struct
+  let null = P.HTML.null
+
   let feed attrs =
     P.std_tag "feed" @@
       P.string_attr "xmlns" "http://www.w3.org/2005/Atom" :: attrs
 
   let title fmt = P.text_tag "title" fmt
-  let link = P.void_tag "title"
+  let link = P.void_tag "link"
 
   let href fmt = P.string_attr "href" fmt
 
@@ -27,8 +30,8 @@ module Atom = struct
   let author = P.std_tag "author"
   let contributor = P.std_tag "contributor"
   let name fmt = P.text_tag "name" fmt
-  let uri fmt = P.uri_attr "uri" fmt
-  let email fmt = P.uri_attr "email" fmt
+  let uri fmt = P.uri_tag "uri" fmt
+  let email fmt = P.uri_tag "email" fmt
   let id fmt = P.text_tag "id" fmt
   let entry = P.std_tag "entry"
   let summary = P.std_tag "summary"
@@ -46,34 +49,75 @@ let get_date_range (article : _ T.article) : (Human_datetime.t * Human_datetime.
   with
     | _ -> None
 
-let render_entry (forest : State.t) (article : T.content T.article) : P.node =
+let render_title forest ?scope (frontmatter : _ T.frontmatter)  =
+  A.title
+    []
+    "%s" @@
+    Plain_text_client.string_of_content ~forest ~router: Fun.id @@
+      State.get_expanded_title ?scope frontmatter forest
+
+let render_dates_exn dates =
+  let sorted_dates = List.sort Human_datetime.compare dates in
+  let oldest, newest = List.hd sorted_dates, List.hd (List.rev sorted_dates) in
+  A.null
+    [
+      A.published [] "%s" @@ Format.asprintf "%a" Human_datetime.pp oldest;
+      A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
+    ]
+
+let render_dates dates =
+  try render_dates_exn dates with _ -> A.null []
+
+let string_of_content forest = Plain_text_client.string_of_content ~forest ~router: Fun.id
+
+let render_attribution forest (attribution : _ T.attribution) =
+  let tag =
+    match attribution.role with
+    | T.Author -> A.author
+    | T.Contributor -> A.contributor
+  in
+  let body =
+    match attribution.vertex with
+    | T.Content_vertex content ->
+      [A.name [] "%s" @@ string_of_content forest content]
+    | T.Uri_vertex href ->
+      let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}}] in
+      [A.name [] "%s" @@ string_of_content forest content; A.uri [] "%s" @@ URI.to_string href]
+  in
+  tag [] body
+
+let render_attributions (forest : State.t) uri_opt attributions : P.node =
+  A.null @@
+  List.map (render_attribution forest) @@
+  Forest_util.collect_attributions forest uri_opt attributions
+
+
+let get_embedded_articles (forest : State.t) (article : _ T.article) =
+  let visit_node = function
+    | T.Transclude {href; target = Full _; _} ->
+      Vertex_set.add @@ Uri_vertex href
+    | T.Section section ->
+      Option.fold ~none: Fun.id ~some: (fun x -> Vertex_set.add @@ T.Uri_vertex x) section.frontmatter.uri
+    | T.Results_of_datalog_query query ->
+      Vertex_set.union @@ Forest.run_datalog_query forest.graphs query
+    | _ -> Fun.id
+  in
+  let vertices = List.fold_left (Fun.flip visit_node) Vertex_set.empty @@ T.extract_content article.mainmatter in
+  Forest_util.get_sorted_articles forest vertices
+
+let render_entry ~(forest : State.t) ?(scope : URI.t option) (article : T.content T.article) : P.node =
   A.entry
     []
     [
-      A.title
-        []
-        "%s"
-        begin
-          match article.frontmatter.title with
-          | None -> "Untitled"
-          | Some title -> Plain_text_client.string_of_content ~forest ~router: Fun.id title
-        end;
-      P.HTML.null
-        begin
-          match get_date_range article with
-          | None -> []
-          | Some (oldest, newest) ->
-            [
-              A.published [] "%s" @@ Format.asprintf "%a" Human_datetime.pp oldest;
-              A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
-            ]
-        end;
+      render_title forest ?scope article.frontmatter;
+      render_dates article.frontmatter.dates;
+      render_attributions forest article.frontmatter.uri article.frontmatter.attributions;
       begin
         match article.frontmatter.uri with
-        | None -> P.HTML.null []
+        | None -> A.null []
         | Some uri ->
           let uri_string = URI.to_string uri in
-          P.HTML.null
+          A.null
             [
               A.link
                 [
@@ -89,6 +133,30 @@ let render_entry (forest : State.t) (article : T.content T.article) : P.node =
           A.type_ "xhtml"
         ]
         [
-          Html_client.render_article forest article
+          Html_client.render_article ~heading_level: 1 forest article
         ]
     ]
+
+let render_feed (forest : State.t) ~(source_uri : URI.t) ~(feed_uri : URI.t) : P.node =
+  match State.get_article source_uri forest with
+  | None -> Reporter.fatal @@ Resource_not_found source_uri
+  | Some blog ->
+    let articles = get_embedded_articles forest blog in
+    let all_dates =
+      let@ article = List.concat_map @~ blog :: articles in
+      article.frontmatter.dates
+    in
+    let blog_uri_string = URI.to_string source_uri in
+    A.feed
+      []
+      [
+        render_attributions forest blog.frontmatter.uri blog.frontmatter.attributions;
+        render_dates all_dates;
+        render_title forest blog.frontmatter;
+        A.id [] "%s" blog_uri_string;
+        A.link [A.rel "alternate"; A.href "%s" blog_uri_string];
+        A.link [A.rel "self"; A.href "%s" @@ URI.to_string feed_uri];
+        A.null @@
+          let@ article = List.map @~ articles in
+          render_entry ~forest ~scope:source_uri article
+      ]

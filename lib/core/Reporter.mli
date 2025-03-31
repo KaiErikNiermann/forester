@@ -11,6 +11,7 @@ sig
     | Invalid_URI
     | Tree_not_found of URI.t
     | Asset_has_no_content_address of string
+    | Current_tree_has_no_uri
     | Duplicate_tree of URI.t
     | Parse_error
     | Unbound_method of (string * Value.obj)

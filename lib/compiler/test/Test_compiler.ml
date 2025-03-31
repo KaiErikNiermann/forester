@@ -134,9 +134,8 @@ let test_omits_paths ~env () =
   let forest = Driver.batch_run ~env ~config ~dev: false in
   let path =
     match forest.@{URI.of_string_exn "forest://my-forest/index"} with
-    | None -> None
-    | Some (T.Asset _) -> None
     | Some (T.Article {frontmatter = {source_path; _}; _}) -> source_path
+    | _ -> None
   in
   Alcotest.(check bool) "" true @@ Option.is_none path
 

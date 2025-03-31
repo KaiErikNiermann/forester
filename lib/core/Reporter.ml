@@ -16,6 +16,7 @@ module Message = struct
     | Invalid_URI
     | Tree_not_found of URI.t
     | Asset_has_no_content_address of string
+    | Current_tree_has_no_uri
     | Duplicate_tree of URI.t
     | Parse_error
     | Unbound_method of (string * Value.obj)
@@ -71,6 +72,7 @@ module Message = struct
     | Invalid_URI -> Error
     | Unbound_method _ -> Error
     | Asset_has_no_content_address _ -> Error
+    | Current_tree_has_no_uri -> Error
     | Reference_error _ -> Error
     | Duplicate_tree _ -> Error
     | Tree_not_found _ -> Error
@@ -99,6 +101,7 @@ module Message = struct
     | Invalid_URI -> "invalid_uri"
     | Tree_not_found _ -> "tree_not_found"
     | Asset_has_no_content_address _ -> "asset_not_found" (* This is taken from the original wording of the message, but I think this is very confusing.*)
+    | Current_tree_has_no_uri -> "current_tree_has_no_uri"
     | Duplicate_tree _ -> "duplicate_tree"
     | Parse_error -> "parse_error"
     | Unbound_method _ -> "unbound_method"
@@ -148,6 +151,7 @@ module Message = struct
     | External_error
     | Resource_not_found _
     | Broken_link _
+    | Current_tree_has_no_uri
     | IO_error
     | Log
     | Missing_argument ->

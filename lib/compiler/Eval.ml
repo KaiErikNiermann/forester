@@ -77,6 +77,11 @@ module Emitted_trees = Algaeff.State.Make(struct type t = T.content T.article li
 module Jobs = Algaeff.State.Make(struct type t = Job.job Range.located list end)
 module Frontmatter = Algaeff.State.Make(struct type t = T.content T.frontmatter end)
 
+let get_current_uri ~loc =
+  match (Frontmatter.get ()).uri with
+  | Some uri -> uri
+  | None -> Reporter.fatal ?loc Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "No uri for tree"]
+
 let get_transclusion_flags ~loc =
   let dynenv = Dyn_env.read () in
   let get_bool key =
@@ -97,11 +102,12 @@ let get_transclusion_flags ~loc =
 let resolve_uri ~loc: _ str =
   match URI.of_string_exn str with
   | uri ->
-    match URI.host uri with
-    | Some _ -> Ok uri
-    | None ->
+    (* If the URI is just a single component without anything else, we should treat it as a link to a local tree. *)
+    match URI.scheme uri, URI.host uri, URI.path_components uri with
+    | None, None, ([] | [_]) ->
       let config = Config_env.read () in
       Result.ok @@ URI_scheme.named_uri ~base: config.url str
+    | _ -> Ok uri
     | exception _ -> Error "Invalid URI"
 
 let extract_uri (node : located) =
@@ -262,17 +268,28 @@ and eval_node node : Value.t =
         emit_content_node ~loc @@ Results_of_datalog_query query
       | other -> Reporter.fatal ?loc: arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
     end
-  | Publish_results_of_query ->
+  | Syndicate_query_as_json_blob ->
     let name = pop_text_arg ~loc in
+    let config = Config_env.read () in
+    let blob_uri = URI_scheme.named_uri ~base: config.url @@ name ^ ".json" in
     let query_arg = eval_pop_arg ~loc in
     begin
       match query_arg.value with
       | Dx_query query ->
-        let job = Job.Publish {name; query; format = Json_blob} in
-        Jobs.modify (List.cons (Range.locate_opt loc job));
+        let job = Job.Syndicate (Json_blob {blob_uri; query}) in
+        Jobs.modify @@ List.cons @@ Range.locate_opt loc job;
         process_tape ()
       | other -> Reporter.fatal ?loc: query_arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
     end
+  | Syndicate_current_tree_as_atom_feed ->
+    let source_uri = get_current_uri ~loc: node.loc in
+    let feed_uri =
+      let components = URI.path_components source_uri @ ["atom.xml"] in
+      URI.with_path_components components source_uri
+    in
+    let job = Job.Syndicate (Atom_feed {source_uri; feed_uri}) in
+    Jobs.modify @@ List.cons @@ Range.locate_opt loc job;
+    process_tape ()
   | Embed_tex ->
     let config = Config_env.read () in
     let preamble = pop_content_arg ~loc |> T.TeX_like.string_of_content in
@@ -520,12 +537,7 @@ and eval_node node : Value.t =
     let script = eval_pop_arg ~loc: node.loc |> extract_dx_sequent in
     emit_content_node ~loc: node.loc @@ T.Datalog_script [script]
   | Current_tree ->
-    let uri =
-      match (Frontmatter.get ()).uri with
-      | Some uri -> uri
-      | None -> Reporter.fatal ?loc: node.loc Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "No uri for tree"]
-    in
-    emit_content_node ~loc: node.loc @@ T.Uri uri
+    emit_content_node ~loc: node.loc @@ T.Uri (get_current_uri ~loc: node.loc)
 
 and eval_var ~loc x =
   let env = Lex_env.read () in

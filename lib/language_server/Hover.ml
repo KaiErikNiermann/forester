@@ -36,7 +36,7 @@ let compute ({position; textDocument; _}: L.HoverParams.t) =
         | Some node ->
           let tree_under_cursor =
             let* {value = addr; _} = Analysis.extract_addr node in
-            let uri_under_cursor = URI_scheme.named_uri ~base:forest.config.url addr in
+            let uri_under_cursor = URI_scheme.named_uri ~base: forest.config.url addr in
             State.get_article uri_under_cursor forest
           in
           match tree_under_cursor with

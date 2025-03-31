@@ -7,11 +7,6 @@
 open Forester_core
 open Types
 
-type publication_format =
-(* | Rss *)
-| Json_blob
-[@@deriving show]
-
 type latex_to_svg_job = {
   hash: string;
   source: string;
@@ -21,14 +16,7 @@ type latex_to_svg_job = {
 let uri_for_latex_to_svg_job ~(base : URI.t) (job : latex_to_svg_job) =
   URI_scheme.named_uri ~base @@ job.hash ^ ".svg"
 
-type publication = {
-  name: string;
-  format: publication_format;
-  query: dx_query
-}
-[@@deriving show]
-
 type job =
   | LaTeX_to_svg of latex_to_svg_job
-  | Publish of publication
+  | Syndicate of content syndication
 [@@deriving show]

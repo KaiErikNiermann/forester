@@ -109,15 +109,11 @@ let to_article : t -> T.content T.article option = function
   | Resource {tree; _;} ->
     match tree with
     | T.Article a -> Some a
-    | T.Asset _ -> None
+    | _ -> None
 
 let get_frontmatter : t -> T.content T.frontmatter option = function
-  | Document _
-  | Parsed _
-  | Expanded _
-  | Resource {tree = Types.Asset _; _} ->
-    None
   | Resource {tree = Types.Article {frontmatter; _}; _} -> Some frontmatter
+  | _ -> None
 
 let to_code : t -> code option = function
   | Document _doc ->
@@ -173,8 +169,8 @@ let is_asset = function
   | Document _ | Parsed _ | Expanded _ -> false
   | Resource {tree; _} ->
     match tree with
-    | T.Article _ -> false
     | T.Asset _ -> true
+    | _ -> false
 
 let update_units
   : t -> exports -> t

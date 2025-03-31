@@ -138,6 +138,23 @@ let render_forest ~dev ~(forest : State.t) : unit =
       | T.Asset asset ->
         let route = URI.path_string @@ Legacy_xml_client.route forest asset.uri in
         [route, asset.content]
+      | T.Syndication (Json_blob {blob_uri; query}) ->
+        let vertices = Forest.run_datalog_query forest.graphs query in
+        let resources =
+          let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
+          match vertex with
+          | Content_vertex _ -> None
+          | Uri_vertex uri -> State.get_resource forest uri
+        in
+        let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
+        let path_components = Legacy_xml_client.local_path_components forest.config blob_uri in
+        let json_route = String.concat "/" path_components in
+        [json_route, json_content]
+      | T.Syndication (Atom_feed {source_uri; feed_uri}) ->
+        let atom_route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config feed_uri in
+        let atom_nodes = Atom_client.render_feed forest ~source_uri ~feed_uri in
+        let atom_content = Format.asprintf "%a" (Pure_html.pp_xml ~header: true) atom_nodes in
+        [atom_route, atom_content]
   in
   Logs.debug (fun m -> m "Writing %i files to output" (List.length jobs));
   begin

@@ -47,20 +47,6 @@ module Loop_detection = Loop_detection_effect.Make ()
 (* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
 let transclusion_cache = Hashtbl.create 1000
 
-let get_sorted_articles (forest : State.t) addrs =
-  let module C = Types.Comparators(struct
-    let string_of_content =
-      Plain_text_client.string_of_content
-        ~forest
-        ~router: (route forest)
-  end) in
-  addrs
-  |> Vertex_set.to_seq
-  |> Seq.filter_map Vertex.uri_of_vertex
-  |> Seq.filter_map (fun uri -> State.get_article uri forest)
-  |> List.of_seq
-  |> List.sort C.compare_article
-
 let render_xml_qname qname =
   let qname = Xmlns.normalise_qname qname in
   match qname.prefix with
@@ -172,7 +158,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
       match resource with
       | T.Article article ->
         article.frontmatter.number
-      | T.Asset _ -> None
+      | _ -> None
     in
     begin
       match custom_number with
@@ -199,7 +185,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
         }
     in
     let results = Forest.run_datalog_query forest.graphs q in
-    let@ article = List.map @~ get_sorted_articles forest results in
+    let@ article = List.map @~ Forest_util.get_sorted_articles forest results in
     render_section forest @@ article_to_section article
   | Section section ->
     [render_section forest section]
@@ -263,33 +249,9 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
   in
   [X.link attrs @@ render_content forest link.content]
 
-(* Note: this is not a big bottleneck. *)
-and render_attributions (forest : State.t) (scope : URI.t option) (attributions : _ T.attribution list) =
-  let all_attributions =
-    match scope with
-    | None -> attributions
-    | Some uri ->
-      let indirect_attributions =
-        let open Datalog_expr.Notation in
-        let articles =
-          let x = "X" in
-          let positives = [Builtin_relation.has_indirect_contributor @* [const (T.Uri_vertex uri); var x]] in
-          let negatives = [] in
-          Datalog_expr.{var = x; positives; negatives}
-          |> Forest.run_datalog_query forest.graphs
-          |> get_sorted_articles forest
-        in
-        let@ biotree = List.filter_map @~ articles in
-        let@ uri = Option.map @~ biotree.frontmatter.uri in
-        T.{vertex = T.Uri_vertex uri; role = Contributor}
-      in
-      attributions @
-        let@ attribution = List.filter_map @~ indirect_attributions in
-        if List.exists (fun (existing : _ T.attribution) -> Vertex.equal attribution.vertex existing.vertex) attributions then None
-        else
-          Some attribution
-  in
-  X.authors [] @@ List.map (render_attribution forest) all_attributions
+and render_attributions (forest : State.t) (scope : URI.t option) (primary_attributions : _ T.attribution list) =
+  X.authors [] @@ List.map (render_attribution forest) @@
+  Forest_util.collect_attributions forest scope primary_attributions
 
 and render_attribution forest (attrib : _ T.attribution) =
   let tag =

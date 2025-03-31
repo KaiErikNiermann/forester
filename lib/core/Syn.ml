@@ -45,7 +45,8 @@ type node =
   | Dx_const of [`Content | `Uri] * t
   | Dx_execute
   | Route_asset
-  | Publish_results_of_query
+  | Syndicate_query_as_json_blob
+  | Syndicate_current_tree_as_atom_feed
   | Current_tree
 [@@deriving show]
 
