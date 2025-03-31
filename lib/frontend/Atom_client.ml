@@ -61,9 +61,14 @@ let render_dates_exn dates =
   let oldest, newest = List.hd sorted_dates, List.hd (List.rev sorted_dates) in
   A.null
     [
-      A.published [] "%s" @@ Format.asprintf "%a" Human_datetime.pp oldest;
-      A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
+      A.published [] "%s" @@ Format.asprintf "%a" Human_datetime.pp_rfc_3399 oldest;
+      A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp_rfc_3399 newest
     ]
+
+let render_updated_date dates =
+    let sorted_dates = List.sort Human_datetime.compare dates in
+    let newest = List.hd (List.rev sorted_dates) in
+    A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
 
 let render_dates dates =
   try render_dates_exn dates with _ -> A.null []
@@ -133,7 +138,7 @@ let render_entry ~(forest : State.t) ?(scope : URI.t option) (article : T.conten
           A.type_ "xhtml"
         ]
         [
-          Html_client.render_article ~heading_level: 1 forest article
+          Html_client.render_article_as_div ~heading_level: 1 forest article
         ]
     ]
 
@@ -151,7 +156,7 @@ let render_feed (forest : State.t) ~(source_uri : URI.t) ~(feed_uri : URI.t) : P
       []
       [
         render_attributions forest blog.frontmatter.uri blog.frontmatter.attributions;
-        render_dates all_dates;
+        render_updated_date all_dates;
         render_title forest blog.frontmatter;
         A.id [] "%s" blog_uri_string;
         A.link [A.rel "alternate"; A.href "%s" blog_uri_string];

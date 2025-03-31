@@ -8,6 +8,7 @@ type t
 val t : t Repr.t
 
 val pp : Format.formatter -> t -> unit
+val pp_rfc_3399 : Format.formatter -> t -> unit
 
 val compare : t -> t -> int
 

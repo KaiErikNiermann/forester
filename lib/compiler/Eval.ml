@@ -285,7 +285,7 @@ and eval_node node : Value.t =
   | Syndicate_current_tree_as_atom_feed ->
     let source_uri = get_current_uri ~loc: node.loc in
     let feed_uri =
-      let components = URI.path_components source_uri @ ["atom.xml"] in
+      let components = URI.append_path_component (URI.path_components source_uri) "atom.xml" in
       URI.with_path_components components source_uri
     in
     let job = Job.Syndicate (Atom_feed {source_uri; feed_uri}) in

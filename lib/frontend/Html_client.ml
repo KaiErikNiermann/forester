@@ -142,7 +142,7 @@ and render_section forest (section : T.content T.section) : P.node list =
       ]
   ]
 
-let render_article ?(heading_level = 0) (forest : State.t) (article : T.content T.article) : P.node =
+let render_article_as_div ?(heading_level = 0) (forest : State.t) (article : T.content T.article) : P.node =
   let@ () = Section_depth.run ~env: heading_level in
   let@ () = Scope.run ~env: article.frontmatter.uri in
   let@ () = Loop_detection.run in
@@ -151,7 +151,7 @@ let render_article ?(heading_level = 0) (forest : State.t) (article : T.content 
   ]
   in
   let@ () = Xmlns.run ~reserved in
-  P.HTML.article
+  P.HTML.div
     (List.map render_xmlns_prefix reserved)
     [
       let@ () = Loop_detection.add_seen_uri_opt article.frontmatter.uri in
