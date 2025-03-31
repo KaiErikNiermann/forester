@@ -117,8 +117,8 @@ let render_forest ~dev ~(forest : State.t) : unit =
     EP.save ~create: (`Or_truncate 0o644) json_path json_string
   end;
   let jobs =
-    let home_route = String.concat "/" @@ URI.path_components forest.config.url @ ["index.html"] in
-    let home_content = html_redirect @@ String.concat "/" @@ Legacy_xml_client.local_path_components forest.config (Config.home_uri forest.config) in
+    let home_route = String.concat "/" @@ URI.append_path_component (URI.stripped_path_components forest.config.url) "index.html" in
+    let home_content = html_redirect @@ String.concat "/" @@ "" :: Legacy_xml_client.local_path_components forest.config (Config.home_uri forest.config) @ [""] in
     List.cons [home_route, home_content] @@
       let@ resource = Eio.Fiber.List.map ~max_fibers: 40 @~ List.of_seq all_resources in
       let@ () = Reporter.easy_run in
@@ -129,14 +129,14 @@ let render_forest ~dev ~(forest : State.t) : unit =
           | None -> []
           | Some uri ->
             let path_components = Legacy_xml_client.local_path_components forest.config uri in
-            let xml_route = String.concat "/" @@ path_components @ ["index.xml"] in
-            let html_route = String.concat "/" @@ path_components @ ["index.html"] in
+            let xml_route = String.concat "/" @@ URI.append_path_component path_components "index.xml" in
+            let html_route = String.concat "/" @@ URI.append_path_component path_components "index.html" in
             let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-            let html_content = html_redirect "index.xml" in
+            let html_content = html_redirect @@ "/" ^ xml_route in
             [xml_route, xml_content; html_route, html_content]
         end
       | T.Asset asset ->
-        let route = URI.path_string @@ Legacy_xml_client.route forest asset.uri in
+        let route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config asset.uri in
         [route, asset.content]
       | T.Syndication (Json_blob {blob_uri; query}) ->
         let vertices = Forest.run_datalog_query forest.graphs query in

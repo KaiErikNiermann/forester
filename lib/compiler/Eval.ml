@@ -106,7 +106,8 @@ let resolve_uri ~loc: _ str =
     match URI.scheme uri, URI.host uri, URI.path_components uri with
     | None, None, ([] | [_]) ->
       let config = Config_env.read () in
-      Result.ok @@ URI_scheme.named_uri ~base: config.url str
+      let uri = URI_scheme.named_uri ~base: config.url str in
+      Result.ok uri
     | _ -> Ok uri
     | exception _ -> Error "Invalid URI"
 

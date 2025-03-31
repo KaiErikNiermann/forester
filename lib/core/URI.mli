@@ -9,6 +9,8 @@ type t
 val host : t -> string option
 val scheme : t -> string option
 val path_string : t -> string
+val stripped_path_components : t -> string list
+val append_path_component : string list -> string -> string list
 val path_components : t -> string list
 val with_path_components : string list -> t -> t
 

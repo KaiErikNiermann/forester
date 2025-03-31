@@ -8,7 +8,10 @@ open Forester_prelude
 
 let named_uri ~base name =
   URI.resolve ~base @@
-    URI.make ~path: [name] ()
+    let path =
+      if Filename.extension name = "" then [name; ""] else [name]
+    in
+    URI.make ~path ()
 
 let last_segment str =
   str

@@ -26,12 +26,12 @@ let local_path_components (config : Config.t) (uri : URI.t) =
   let host = Option.get @@ URI.host uri in
   let base_host = Option.get @@ URI.host config.url in
   if host = base_host then
-    URI.path_components uri
+    URI.stripped_path_components uri
   else
-    "foreign" :: host :: URI.path_components uri
+    "foreign" :: host :: URI.stripped_path_components uri
 
 let local_base_url_string (config : Config.t) =
-  let path = "" :: URI.path_components config.url @ [""] in
+  let path = URI.path_components config.url in
   String.concat "/" path
 
 let route (forest : State.t) uri : URI.t =

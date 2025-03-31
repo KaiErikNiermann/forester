@@ -31,11 +31,21 @@ module Basics = struct
   let port x = x.port
 
   let path_components x =
-    List.filter (function "" -> false | _ -> true) @@
     String.split_on_char '/' @@ Uri.pct_decode x.path
+
+let rec strip_path_components xs =
+  match xs with
+  | "" :: xs -> strip_path_components xs
+  | xs -> xs
+
+  let stripped_path_components x =
+    strip_path_components @@ path_components x
 
   let path_string x =
     String.concat "/" @@ path_components x
+
+  let append_path_component xs x =
+    List.rev @@ x :: strip_path_components (List.rev xs)
 
   let equal = (=)
   let compare = compare
@@ -68,7 +78,8 @@ module Basics = struct
     dehydrate @@ Uri.canonicalize @@ Uri.make ?scheme ?userinfo: user ?host ?port ?path ()
 
   let relative_path_string ~(base : t) uri : string =
-    Str.replace_first (Str.regexp (Format.asprintf "^%a" pp base)) "" @@ to_string uri
+    Str.replace_first (Str.regexp (Format.asprintf "^%a" pp base)) "" @@
+    to_string @@ with_path_components (List.rev @@ strip_path_components @@ List.rev @@ path_components uri) uri
 
   let display_path_string ~base uri =
     Filename.remove_extension @@
