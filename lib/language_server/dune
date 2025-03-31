@@ -12,6 +12,7 @@
   repr
   unix
   ocamlgraph
+  forester.search
   forester.prelude
   forester.core
   forester.compiler
