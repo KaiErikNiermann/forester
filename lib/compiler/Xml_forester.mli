@@ -34,7 +34,8 @@ val mainmatter : std_tag
 val backmatter : std_tag
 
 val taxon : std_tag
-val addr : _ text_tag
+val uri : _ text_tag
+val display_uri : _ text_tag
 val route : _ text_tag
 val source_path : _ text_tag
 val date : std_tag
@@ -52,7 +53,8 @@ val contributor : std_tag
 
 val link : std_tag
 val type_ : _ string_attr
-val addr_ : _ string_attr
+val uri_ : _ string_attr
+val display_uri_ : _ string_attr
 val title_ : _ string_attr
 val text_ : _ string_attr
 

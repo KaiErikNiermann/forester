@@ -20,7 +20,7 @@ module L = Lsp.Types
 
 type test_env = {
   dirs: Eio.Fs.dir_ty Eio.Path.t list;
-  config: Forester_compiler.Config.t;
+  config: Config.t;
   position: L.Position.t;
 }
 
@@ -28,7 +28,7 @@ let find_doc (env : test_env) addr =
   let path =
     Eio.Path.native_exn @@
     Option.get @@
-    Dir_scanner.find_tree env.dirs (URI_scheme.user_uri ~host: env.config.host addr)
+    Dir_scanner.find_tree env.dirs (URI_scheme.named_uri ~base: env.config.url addr)
   in
   ({uri = Lsp.Uri.of_path path}: L.TextDocumentIdentifier.t)
 
@@ -37,8 +37,8 @@ module Test_env = Algaeff.State.Make(struct type t = test_env end)
 let find_tree addr =
   let env = Test_env.get () in
   let dirs = env.dirs in
-  let host = env.config.host in
-  Eio.Path.native_exn @@ Option.get @@ Dir_scanner.find_tree dirs (URI_scheme.user_uri ~host addr)
+  Eio.Path.native_exn @@ Option.get @@ Dir_scanner.find_tree dirs @@
+  URI_scheme.named_uri ~base: env.config.url addr
 
 let test_code_actions () =
   let@ () = Reporter.easy_run in

@@ -34,7 +34,7 @@ let render_lsp_diagnostic (uri : L.DocumentUri.t) (diag : diagnostic) : Lsp_Diag
   let code = `String (Reporter.Message.short_code diag.message) in
   let source =
     let Lsp_state.{forest; _} = Lsp_state.get () in
-    let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
+    let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url uri in
     match Option.bind (State.find_opt forest uri) Tree.to_doc with
     | None -> None
     | Some doc ->

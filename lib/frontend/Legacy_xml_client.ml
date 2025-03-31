@@ -22,71 +22,27 @@ module Xmlns = struct
     k X.reserved_xmlnss
 end
 
-let uri_to_string ~(config : Config.t) uri =
-  match URI.host uri with
-  | Some host when URI.scheme uri = Some URI_scheme.scheme ->
-    if host = config.host then
-      URI.path_string uri
-    else
-      URI.to_string uri
-  | _ -> URI.to_string uri (* used to be not percent-encoded; does it matter? *)
+let local_path_components (config : Config.t) (uri : URI.t) =
+  let host = Option.get @@ URI.host uri in
+  let base_host = Option.get @@ URI.host config.url in
+  if host = base_host then
+    URI.path_components uri
+  else
+    "foreign" :: host :: URI.path_components uri
 
-let home_uri ~(config : Config.t) =
-  let@ root = Option.bind config.home in
-  let base = URI_scheme.base_uri ~host: config.host in
-  try
-    Option.some @@ URI.resolve ~base @@ URI.of_string_exn root
-  with
-    | _ -> None
-
-let uri_is_home ~config uri =
-  match home_uri ~config with
-  | Some home_uri ->
-    (* By this point, any URIs should be in normal form. *)
-    URI.equal home_uri uri
-  | None -> false
-
-let rec map_last f xs =
-  match xs with
-  | [] -> []
-  | [x] -> [f x]
-  | x :: xs -> x :: map_last f xs
-
-let route_resource_uri ~suffix (forest : State.t) uri =
-  let config = forest.config in
-  let host = Option.value ~default: "" @@ URI.host uri in
-  let components =
-    map_last (fun x -> x ^ suffix) @@
-      if uri_is_home ~config uri then ["index"]
-      else URI.path_components uri
-  in
-  let prefix_components =
-    if host = config.host then []
-    else ["foreign"; host]
-  in
-  prefix_components @ components
+let local_base_url_string (config : Config.t) =
+  let path = "" :: URI.path_components config.url @ [""] in
+  String.concat "/" path
 
 let route (forest : State.t) uri : URI.t =
-  let uri' =
-    match State.find_opt forest uri with
-    | Some (Resource resource) ->
-      let suffix =
-        match resource.tree with
-        | T.Article _ -> ".xml"
-        | T.Asset _ -> ""
-      in
-      let path = route_resource_uri ~suffix forest uri in
-      URI.make ~path ()
-    | Some _ -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "%a has not been evaluated yet" URI.pp uri]
-    | None when URI.scheme uri = Some URI_scheme.scheme ->
-      Reporter.emit (Broken_link uri) ~extra_remarks: [Asai.Diagnostic.loctextf "Could not route link to resource %a" URI.pp uri];
-      uri
-    | None -> uri
-  in
-  URI.resolve ~base: (URI.of_string_exn forest.config.base_url) uri'
+  match forest.={uri} with
+  | None -> uri
+  | Some _ ->
+    let path = "" :: local_path_components forest.config uri in
+    URI.make ~path ()
 
 module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
-module Loop_detection = Algaeff.Reader.Make(struct type t = URI.Set.t end)
+module Loop_detection = Loop_detection_effect.Make ()
 
 (* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
 let transclusion_cache = Hashtbl.create 1000
@@ -127,24 +83,6 @@ let render_section_flags (dict : T.section_flags) = [
   X.optional_ X.toc dict.included_in_toc;
   X.optional_ X.numbered dict.numbered
 ]
-
-let add_seen_uri uri kont =
-  let@ () = Loop_detection.scope @@ URI.Set.add uri in
-  kont ()
-
-let add_seen_uri_opt uri_opt kont =
-  match uri_opt with
-  | None -> kont ()
-  | Some uri -> add_seen_uri uri kont
-
-let have_seen_uri uri =
-  URI.Set.mem uri @@ Loop_detection.read ()
-
-let have_seen_uri_opt uri_opt =
-  match uri_opt with
-  | None -> false
-  | Some uri -> have_seen_uri uri
-
 let rec render_section forest (section : T.content T.section) : P.node =
   let@ _ = Xmlns.run in
   X.tree
@@ -153,15 +91,14 @@ let rec render_section forest (section : T.content T.section) : P.node =
       render_frontmatter forest section.frontmatter;
       let@ () = Scope.run ~env: section.frontmatter.uri in
       X.mainmatter [] @@
-        if have_seen_uri_opt section.frontmatter.uri then
+        if Loop_detection.have_seen_uri_opt section.frontmatter.uri then
           [X.info [] [P.txt "Transclusion loop detected, rendering stopped."]]
         else
-          let@ () = add_seen_uri_opt section.frontmatter.uri in
+          let@ () = Loop_detection.add_seen_uri_opt section.frontmatter.uri in
           render_content forest section.mainmatter
     ]
 
 and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : P.node =
-  let config = forest.config in
   let result =
     X.frontmatter
       []
@@ -169,18 +106,22 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
         render_attributions forest frontmatter.uri frontmatter.attributions;
         render_dates forest frontmatter.dates;
         X.conditional forest.dev (X.optional (X.source_path [] "%s") frontmatter.source_path);
-        X.optional (fun uri -> X.addr [] "%s" @@ uri_to_string ~config uri) frontmatter.uri;
+        X.optional (fun uri -> X.uri [] "%s" @@ URI.to_string uri) frontmatter.uri;
+        X.optional (fun uri -> X.display_uri [] "%s" @@ URI.display_path_string ~base: forest.config.url uri) frontmatter.uri;
         X.optional (X.route [] "%s") @@ Option.map (Fun.compose URI.to_string (route forest)) frontmatter.uri;
         begin
-          let title = State.get_expanded_title frontmatter forest in
-          X.title [X.text_ "%s" @@ Plain_text_client.string_of_content ~forest ~router: (route forest) title] @@
-            render_content forest title
+          match frontmatter.title with
+          | None -> X.null []
+          | Some _ ->
+            let title = State.get_expanded_title ?scope: (Scope.read ()) frontmatter forest in
+            X.title [X.text_ "%s" @@ Plain_text_client.string_of_content ~forest ~router: (route forest) title] @@
+              render_content forest title
         end;
         begin
           match frontmatter.taxon with
           | None -> X.null []
           | Some taxon ->
-            X.taxon [] @@ render_content forest (T.apply_modifier_to_content T.Sentence_case taxon)
+            X.taxon [] @@ render_content forest taxon
         end;
         X.null @@ List.map (render_meta forest) frontmatter.metas
       ]
@@ -202,14 +143,13 @@ and render_content (forest : State.t) (Content content: T.content) : P.node list
   | [] -> []
 
 and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node list =
-  let config = forest.config in
   match node with
   | Text str ->
     [P.txt "%s" str]
   | CDATA str ->
     [P.txt ~raw: true "<![CDATA[%s]]>" str]
   | Uri uri ->
-    [P.txt "%s" (URI.relative_path_string ~host: config.host uri)]
+    [P.txt "%s" (URI.display_path_string ~base: forest.config.url uri)]
   | Route_of_uri uri ->
     [P.txt "%s" (URI.to_string (route forest uri))]
   | Xml_elt elt ->
@@ -226,10 +166,9 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
     [P.std_tag name attrs content]
   | Transclude transclusion ->
     render_transclusion forest transclusion
-  | Contextual_number addr ->
+  | Contextual_number uri ->
     let custom_number =
-      (* let@ resource = Option.bind @@ State.find_opt forest addr in *)
-      let@ resource = Option.bind @@ forest.@{addr} in
+      let@ resource = Option.bind @@ forest.@{uri} in
       match resource with
       | T.Article article ->
         article.frontmatter.number
@@ -237,7 +176,14 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
     in
     begin
       match custom_number with
-      | None -> [X.contextual_number [X.addr_ "%s" @@ uri_to_string ~config addr]]
+      | None ->
+        [
+          X.contextual_number
+            [
+              X.uri_ "%s" @@ URI.to_string uri;
+              X.display_uri_ "%s" @@ URI.display_path_string ~base: forest.config.url uri
+            ]
+        ]
       | Some num -> [P.txt "%s" num]
     end
   | Link link ->
@@ -296,8 +242,7 @@ and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.n
       nodes
 
 and render_link (forest : State.t) (link : T.content T.link) : P.node list =
-  let config = forest.config in
-  let article_opt = Option.bind forest.={link.href} Tree.to_article in
+  let article_opt = State.get_article link.href forest in
   let attrs =
     match article_opt with
     | None ->
@@ -309,9 +254,10 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
       [
         X.optional_ (X.href "%s") @@ Option.map (Fun.compose URI.to_string @@ route forest) article.frontmatter.uri;
         X.title_ "%s" @@
-        Plain_text_client.string_of_content ~forest ~router: (route forest) @@
-        State.get_expanded_title article.frontmatter forest;
-        X.optional_ (X.addr_ "%s") @@ Option.map (uri_to_string ~config) article.frontmatter.uri;
+        Plain_text_client.string_of_content ~forest: forest ~router: (route forest) @@
+        State.get_expanded_title ?scope: (Scope.read ()) article.frontmatter forest;
+        X.optional_ (X.uri_ "%s") @@ Option.map URI.to_string article.frontmatter.uri;
+        X.optional_ (X.display_uri_ "%s") @@ Option.map (URI.display_path_string ~base: forest.config.url) article.frontmatter.uri;
         X.type_ "local"
       ]
   in
@@ -356,7 +302,7 @@ and render_attribution forest (attrib : _ T.attribution) =
 and render_attribution_vertex (forest : State.t) vtx =
   match vtx with
   | T.Uri_vertex href ->
-    let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}; modifier = Identity}] in
+    let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}}] in
     render_link forest T.{href; content}
   | T.Content_vertex content ->
     render_content forest content
@@ -368,8 +314,7 @@ and render_date forest (date : Human_datetime.t) =
   let config = forest.config in
   let href_attr =
     let str = Format.asprintf "%a" Human_datetime.pp (Human_datetime.drop_time date) in
-    let base = URI_scheme.base_uri ~host: config.host in
-    let uri = URI.resolve ~base (URI.of_string_exn str) in
+    let uri = URI_scheme.named_uri ~base: config.url str in
     match State.get_article uri forest with
     | None -> X.null_
     | Some _ -> X.href "%s" @@ URI.to_string @@ route forest uri
@@ -385,22 +330,26 @@ and render_date forest (date : Human_datetime.t) =
 let render_article (forest : State.t) (article : T.content T.article) : P.node =
   let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.uri in
   let config = forest.config in
-  let@ () = Loop_detection.run ~env: URI.Set.empty in
+  let@ () = Loop_detection.run in
   let@ () = Scope.run ~env: article.frontmatter.uri in
   let@ xmlnss = Xmlns.run in
   X.tree
     begin
       List.map render_xmlns_prefix xmlnss @
         [
-          X.optional_ X.root @@ Option.map (uri_is_home ~config) article.frontmatter.uri;
-          P.string_attr "base-url" "%s" config.base_url
+          X.optional_ X.root @@
+            begin
+              let@ uri = Option.map @~ article.frontmatter.uri in
+              URI.equal (Config.home_uri config) uri
+            end;
+          P.string_attr "base-url" "%s" (local_base_url_string config)
         ]
     end
     [
       render_frontmatter forest article.frontmatter;
       X.mainmatter [] @@
         begin
-          let@ () = add_seen_uri_opt article.frontmatter.uri in
+          let@ () = Loop_detection.add_seen_uri_opt article.frontmatter.uri in
           render_content forest article.mainmatter
         end;
       X.backmatter [] @@ render_content forest article.backmatter
@@ -411,8 +360,7 @@ let pp_xml ~(forest : State.t) ?stylesheet fmt (article : _ T.article) =
   Format.pp_print_newline fmt ();
   begin
     let@ xsl_path = Option.iter @~ stylesheet in
-    let base_url = forest.config.base_url in
-    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"%s%s\"?>" base_url xsl_path
+    Format.fprintf fmt "<?xml-stylesheet type=\"text/xsl\" href=\"%s%s\"?>" (local_base_url_string forest.config) xsl_path
   end;
   Format.pp_print_newline fmt ();
   P.pp_xml fmt @@ render_article forest article

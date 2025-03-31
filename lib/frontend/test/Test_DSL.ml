@@ -91,7 +91,7 @@ let test () =
             T.prim `Figcaption @@ T.Content [Text "caption"];
             CDATA "cdata";
             Xml_elt {name = {prefix = ""; uname = "html"; xmlns = None}; attrs = []; content = (Content [])};
-            Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter; modifier = Identity};
+            Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter};
             Contextual_number (URI.of_string_exn "chapter-3");
             KaTeX (Inline, Content [Text "a = b"]);
             Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = Content [Text "Forester"]};

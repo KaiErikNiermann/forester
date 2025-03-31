@@ -15,9 +15,11 @@ type publication_format =
 type latex_to_svg_job = {
   hash: string;
   source: string;
-  content: svg: string -> content
 }
 [@@deriving show]
+
+let uri_for_latex_to_svg_job ~(base : URI.t) (job : latex_to_svg_job) =
+  URI_scheme.named_uri ~base @@ job.hash ^ ".svg"
 
 type publication = {
   name: string;

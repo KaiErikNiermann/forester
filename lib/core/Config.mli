@@ -5,15 +5,16 @@
  *)
 
 type t = {
-  host: string;
-  home: string option;
   trees: string list;
   assets: string list;
   foreign: string list;
   theme: string;
-  base_url: string;
-  prefixes: string list;
+  url: URI.t;
+  home: URI.t option;
+  prefixes: string list; (* TODO: remove this as we no longer advocate using prefixes at all *)
 }
 [@@deriving show]
 
 val default : t
+
+val home_uri : t -> URI.t

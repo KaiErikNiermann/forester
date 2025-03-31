@@ -15,7 +15,7 @@ let parse_channel filename ch =
   lexbuf.lex_curr_p <- {lexbuf.lex_curr_p with pos_fname = filename};
   parse lexbuf
 
-let parse_document ~host doc =
+let parse_document ~(config : Config.t) doc =
   let uri = Lsp.Text_document.documentUri doc in
   let path = Lsp.Uri.to_path uri in
   let text = Lsp.Text_document.text doc in
@@ -26,7 +26,7 @@ let parse_document ~host doc =
       Tree.{
         nodes;
         origin = Physical doc;
-        identity = URI (URI_scheme.path_to_uri ~host path);
+        identity = URI (URI_scheme.path_to_uri ~base: config.url path);
         timestamp = Some (Unix.time ());
       }
     )

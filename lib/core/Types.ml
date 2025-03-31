@@ -105,14 +105,9 @@ type content_target =
   | Taxon
 [@@deriving show, repr]
 
-type modifier =
-  Sentence_case | Identity
-[@@deriving show, repr]
-
 type transclusion = {
   href: URI.t;
-  target: content_target;
-  modifier: modifier
+  target: content_target
 }
 [@@deriving show, repr]
 
@@ -203,7 +198,7 @@ let default_frontmatter ?uri ?source_path ?designated_parent ?(dates = []) ?(att
 let article_to_section ?(flags = default_section_flags) (article : 'a article) =
   let mainmatter =
     match article.frontmatter.uri with
-    | Some href -> Content [Transclude {href; target = Mainmatter; modifier = Identity}]
+    | Some href -> Content [Transclude {href; target = Mainmatter}]
     | None -> article.mainmatter
   in
   {
@@ -231,34 +226,6 @@ module Comparators (I : sig val string_of_content : content -> string end) = str
 
   let compare_article = compare_frontmatter |> Compare.under @@ fun x -> x.frontmatter
 end
-
-let compose_modifier mod0 mod1 =
-  match mod0, mod1 with
-  | Identity, mod1 -> mod1
-  | mod0, Identity -> mod0
-  | Sentence_case, Sentence_case -> Sentence_case
-
-let apply_modifier_to_string = function
-  | Sentence_case -> String_util.sentence_case
-  | Identity -> Fun.id
-
-let rec apply_modifier_to_content_nodes modifier = function
-  | [] -> []
-  | Text txt1 :: Text txt2 :: content ->
-    apply_modifier_to_content_nodes modifier @@ Text (txt1 ^ txt2) :: content
-  | node :: content ->
-    apply_modifier_to_content_node modifier node :: content
-
-and apply_modifier_to_content modifier =
-  map_content (apply_modifier_to_content_nodes modifier)
-
-and apply_modifier_to_content_node modifier = function
-  | Text str -> Text (apply_modifier_to_string modifier str)
-  | Transclude transclusion ->
-    Transclude {transclusion with modifier = compose_modifier modifier transclusion.modifier}
-  | Link link -> Link {link with content = apply_modifier_to_content modifier link.content}
-  | Xml_elt elt -> Xml_elt {elt with content = apply_modifier_to_content modifier elt.content}
-  | node -> node
 
 module TeX_like : sig
     val pp_content : Format.formatter -> content -> unit

@@ -67,11 +67,12 @@ module Basics = struct
     let path = Option.map (String.concat "/") path in
     dehydrate @@ Uri.canonicalize @@ Uri.make ?scheme ?userinfo: user ?host ?port ?path ()
 
-  let relative_path_string ~(host : string) uri : string =
-    if scheme uri = Some "forest" && uri.host = Some host then
-      path_string uri
-    else
-      to_string uri
+  let relative_path_string ~(base : t) uri : string =
+    Str.replace_first (Str.regexp (Format.asprintf "^%a" pp base)) "" @@ to_string uri
+
+  let display_path_string ~base uri =
+    Filename.remove_extension @@
+      relative_path_string ~base uri
 end
 
 module Set = Set.Make(Basics)

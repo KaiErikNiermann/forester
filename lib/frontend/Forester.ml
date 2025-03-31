@@ -8,9 +8,11 @@ open Forester_prelude
 open Forester_core
 open Forester_compiler
 
-module M = URI.Map
-module T = Types
-module EP = Eio.Path
+open struct
+  module M = URI.Map
+  module T = Types
+  module EP = Eio.Path
+end
 
 type env = Eio_unix.Stdenv.base
 type dir = Eio.Fs.dir_ty EP.t
@@ -51,8 +53,7 @@ let complete ~(forest : State.t) prefix : (string * string) List.t =
   let config = forest.config in
   let@ article = List.filter_map @~ List.of_seq @@ State.get_all_articles forest in
   let@ uri = Option.bind article.frontmatter.uri in
-  let@ uri = Option.bind @@ Option_util.guard URI_scheme.is_named_uri uri in
-  let uri = URI.relative_path_string ~host: config.host uri in
+  let short_uri = URI.display_path_string ~base: config.url uri in
   let@ title = Option.bind article.frontmatter.title in
   let title =
     Plain_text_client.string_of_content
@@ -61,7 +62,7 @@ let complete ~(forest : State.t) prefix : (string * string) List.t =
       title
   in
   if String.starts_with ~prefix title then
-    Some (uri, title)
+    Some (short_uri, title)
   else
     None
 
@@ -86,6 +87,24 @@ let json_manifest ~dev ~(forest : State.t) : string =
   |> (fun t -> `Assoc t)
   |> Yojson.Safe.to_string
 
+let html_redirect uri_string =
+  Pure_html.to_xml @@
+    let open Pure_html in
+    let open HTML in
+    html
+      []
+      [
+        head
+          []
+          [
+            meta
+              [
+                http_equiv `refresh;
+                content "0;url=%s" uri_string
+              ]
+          ]
+      ]
+
 let render_forest ~dev ~(forest : State.t) : unit =
   let cwd = Eio.Stdenv.cwd forest.env in
   let all_resources = forest |> State.get_all_resources in
@@ -97,44 +116,36 @@ let render_forest ~dev ~(forest : State.t) : unit =
     Eio_util.ensure_context_of_path ~perm: 0o755 json_path;
     EP.save ~create: (`Or_truncate 0o644) json_path json_string
   end;
-  let module Graphs = (val forest.graphs) in
   let jobs =
-    (* TODO: this takes a long time, but it does not seem to be the case that parallising helps at all. *)
-    let@ resource = Seq.filter_map @~ all_resources in
-    match resource with
-    | T.Article article ->
-      let@ uri = Option.map @~ article.frontmatter.uri in
-      let route = Legacy_xml_client.route forest uri in
-      let content = Format.asprintf "%a" Legacy_xml_client.(pp_xml ~forest ~stylesheet: "default.xsl") article in
-      route, content
-    | T.Asset asset ->
-      Option.some @@
-        let route = Legacy_xml_client.route forest asset.uri in
-        route, asset.content
+    let home_route = String.concat "/" @@ URI.path_components forest.config.url @ ["index.html"] in
+    let home_content = html_redirect @@ String.concat "/" @@ Legacy_xml_client.local_path_components forest.config (Config.home_uri forest.config) in
+    List.cons [home_route, home_content] @@
+      let@ resource = Eio.Fiber.List.map ~max_fibers: 40 @~ List.of_seq all_resources in
+      let@ () = Reporter.easy_run in
+      match resource with
+      | T.Article article ->
+        begin
+          match article.frontmatter.uri with
+          | None -> []
+          | Some uri ->
+            let path_components = Legacy_xml_client.local_path_components forest.config uri in
+            let xml_route = String.concat "/" @@ path_components @ ["index.xml"] in
+            let html_route = String.concat "/" @@ path_components @ ["index.html"] in
+            let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
+            let html_content = html_redirect "index.xml" in
+            [xml_route, xml_content; html_route, html_content]
+        end
+      | T.Asset asset ->
+        let route = URI.path_string @@ Legacy_xml_client.route forest asset.uri in
+        [route, asset.content]
   in
-  Logs.debug (fun m -> m "Writing %i files to output" (Seq.length jobs));
+  Logs.debug (fun m -> m "Writing %i files to output" (List.length jobs));
   begin
     (* Note: this part appears to be fast! *)
-    let@ (route, content) = Eio.Fiber.List.iter ~max_fibers: 20 @~ (List.of_seq jobs) in
+    let@ items = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
+    let@ (route : string), content = List.iter @~ items in
     let@ () = Reporter.easy_run in
-    let path = EP.(cwd / output_dir_name / URI.path_string route) in
+    let path = EP.(cwd / output_dir_name / route) in
     Eio_util.ensure_context_of_path ~perm: 0o755 path;
     EP.save ~create: (`Or_truncate 0o644) path content;
   end
-
-let export ~(forest : State.t) : unit =
-  Reporter.log Format.pp_print_string "Exporting forest";
-  let local_resources =
-    let@ resource = Seq.filter @~ State.get_all_resources forest in
-    match resource with
-    | T.Article {frontmatter = {uri = Some uri; _}; _} ->
-      URI.host uri = Some forest.config.host
-    | T.Asset asset -> URI.host asset.uri = Some forest.config.host
-    | _ -> false
-  in
-  let cwd = Eio.Stdenv.cwd forest.env in
-  let result = Repr.to_json_string ~minify: true (T.forest_t T.content_t) @@ List.of_seq local_resources in
-  let dir = Eio.Path.(cwd / "export") in
-  let filename = forest.config.host ^ ".json" in
-  Eio.Path.mkdirs ~exists_ok: true ~perm: 0o755 dir;
-  Eio.Path.save ~create: (`Or_truncate 0o644) Eio.Path.(dir / filename) result

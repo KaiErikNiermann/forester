@@ -9,8 +9,8 @@ open Forester_core
 include module type of URI.Tbl
 
 (**/**)
-module T = Forester_core.Types
-module Dx = Forester_core.Datalog_expr
+module T := Types
+module Dx := Datalog_expr
 
 val execute_datalog_script : (module Forest_graphs.S) -> (string, Vertex.t) Dx.sequent list -> unit
 (**/**)
@@ -55,7 +55,6 @@ val get_content_of_transclusion :
 
 val get_title_or_content_of_vertex :
   ?not_found: (key -> T.content option) ->
-  modifier: T.modifier ->
   T.content T.vertex ->
   T.content T.resource t ->
   T.content option

@@ -23,9 +23,7 @@ let compute ({position; textDocument; _}: L.HoverParams.t) =
       ~forest
       ~router: (Legacy_xml_client.route forest)
   in
-  let config = forest.config in
-  let host = config.host in
-  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host textDocument.uri in
+  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url textDocument.uri in
   let* content =
     match forest.={uri} with
     | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "%a is not in the index" URI.pp uri]
@@ -38,7 +36,7 @@ let compute ({position; textDocument; _}: L.HoverParams.t) =
         | Some node ->
           let tree_under_cursor =
             let* {value = addr; _} = Analysis.extract_addr node in
-            let uri_under_cursor = URI_scheme.user_uri ~host addr in
+            let uri_under_cursor = URI_scheme.named_uri ~base:forest.config.url addr in
             State.get_article uri_under_cursor forest
           in
           match tree_under_cursor with

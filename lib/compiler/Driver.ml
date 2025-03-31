@@ -8,11 +8,10 @@ open Forester_core
 open Forester_prelude
 open State.Syntax
 
-module T = Types
+open struct module T = Types end
 
 let update (action : Action.t) (forest : State.t) =
   let open Action in
-  let host = forest.config.host in
   let forest = State.update_history forest action in
   match action with
   | Quit e ->
@@ -35,7 +34,7 @@ let update (action : Action.t) (forest : State.t) =
     Seq.iter
       (fun doc ->
         let lsp_uri = Lsp.Text_document.documentUri doc in
-        let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
+        let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
         URI.Tbl.replace forest.resolver uri (Lsp.Uri.to_path lsp_uri);
         forest.={uri} <- Document doc
       )
@@ -61,7 +60,7 @@ let update (action : Action.t) (forest : State.t) =
     List.iter
       (fun diag ->
         let@ uri =
-          Option.iter @~ Option.map (URI_scheme.lsp_uri_to_uri ~host: forest.config.host) (Reporter.guess_uri diag)
+          Option.iter @~ Option.map (URI_scheme.lsp_uri_to_uri ~base: forest.config.url) (Reporter.guess_uri diag)
         in
         forest.?{uri} <- [diag]
       )
@@ -113,6 +112,7 @@ let update (action : Action.t) (forest : State.t) =
     Done, result
   | Plant_assets ->
     let@ () = Reporter.tracef "when planting assets" in
+    (* TODO: We really only need to plant the assets that are referred to (look for calls to Asset_router.uri_of_asset).*)
     let paths =
       Dir_scanner.scan_asset_directories
         (Eio_util.paths_of_dirs ~env: forest.env forest.config.assets)
@@ -121,9 +121,10 @@ let update (action : Action.t) (forest : State.t) =
     let module EP = Eio.Path in
     begin
       let@ path = Eio.Fiber.List.iter ~max_fibers: 20 @~ List.of_seq paths in
+      let@ () = Reporter.easy_run in
       let content = EP.load path in
       let source_path = EP.native_exn path in
-      let uri = Asset_router.install ~host: forest.config.host ~source_path ~content in
+      let uri = Asset_router.install ~config: forest.config ~source_path ~content in
       Logs.debug (fun m -> m "Installed %s at %a" source_path URI.pp uri);
       State.plant_resource (T.Asset {uri; content}) forest
     end;
@@ -141,18 +142,18 @@ let update (action : Action.t) (forest : State.t) =
     let doc = Imports.load_tree path in
     Logs.debug (fun m -> m "%s" (Lsp.Text_document.text doc));
     let lsp_uri = Lsp.Text_document.documentUri doc in
-    let uri = URI_scheme.lsp_uri_to_uri ~host lsp_uri in
+    let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
     forest.={uri} <- Document doc;
     Parse lsp_uri, forest
   | Parse uri ->
     let@ () = Reporter.tracef "when parsing %s" (Lsp.Uri.to_string uri) in
     Logs.debug (fun m -> m "Reparsing");
-    let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri in
+    let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url uri in
     begin
       match Option.bind forest.={uri} Tree.to_doc with
       | Some doc ->
         begin
-          match Parse.parse_document ~host doc with
+          match Parse.parse_document ~config: forest.config doc with
           | Ok code ->
             forest.={uri} <- Parsed code;
             forest.?{uri} <- [];

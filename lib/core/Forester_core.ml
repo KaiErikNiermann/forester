@@ -11,6 +11,7 @@ include Base
 
 module URI = URI
 module URI_scheme = URI_scheme
+module Config = Config
 
 (** {1 Vertices}
 

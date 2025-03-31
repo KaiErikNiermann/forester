@@ -15,7 +15,7 @@ let compute (params : L.DidChangeTextDocumentParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   match params with
   | {textDocument = {uri = lsp_uri; _}; contentChanges} ->
-    let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
+    let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
     match forest.={uri} with
     | None -> ()
     | Some tree ->

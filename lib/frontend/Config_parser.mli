@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Forester_compiler
+open Forester_core
 
 val parse_forest_config_string : string -> Config.t
 val parse_forest_config_file : string -> Config.t

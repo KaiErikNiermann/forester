@@ -11,7 +11,7 @@
  (targets)
  (action
   (progn
-   (run git clone https://git.sr.ht/~jonsterling/forester-notes.org)
+   (run git clone --branch canonical-uris https://git.sr.ht/~jonsterling/forester-notes.org)
    (chdir
     forester-notes.org
     (run %{bin:test-lsp})))))

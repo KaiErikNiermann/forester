@@ -7,7 +7,7 @@
 open Forester_core
 open Forester_compiler
 
-module T = Forester_core.Types
+module T := Types
 
 type query = {
   query: (string, T.content T.vertex) Forester_core.Datalog_expr.query;

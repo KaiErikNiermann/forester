@@ -14,7 +14,7 @@ type result = {
 [@@deriving show]
 
 val eval_tree :
-  host: string ->
+  config: Config.t ->
   uri: URI.t ->
   source_path: string option ->
   Syn.t ->

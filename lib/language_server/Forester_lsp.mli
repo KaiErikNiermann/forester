@@ -5,7 +5,7 @@
  *
  *)
 
-open Forester_compiler
+open Forester_core
 
 (**/**)
 module Lsp_state = Lsp_state

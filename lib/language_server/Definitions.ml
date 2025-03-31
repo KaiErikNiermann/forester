@@ -17,8 +17,7 @@ let compute (params : L.DefinitionParams.t) =
   match params with
   | {textDocument; position; _;} ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
-    let host = forest.config.host in
-    let uri = URI_scheme.lsp_uri_to_uri ~host textDocument.uri in
+    let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url textDocument.uri in
     match forest.={uri} with
     | None -> None
     | Some tree ->
@@ -28,7 +27,7 @@ let compute (params : L.DefinitionParams.t) =
         match Analysis.addr_at ~position nodes with
         | None -> None
         | Some {value = str; _} ->
-          let uri = URI_scheme.user_uri ~host str in
+          let uri = URI_scheme.named_uri ~base: forest.config.url str in
           match URI.Tbl.find_opt forest.resolver uri with
           | None -> None
           | Some path ->

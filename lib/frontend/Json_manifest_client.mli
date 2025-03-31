@@ -7,7 +7,7 @@
 open Forester_core
 open Forester_compiler
 
-module T = Types
+module T := Types
 
 val render_tree :
   dev: bool ->

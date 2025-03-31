@@ -40,12 +40,6 @@ let parse_section_flags (header : Http.Header.t) : T.section_flags option =
       expanded
     }
 
-let parse_modifier (header : Http.Header.t) : T.modifier option =
-  match Http.Header.get header "Modifier" with
-  | Some "Identity" -> Some Identity
-  | Some "Sentence-Case" -> Some Sentence_case
-  | _ -> None
-
 let parse_content_target (header : Http.Header.t) : T.content_target option =
   let open Http in
   match Header.get header "Taxon" with

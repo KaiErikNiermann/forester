@@ -19,7 +19,7 @@ let compute
       ~position_encoding: `UTF16
       params
   in
-  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
+  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
   forest.={uri} <- Document document;
   Lsp_state.modify (fun ({forest; _} as lsp_state) ->
     let new_forest = Driver.run_until_done (Action.Parse lsp_uri) forest in

@@ -14,18 +14,16 @@ open Forester_frontend
 module T = Types
 module HTML = Pure_html.HTML
 
-let config = {Config.default with trees = ["transclude"]; host = "test"}
-let host = config.host
+let config = {Config.default with trees = ["transclude"]}
 
-let href = URI_scheme.user_uri ~host "transcludee"
+let href = URI_scheme.named_uri ~base:config.url "transcludee"
 
 module Transclusions = struct
   (* It would be cool to use quickcheck here, but no good way to test the result*)
   open T
   let full_default = {
     href;
-    target = Full default_section_flags;
-    modifier = Identity
+    target = Full default_section_flags
   }
 
   let metadata_shown = {default_section_flags with
@@ -38,37 +36,30 @@ let () =
   let@ env = Eio_main.run in
   Logs.set_level (Some Debug);
   let@ () = Reporter.easy_run in
-  let uri = URI_scheme.user_uri ~host "transcludee" in
+  let uri = URI_scheme.named_uri ~base:config.url "transcludee" in
   let index = URI.Tbl.create 10 in
-  URI.Tbl.add
-    index
-    uri
-    (
-      Tree.Resource
-        (
+  URI.Tbl.add index uri @@
+    Tree.Resource
+      {
+        tree =
+        T.Article
           {
-            tree = T.(
-              Article
-                {
-                  frontmatter =
-                  default_frontmatter
-                    ~uri: (URI.of_string_exn "forest://test/transcludee")
-                    ~title: (Content [Text "I am being transcluded"])
-                    ();
-                  mainmatter = Content [Text "Hello"];
-                  backmatter = Content []
-                }
-            );
-            expanded = None
-          }
-        )
-    );
+            frontmatter =
+            T.default_frontmatter
+              ~uri: (URI.of_string_exn "forest://test/transcludee")
+              ~title: (T.Content [Text "I am being transcluded"])
+              ();
+            mainmatter = Content [Text "Hello"];
+            backmatter = Content []
+          };
+        expanded = None
+      };
   let forest = {(State.make ~env ~config ~dev: false ()) with index} in
   let print_transclusion : T.transclusion -> unit = fun t ->
     let content = Option.get @@ State.get_content_of_transclusion t forest in
     Format.printf
       "%a"
-      Legacy_xml_client.(pp_xml ~forest ?stylesheet: None)
+      (Legacy_xml_client.pp_xml ~forest ?stylesheet:None)
       (
         T.{
           frontmatter = default_frontmatter ~uri: href ();
@@ -85,16 +76,14 @@ let () =
     print_transclusion
       {
         href = uri;
-        target = Title {empty_when_untitled = false};
-        modifier = Identity
+        target = Title {empty_when_untitled = false}
       }
   in
   let test_full_metadata () =
     print_transclusion
       {
         href = uri;
-        target = Full Transclusions.metadata_shown;
-        modifier = Identity
+        target = Full Transclusions.metadata_shown
       }
   in
   List.iter

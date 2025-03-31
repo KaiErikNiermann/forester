@@ -56,7 +56,8 @@ let mainmatter = f_std_tag "mainmatter"
 let backmatter = f_std_tag "backmatter"
 
 let taxon attrs = f_std_tag "taxon" attrs
-let addr attrs = f_text_tag "addr" attrs
+let uri attrs = f_text_tag "uri" attrs
+let display_uri attrs = f_text_tag "display-uri" attrs
 let route attrs = f_text_tag "route" attrs
 let source_path attrs = f_text_tag "source-path" attrs
 let href fmt = uri_attr "href" fmt
@@ -72,7 +73,8 @@ let title = f_std_tag "title"
 
 let link = f_std_tag "link"
 let type_ fmt = string_attr "type" fmt
-let addr_ fmt = string_attr "addr" fmt
+let uri_ fmt = string_attr "uri" fmt
+let display_uri_ fmt = string_attr "display-uri" fmt
 let text_ fmt = string_attr "text" fmt
 
 let number attrs = f_text_tag "number" attrs

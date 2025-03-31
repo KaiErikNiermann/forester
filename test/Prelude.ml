@@ -6,7 +6,6 @@
 
 open Forester_prelude
 open Forester_core
-open Forester_compiler
 open Forester_parser
 
 let rec strip_loc : Code.t -> Code.t = fun nodes ->

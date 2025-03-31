@@ -59,11 +59,11 @@ let default_backmatter ~(uri : URI.t) : T.content =
   in
   T.Content
     [
-      make_section "references" @@ Builtin_queries.references_datalog vtx;
-      make_section "context" @@ Builtin_queries.context_datalog vtx;
-      make_section "backlinks" @@ Builtin_queries.backlinks_datalog vtx;
-      make_section "related" @@ Builtin_queries.related_datalog vtx;
-      make_section "contributions" @@ Builtin_queries.contributions_datalog vtx
+      make_section "References" @@ Builtin_queries.references_datalog vtx;
+      make_section "Context" @@ Builtin_queries.context_datalog vtx;
+      make_section "Backlinks" @@ Builtin_queries.backlinks_datalog vtx;
+      make_section "Related" @@ Builtin_queries.related_datalog vtx;
+      make_section "Contributions" @@ Builtin_queries.contributions_datalog vtx
     ]
 
 type result = {articles: T.content T.article list; jobs: Job.job Range.located list} [@@deriving show]
@@ -71,9 +71,8 @@ type result = {articles: T.content T.article list; jobs: Job.job Range.located l
 module Tape = Tape_effect.Make ()
 module Lex_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
 module Dyn_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
-module Host_env = Algaeff.Reader.Make(struct type t = string end)
+module Config_env = Algaeff.Reader.Make(struct type t = Config.t end)
 module Heap = Algaeff.State.Make(struct type t = Value.obj Env.t end)
-module Anon_subtree_ix = Algaeff.State.Make(struct type t = int end)
 module Emitted_trees = Algaeff.State.Make(struct type t = T.content T.article list end)
 module Jobs = Algaeff.State.Make(struct type t = Job.job Range.located list end)
 module Frontmatter = Algaeff.State.Make(struct type t = T.content T.frontmatter end)
@@ -96,10 +95,14 @@ let get_transclusion_flags ~loc =
   }
 
 let resolve_uri ~loc: _ str =
-  let base = let host = Host_env.read () in URI_scheme.base_uri ~host in
   match URI.of_string_exn str with
-  | uri -> Ok (URI.resolve ~base uri)
-  | exception _ -> Error "Invalid URI"
+  | uri ->
+    match URI.host uri with
+    | Some _ -> Ok uri
+    | None ->
+      let config = Config_env.read () in
+      Result.ok @@ URI_scheme.named_uri ~base: config.url str
+    | exception _ -> Error "Invalid URI"
 
 let extract_uri (node : located) =
   let text = extract_text node in
@@ -130,13 +133,6 @@ let extract_vertex ~type_ (node : located) =
   | `Uri ->
     let@ uri = Result.map @~ extract_uri node in
     T.Uri_vertex uri
-
-let anon_uri base =
-  let ix = Anon_subtree_ix.get () in
-  let ix' = ix + 1 in
-  Anon_subtree_ix.set ix';
-  let segment = Format.sprintf "%i" ix in
-  URI.with_path_components (URI.path_components base @ [segment]) base
 
 let pp_tex_cs fmt = function
   | TeX_cs.Symbol x -> Format.fprintf fmt "\\%c" x
@@ -178,21 +174,16 @@ and eval_node node : Value.t =
   | Ref ->
     begin
       match eval_pop_arg ~loc |> extract_uri with
-      | Ok href when URI.scheme href = Some URI_scheme.scheme ->
+      | Ok href ->
         let content =
           T.Content
             [
-              T.Transclude {href; target = T.Taxon; modifier = Sentence_case};
+              T.Transclude {href; target = T.Taxon};
               T.Text " ";
               T.Contextual_number href
             ]
         in
         emit_content_node ~loc @@ Link {href; content}
-      | Ok uri ->
-        Reporter.fatal
-          ?loc
-          (Reference_error uri)
-          ~extra_remarks: [Asai.Diagnostic.loctextf "Cannot refer to content with non-forester URI %a" URI.pp uri]
       | Error _ ->
         Reporter.fatal
           ?loc
@@ -200,7 +191,6 @@ and eval_node node : Value.t =
           ~extra_remarks: [Asai.Diagnostic.loctextf "Expected valid URI in ref"]
     end
   | Link {title; dest} ->
-    let _host = Host_env.read () in
     let dest = {node with value = dest} |> Range.map eval_tape in
     let href =
       match extract_uri dest with
@@ -214,7 +204,7 @@ and eval_node node : Value.t =
     in
     let content =
       match title with
-      | None -> T.Content [T.Transclude {href; target = T.Title {empty_when_untitled = false}; modifier = Identity}]
+      | None -> T.Content [T.Transclude {href; target = T.Title {empty_when_untitled = false}}]
       | Some title -> {node with value = eval_tape title} |> extract_content
     in
     emit_content_node ~loc @@ Link {href; content}
@@ -239,34 +229,31 @@ and eval_node node : Value.t =
     let href_arg = eval_pop_arg ~loc in
     let href =
       match extract_uri href_arg with
-      | Ok uri when URI.scheme uri = Some URI_scheme.scheme -> uri
-      | Ok uri ->
-        Reporter.fatal ?loc (Type_error {got = None; expected = []}) ~extra_remarks: [Asai.Diagnostic.loctextf "Cannot transclude content with non-forester URI %a" URI.pp uri]
+      | Ok uri -> uri
       | Error _ ->
         Reporter.fatal ?loc (Type_error {got = None; expected = [`URI]}) ~extra_remarks: [Asai.Diagnostic.loctext "Expected valid URI in transclusion"]
     in
-    emit_content_node ~loc @@ T.Transclude {href; target = Full flags; modifier = Identity}
+    emit_content_node ~loc @@ T.Transclude {href; target = Full flags}
   | Subtree (addr_opt, nodes) ->
     let flags = get_transclusion_flags ~loc in
-    let host = Host_env.read () in
+    let config = Config_env.read () in
     let uri =
       match addr_opt with
-      | Some addr -> URI_scheme.user_uri ~host addr
-      | None ->
-        let fm = Frontmatter.get () in
-        match fm.uri with
-        | None ->
-          (* Currently the only source of trees without URIs are the backmatter subtrees (backlinks, context, references, etc.). I believe that this case is therefore unreachable.*)
-          assert false
-        | Some current_uri ->
-          anon_uri current_uri
+      | Some addr -> Some (URI_scheme.named_uri ~base: config.url addr)
+      | None -> None
     in
-    let subtree = eval_tree_inner ~uri nodes in
+    let subtree = eval_tree_inner ?uri nodes in
     let frontmatter = Frontmatter.get () in
-    let subtree = {subtree with frontmatter = {subtree.frontmatter with uri = Some uri; designated_parent = frontmatter.uri}} in
-    Emitted_trees.modify @@ List.cons subtree;
-    let transclusion = T.{href = uri; target = Full flags; modifier = Identity} in
-    emit_content_node ~loc @@ Transclude transclusion
+    let subtree = {subtree with frontmatter = {subtree.frontmatter with uri; designated_parent = frontmatter.uri}} in
+    begin
+      match uri with
+      | Some uri ->
+        Emitted_trees.modify @@ List.cons subtree;
+        let transclusion = T.{href = uri; target = Full flags} in
+        emit_content_node ~loc @@ Transclude transclusion
+      | None ->
+        emit_content_node ~loc @@ T.Section (T.article_to_section ~flags subtree)
+    end
   | Results_of_query ->
     let arg = eval_pop_arg ~loc in
     begin
@@ -287,45 +274,37 @@ and eval_node node : Value.t =
       | other -> Reporter.fatal ?loc: query_arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
     end
   | Embed_tex ->
+    let config = Config_env.read () in
     let preamble = pop_content_arg ~loc |> T.TeX_like.string_of_content in
     let body = pop_content_arg ~loc |> T.TeX_like.string_of_content in
     let source = LaTeX_template.to_string ~preamble ~body in
     let hash = Digest.to_hex @@ Digest.string source in
-    let content ~svg =
-      let base64 = Base64.encode_string svg in
-      let content =
-        T.Content
-          [
-            T.Xml_elt
-              {
-                content = T.Content [];
-                name = {uname = "img"; prefix = "html"; xmlns = Some "http://www.w3.org/1999/xhtml"};
-                attrs = [
-                  {
-                    key = {uname = "src"; prefix = ""; xmlns = None};
-                    value = T.Content [T.Text (Format.sprintf "data:image/svg+xml;base64,%s" base64)]
-                  }
-                ]
-              }
-          ]
-      in
-      let sources = [
-        T.{type_ = "latex"; part = "preamble"; source = preamble};
-        T.{type_ = "latex"; part = "body"; source = body}
-      ]
-      in
-      let artefact = T.{hash; content; sources} in
-      T.Content [T.Artefact artefact]
+    let job = Job.{hash; source} in
+    let uri = Job.uri_for_latex_to_svg_job ~base: config.url job in
+    let content =
+      T.Content
+        [
+          T.Xml_elt
+            {
+              content = T.Content [];
+              name = {uname = "img"; prefix = "html"; xmlns = Some "http://www.w3.org/1999/xhtml"};
+              attrs = [
+                {
+                  key = {uname = "src"; prefix = ""; xmlns = None};
+                  value = T.Content [T.Route_of_uri uri]
+                }
+              ]
+            }
+        ]
     in
-    let job = Job.LaTeX_to_svg {hash; source; content} in
-    Jobs.modify (List.cons (Range.locate_opt loc job));
-    let transclusion =
-      let host = Host_env.read () in
-      let href = URI_scheme.hash_uri ~host hash in
-      let target = T.Mainmatter in
-      T.{href; target; modifier = Identity}
+    let sources = [
+      T.{type_ = "latex"; part = "preamble"; source = preamble};
+      T.{type_ = "latex"; part = "body"; source = body}
+    ]
     in
-    emit_content_node ~loc @@ T.Transclude transclusion
+    let artefact = T.{hash; content; sources} in
+    Jobs.modify (List.cons (Range.locate_opt loc (Job.LaTeX_to_svg job)));
+    emit_content_node ~loc @@ T.Artefact artefact
   | Route_asset ->
     let source_path = pop_text_arg ~loc in
     let uri = Asset_router.uri_of_asset ?loc ~source_path () in
@@ -432,7 +411,6 @@ and eval_node node : Value.t =
     Frontmatter.modify (fun fm -> {fm with title = Some title});
     process_tape ()
   | Parent ->
-    let _host = Host_env.read () in
     let parent_arg = eval_pop_arg ~loc in
     let parent =
       match extract_uri parent_arg with
@@ -607,7 +585,7 @@ and emit_content_nodes ~loc content =
 and emit_content_node ~loc content =
   emit_content_nodes ~loc [content]
 
-and eval_tree_inner ~(uri : URI.t) (syn : Syn.t) : T.content T.article =
+and eval_tree_inner ?(uri : URI.t option) (syn : Syn.t) : T.content T.article =
   let attribution_is_author attr =
     match T.(attr.role) with
     | T.Author -> true
@@ -617,18 +595,17 @@ and eval_tree_inner ~(uri : URI.t) (syn : Syn.t) : T.content T.article =
   let attributions = List.filter attribution_is_author outer_frontmatter.attributions in
   let frontmatter =
     T.default_frontmatter
-      ~uri
+      ?uri
       ~attributions
       ?source_path: outer_frontmatter.source_path
       ~dates: outer_frontmatter.dates
       ()
   in
-  let@ () = Anon_subtree_ix.run ~init: 0 in
   let@ () = Frontmatter.run ~init: frontmatter in
   let mainmatter = {value = eval_tape syn; loc = None} |> extract_content in
   let frontmatter = Frontmatter.get () in
-  let backmatter = default_backmatter ~uri in
-  T.{frontmatter; mainmatter; backmatter}
+  let backmatter = match uri with Some uri -> default_backmatter ~uri | None -> Content [] in
+  T.{frontmatter; mainmatter; backmatter = backmatter}
 
 let empty_result = {
   articles = [];
@@ -636,7 +613,7 @@ let empty_result = {
 }
 
 let eval_tree
-    ~(host : string)
+    ~(config : Config.t)
     ~(uri : URI.t)
     ~(source_path : string option)
     (tree : Syn.t)
@@ -656,7 +633,7 @@ let eval_tree
       let@ () = Heap.run ~init: Env.empty in
       let@ () = Lex_env.run ~env: Env.empty in
       let@ () = Dyn_env.run ~env: Env.empty in
-      let@ () = Host_env.run ~env: host in
+      let@ () = Config_env.run ~env: config in
       let main = eval_tree_inner ~uri tree in
       let side = Emitted_trees.get () in
       let jobs = Jobs.get () in

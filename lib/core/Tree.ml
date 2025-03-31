@@ -60,7 +60,7 @@ let show_stage = function
   | Expanded _ -> "expanded"
   | Resource _ -> "resource"
 
-let get_uri ~host = fun t ->
+(* let get_uri ~host = fun t ->
   let of_lsp_uri doc = Some (URI_scheme.lsp_uri_to_uri ~host (Lsp.Text_document.documentUri doc)) in
   let uri_opt =
     match t with
@@ -72,7 +72,7 @@ let get_uri ~host = fun t ->
   in
   match uri_opt with
   | Some uri -> uri
-  | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "tried to get URI of an anonymous resource"]
+  | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "tried to get URI of an anonymous resource"] *)
 
 (* IDK if subtrees should resolve to their parent document*)
 let to_doc : t -> Lsp.Text_document.t option = function

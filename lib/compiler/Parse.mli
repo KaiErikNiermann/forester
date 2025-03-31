@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_core
 include module type of Forester_parser.Parse
 
 val parse_document :
-  host: string ->
+  config: Config.t ->
   Lsp.Text_document.t ->
   (Forester_core.Tree.code, Forester_core.Reporter.diagnostic) result
 

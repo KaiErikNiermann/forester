@@ -64,8 +64,7 @@ let transclude href =
   T.Transclude
     T.{
       href = URI.of_string_exn href;
-      target = Mainmatter;
-      modifier = Identity
+      target = Mainmatter
     }
 
 let artefact content =

@@ -47,7 +47,7 @@ let handler
 = fun
     ~env
     ~theme
-    ~forest
+    ~(forest : State.t)
     _socket
     request
     body
@@ -86,7 +86,7 @@ let handler
         let headers = Http.Header.of_list ["Content-Type", "image/x-icon"] in
         Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: theme.favicon ()
       | Tree s ->
-        let href = URI_scheme.user_uri ~host: State.(forest.config.host) s in
+        let href = URI_scheme.named_uri ~base: forest.config.url s in
         let request_headers = Http.Request.headers request in
         let is_htmx =
           (*If it is an HTMX request, we just send a fragment.
@@ -113,8 +113,7 @@ let handler
                     Cohttp_eio.Server.respond_string ~status: `OK ~body: response ()
                 end
               | Some target ->
-                let modifier = Option.value ~default: T.Identity (Headers.parse_modifier request_headers) in
-                match State.get_content_of_transclusion {target; href; modifier;} forest with
+                match State.get_content_of_transclusion {target; href} forest with
                 | None -> Cohttp_eio.Server.respond_string ~status: `Not_found ~body: "" ()
                 | Some content ->
                   (* TODO: Remove any sort of HTML generation from the handler. *)
@@ -176,18 +175,14 @@ let handler
         Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
       | Home ->
         begin
-          match forest.config.home with
+          let home = URI_scheme.named_uri ~base: forest.config.url "index" in
+          match State.get_article home forest with
           | None ->
             Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
-          | Some home ->
-            let home = URI_scheme.user_uri ~host: forest.config.host home in
-            match State.get_article home forest with
-            | None ->
-              Cohttp_eio.Server.respond_string ~status: `OK ~body: "" ()
-            | Some home_tree ->
-              let content = Pure_html.to_string @@ Htmx_client.render_article forest home_tree in
-              let headers = Http.Header.of_list ["Content-Type", "text/html"] in
-              Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: content ()
+          | Some home_tree ->
+            let content = Pure_html.to_string @@ Htmx_client.render_article forest home_tree in
+            let headers = Http.Header.of_list ["Content-Type", "text/html"] in
+            Cohttp_eio.Server.respond_string ~headers ~status: `OK ~body: content ()
         end
       | Query ->
         let q = Uri.get_query_param resource "query" in

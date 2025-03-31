@@ -13,6 +13,7 @@ module Lsp_state = Lsp_state
 module LspEio = LspEio
 module Lsp_shims = Lsp_shims
 
+open Forester_core
 open Forester_compiler
 
 open Server

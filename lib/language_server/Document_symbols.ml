@@ -20,11 +20,11 @@ let compute (params : L.DocumentSymbolParams.t) =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     match State.get_code
       forest
-      (URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri) with
+      (URI_scheme.lsp_uri_to_uri ~base: forest.config.url uri) with
     | None ->
       URI.Tbl.iter (fun uri _ -> Logs.debug (fun m -> m "%a" URI.pp uri)) forest.index;
       Logs.debug (fun m -> m "%s" (Lsp.Uri.to_string uri));
-      Logs.debug (fun m -> m "%a" URI.pp (URI_scheme.lsp_uri_to_uri ~host: forest.config.host uri));
+      Logs.debug (fun m -> m "%a" URI.pp (URI_scheme.lsp_uri_to_uri ~base: forest.config.url uri));
       assert false
     | Some {nodes; _} ->
       let symbols =

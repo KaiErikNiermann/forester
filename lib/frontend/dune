@@ -35,4 +35,5 @@
   unix
   lsp
   pure-html
-  logs))
+  logs
+  uri))

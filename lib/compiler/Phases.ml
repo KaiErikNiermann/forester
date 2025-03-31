@@ -18,12 +18,11 @@ let load (tree_dirs : Eio.Fs.dir_ty Eio.Path.t list) =
   |> Seq.map Imports.load_tree
 
 let parse (forest : State.t) =
-  let host = forest.config.host in
   let trees = forest.index |> URI.Tbl.to_seq_values |> List.of_seq in
   let results =
     let@ tree = List.filter_map @~ trees in
     match tree with
-    | Document doc -> Some (Parse.parse_document ~host doc)
+    | Document doc -> Some (Parse.parse_document ~config: forest.config doc)
     | Parsed _
     | Expanded _
     | Resource _ ->
@@ -36,10 +35,9 @@ let parse (forest : State.t) =
 
 let reparse (doc : Lsp.Text_document.t) (forest : State.t) =
   Logs.debug (fun m -> m "reparsing");
-  let host = forest.config.host in
-  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host @@ Lsp.Text_document.documentUri doc in
+  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url @@ Lsp.Text_document.documentUri doc in
   begin
-    match Parse.parse_document ~host doc with
+    match Parse.parse_document ~config: forest.config doc with
     | Ok code ->
       forest.={uri} <- Parsed code;
       Imports.fixup code forest
@@ -117,28 +115,26 @@ let export_publication ~env ~(forest : State.t) (publication : Job.publication) 
 
 let run_jobs (forest : State.t) jobs =
   Logs.debug (fun m -> m "Running %d jobs" (List.length jobs));
-  (* All articles induced by LaTeX jobs must be planted prior to publication export. *)
-  let articles_to_plant =
+  (* All resources induced by LaTeX jobs must be planted prior to publication export. *)
+  let resources_to_plant =
     let@ Range.{value; loc} = Eio.Fiber.List.filter_map ~max_fibers: 20 @~ jobs in
+    let@ () = Reporter.easy_run in
     match value with
     | Job.LaTeX_to_svg job ->
-      let@ () = Reporter.easy_run in
       let svg = Build_latex.latex_to_svg ~env: forest.env ?loc job.source in
-      let uri = URI_scheme.hash_uri ~host: forest.config.host job.hash in
-      let frontmatter = T.default_frontmatter ~uri () in
-      let mainmatter = job.content ~svg in
-      let backmatter = T.Content [] in
-      Some T.{frontmatter; mainmatter; backmatter}
+      let uri = Job.uri_for_latex_to_svg_job ~base: forest.config.url job in
+      Some (T.Asset {uri; content = svg})
     | Job.Publish _ -> None
   in
   begin
     (* It is probably not save to plant the articles in parallel, so this is done sequentially! *)
-    let@ article = List.iter @~ articles_to_plant in
-    State.plant_resource (T.Article article) forest
+    let@ resource = List.iter @~ resources_to_plant in
+    State.plant_resource resource forest
   end;
   begin
     (* Now that the articles have been planted, we can export publications. *)
     let@ Range.{value; _} = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
+    let@ () = Reporter.easy_run in
     match value with
     | Publish publication ->
       export_publication ~env: forest.env ~forest publication
@@ -146,7 +142,6 @@ let run_jobs (forest : State.t) jobs =
   end
 
 let eval (forest : State.t) =
-  let host = forest.config.host in
   let result =
     State.get_all_unevaluated forest
     |> Seq.filter Tree.is_expanded
@@ -161,7 +156,7 @@ let eval (forest : State.t) =
             else None
           in
           Eval.eval_tree
-            ~host
+            ~config: forest.config
             ~source_path
             ~uri
             tree.nodes
@@ -178,7 +173,7 @@ let eval_only (uri : URI.t) (forest : State.t) =
     (* NOTE: Not running jobs. *)
     let Eval.{articles; jobs = _}, diagnostics =
       Eval.eval_tree
-        ~host: forest.config.host
+        ~config: forest.config
         ~source_path: None
         ~uri
         expanded.nodes
@@ -191,14 +186,10 @@ let eval_only (uri : URI.t) (forest : State.t) =
 
 let check_status _uri (forest : State.t) =
   match forest with
-  | {dependency_cache = _;
-    _;
-  } ->
+  | {dependency_cache = _; _} ->
     forest, None
 
-let implant_foreign
-  : State.t -> State.t * _
-= fun state ->
+let implant_foreign (state : State.t) : State.t * _ =
   begin
     let foreign_paths = Eio_util.paths_of_files ~env: state.env state.config.foreign in
     Logs.debug (fun m -> m "implanting %i foreign paths" (List.length foreign_paths));

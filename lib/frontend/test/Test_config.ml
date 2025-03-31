@@ -6,7 +6,7 @@
 
 open Forester_test
 open Testables
-open Forester_compiler
+open Forester_core
 open Forester_frontend
 
 let extra_remarks_to_strings remarks =
@@ -16,12 +16,11 @@ let test_parsing () =
   Alcotest.(check config)
     "is the same"
     Config.{
-      host = "test";
       trees = ["trees"];
-      home = Some "index";
       prefixes = ["foo"; "bar"; "baz"];
       assets = [];
-      base_url = "http://www.forester-notes.org/";
+      url = URI.of_string_exn "https://www.forester-notes.org/";
+      home = None;
       foreign = ["foreign/forest.json"];
       theme = "theme";
     }
@@ -30,14 +29,11 @@ let test_parsing () =
       Config_parser.parse_forest_config_string
         {|
         [forest]
-        host = "test"
         trees = ["trees"]
         prefixes = ["foo", "bar", "baz"]
         foreign = ["foreign/forest.json"]
-
-        [renderer]
+        url = "https://www.forester-notes.org/"
         home = "index"
-        base_url = "http://www.forester-notes.org/"
         |}
     end
 
@@ -45,13 +41,12 @@ let test_missing_fields () =
   Alcotest.(check config)
     "is the same"
     Config.{
-      host = "test";
       trees = ["trees"];
-      home = Some "index";
       theme = "theme";
       assets = [];
       foreign = [];
-      base_url = "/";
+      url = URI.of_string_exn "/";
+      home = None;
       prefixes = [];
     }
     (
@@ -59,10 +54,7 @@ let test_missing_fields () =
       Config_parser.parse_forest_config_string
         {|
         [forest]
-        host = "test"
         trees = ["trees"]
-        [renderer]
-        home = "index"
         |}
     )
 
@@ -89,8 +81,6 @@ let test_missing_host () =
           {|
         [forest]
         trees = ["trees"]
-        [renderer]
-        home = "index"
         |}
       in
       assert false
@@ -125,11 +115,10 @@ let test_stylesheet_warning () =
   Alcotest.(check config)
     "is the same"
     Config.{
-      host = "test";
       trees = ["trees"];
-      home = Some "index";
       theme = "theme";
-      base_url = "/";
+      url = URI.of_string_exn "/";
+      home = None;
       assets = [];
       foreign = [];
       prefixes = [];
@@ -148,11 +137,8 @@ let test_stylesheet_warning () =
       Forester_core.Reporter.run ~fatal ~emit @@ fun () ->
       Config_parser.parse_forest_config_string
         {|[forest]
-        host = "test"
         trees = ["trees"]
         stylesheet = "custom.xsl"
-        [renderer]
-        home = "index"
         |}
     end
 
@@ -160,11 +146,10 @@ let test_root_warning () =
   Alcotest.(check config)
     "is the same"
     Config.{
-      host = "test";
       trees = ["trees"];
-      home = None;
       theme = "theme";
-      base_url = "/";
+      url = URI.of_string_exn "/";
+      home = None;
       assets = [];
       foreign = [];
       prefixes = [];
@@ -182,7 +167,6 @@ let test_root_warning () =
       Forester_core.Reporter.run ~fatal ~emit @@ fun () ->
       Config_parser.parse_forest_config_string
         {|[forest]
-        host = "test"
         trees = ["trees"]
         root = "index"
         |}

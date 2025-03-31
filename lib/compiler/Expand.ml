@@ -155,11 +155,11 @@ let rec expand : Code.t -> Syn.t = function
   | {value = Group (d, xs); loc} :: rest ->
     {value = Syn.Group (d, expand xs); loc} :: expand rest
   | {value = Subtree (addr, nodes); loc} :: rest ->
-    let host = (F.get ()).config.host in
+    let config = (F.get ()).config in
     let parent_uri = Parent.read () in
     let identity =
       match addr with
-      | Some addr -> Tree.URI (URI_scheme.user_uri ~host addr)
+      | Some addr -> Tree.URI (URI_scheme.named_uri ~base: config.url addr)
       | None -> Tree.Anonymous
     in
     let subtree =
@@ -240,8 +240,7 @@ let rec expand : Code.t -> Syn.t = function
     {value = Syn.Call (expand obj, method_name); loc} :: expand rest
   | {value = Import (vis, dep); loc} :: rest ->
     let forest = F.get () in
-    let host = forest.config.host in
-    let dep_uri = URI_scheme.user_uri ~host dep in
+    let dep_uri = URI_scheme.named_uri ~base: forest.config.url dep in
     begin
       match forest./{dep_uri} with
       | None ->

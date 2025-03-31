@@ -20,28 +20,21 @@ type query = {
 
 module Xmlns = Xmlns_effect.Make ()
 
-let home_uri ~(config : Config.t) =
-  (* let config = State.get_config forest in *)
-  let@ root = Option.bind config.home in
-  let base = URI_scheme.base_uri ~host: config.host in
-  try
-    Option.some @@ URI.resolve ~base @@ URI.of_string_exn root
-  with
-    | _ -> None
-
-let uri_is_home ~config uri =
-  match home_uri ~config with
-  | Some home_uri ->
-    (* By this point, any URIs should be in normal form. *)
-    URI.equal home_uri uri
-  | None -> false
+let local_path_components (uri : URI.t) =
+  let host =
+    match URI.host uri with
+    | Some host -> host
+    | None -> assert false (* TODO*)
+  in
+  host :: URI.path_components uri
 
 let route (forest : State.t) uri : URI.t =
-  let config = forest.config in
-  if Some uri = Option.map (URI_scheme.user_uri ~host: config.host) config.home then
-    URI.make ~scheme: "http" ~path: ["index.html"] ()
-  else
-    uri
+  let open State.Syntax in
+  match forest.={uri} with
+  | None -> uri
+  | Some _ ->
+    let path = "" :: local_path_components uri in
+    URI.make ~path ()
 
 let title_flags_to_http_header (flags : T.title_flags) =
   match flags with
@@ -190,13 +183,11 @@ let rec render_article (forest : State.t) (article : T.content T.article) : node
               []
               [render_frontmatter forest article.frontmatter] :: render_content forest article.mainmatter;
         ];
-      match Option.map (uri_is_home ~config: forest.config) article.frontmatter.uri with
-      | None ->
-        footer [] @@ render_backmatter forest article.backmatter
-      | Some false ->
-        footer [] @@ render_backmatter forest article.backmatter
-      | Some true ->
-        null []
+      match article.frontmatter.uri with
+      | None -> footer [] @@ render_backmatter forest article.backmatter
+      | Some uri ->
+        if URI.equal (Config.home_uri forest.config) uri then null []
+        else footer [] @@ render_backmatter forest article.backmatter
     ]
 
 and render_section (forest : State.t) (section : T.content T.section) : node =
@@ -248,7 +239,7 @@ and render_attributions forest (attributions : T.content T.attribution list) =
     | T.{vertex; _} ->
       match vertex with
       | T.Uri_vertex href ->
-        let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}; modifier = Identity}] in
+        let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}}] in
         null @@ render_link forest T.{href; content}
       | T.Content_vertex content ->
         null @@ render_content forest content
@@ -277,18 +268,21 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
   let taxon =
     Option.value ~default: [] @@
       let@ c = Option.map @~ frontmatter.taxon in
-      render_content forest (T.apply_modifier_to_content T.Sentence_case c) @ [txt ". "]
+      render_content forest c @ [txt ". "]
   in
   let title =
     Option.value ~default: [] @@
       let@ c = Option.map @~ frontmatter.title in
-      render_content forest @@ T.apply_modifier_to_content T.Sentence_case c
+      render_content forest c
   in
   let uri =
     match frontmatter.uri with
     | None -> null []
     | Some uri ->
-      let uri_str = URI.to_string uri in
+      let uri_str =
+        (* TODO: replace with proper routing from legacy xml client *)
+        Format.asprintf "%a" URI.pp uri
+      in
       a
         [class_ "slug"; href "%s" uri_str;]
         [txt "[%s]" uri_str]
@@ -385,7 +379,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
 
 and render_transclusion transclusion =
   match transclusion with
-  | T.{href; target; modifier = _} ->
+  | T.{href; target} ->
     let headers = Yojson.Safe.to_string @@ content_target_to_http_header target in
     [
       span

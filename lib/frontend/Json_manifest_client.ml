@@ -13,28 +13,25 @@ module T = Types
 module PT = Plain_text_client
 
 let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string * Yojson.Safe.t) option =
-  let host = forest.config.host in
   let@ uri = Option.bind doc.frontmatter.uri in
   (* TODO : Check routing *)
   let route = Legacy_xml_client.route forest uri in
   let title_string =
-    String_util.sentence_case @@
     PT.string_of_content ~forest ~router: Fun.id @@
-    State.get_expanded_title doc.frontmatter forest
+      State.get_expanded_title doc.frontmatter forest
   in
   let title = `String title_string in
   let taxon =
     match doc.frontmatter.taxon with
     | None -> `Null
-    | Some vertex ->
-      let content = T.apply_modifier_to_content Sentence_case vertex in
+    | Some content ->
       `String (PT.string_of_content ~forest ~router: Fun.id content)
   in
   let tags =
     `List
       begin
         let@ tag = List.filter_map @~ doc.frontmatter.tags in
-        let@ content = Option.map @~ State.get_title_or_content_of_vertex ~modifier: Identity tag forest in
+        let@ content = Option.map @~ State.get_title_or_content_of_vertex tag forest in
         `String (PT.string_of_content ~forest ~router: Fun.id content)
       end
   in
@@ -63,7 +60,7 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
           ("metas", metas)
         ]
     in
-    (URI.relative_path_string ~host: host uri, `Assoc fm)
+    (URI.display_path_string ~base: forest.config.url uri, `Assoc fm)
 
 let render_trees ~(dev : bool) ~(forest : State.t) : Yojson.Safe.t =
   let trees = List.of_seq @@ State.get_all_articles forest in

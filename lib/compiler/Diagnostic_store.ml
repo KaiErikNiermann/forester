@@ -5,6 +5,7 @@
  *
  *)
 
+open Forester_prelude
 open Forester_core
 
 module Table = Hashtbl.Make(Lsp.Uri)
@@ -12,54 +13,38 @@ include Table
 
 type t = Reporter.diagnostic list Table.t
 
-let replace
-  : 'a list Table.t -> 'a list -> unit
-= fun table fresh_diagnostics ->
+let replace (table : 'a list Table.t) (fresh_diagnostics : 'a list) : unit =
   let diags = Hashtbl.create 100 in
-  fresh_diagnostics
-  |> List.iter
-      (fun d ->
-        match Reporter.guess_uri d with
-        | None ->
-          Reporter.fatal
-            Internal_error
-            ~extra_remarks: [Asai.Diagnostic.loctextf "Dropped a diagnostic because its URI could not be guessed"]
-        | Some uri ->
-          Hashtbl.replace diags uri [d]
-      );
-  diags
-  |> Hashtbl.to_seq
-  |> Seq.iter
-      (fun (uri, ds) ->
-        assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
-        Table.replace table uri ds
-      )
+  begin
+    let@ d = List.iter @~ fresh_diagnostics in
+    match Reporter.guess_uri d with
+    | None ->
+      Reporter.fatal
+        Internal_error
+        ~extra_remarks: [Asai.Diagnostic.loctextf "Dropped a diagnostic because its URI could not be guessed"]
+    | Some uri ->
+      Hashtbl.replace diags uri [d]
+  end;
+  let@ uri, ds = Seq.iter @~ Hashtbl.to_seq diags in
+  assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
+  Table.replace table uri ds
 
-let add
-  : 'a list Table.t -> 'a list -> unit
-= fun table fresh_diagnostics ->
+let add (table : 'a list Table.t) (fresh_diagnostics : 'a list) : unit =
   let diagnostics = Hashtbl.create 100 in
-  fresh_diagnostics
-  |> List.iter
-      (fun d ->
-        match Reporter.guess_uri d with
-        | None ->
-          Reporter.fatal
-            Internal_error
-            ~extra_remarks: [Asai.Diagnostic.loctextf "Dropped a diagnostic because its URI could not be guessed"]
-        | Some uri ->
-          match Hashtbl.find_opt diagnostics uri with
-          | None -> Hashtbl.replace diagnostics uri [d]
-          | Some t -> Hashtbl.replace diagnostics uri (d :: t)
-      );
-  diagnostics
-  |> Hashtbl.to_seq
-  |> Seq.iter
-      (fun (uri, ds) ->
-        assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
-        match Table.find_opt table uri with
-        | None ->
-          Table.replace table uri ds
-        | Some previous ->
-          Table.replace table uri (ds @ previous)
-      )
+  begin
+    let@ d = List.iter @~ fresh_diagnostics in
+    match Reporter.guess_uri d with
+    | None ->
+      Reporter.fatal
+        Internal_error
+        ~extra_remarks: [Asai.Diagnostic.loctextf "Dropped a diagnostic because its URI could not be guessed"]
+    | Some uri ->
+      let t = Option.value ~default: [] @@ Hashtbl.find_opt diagnostics uri in
+      Hashtbl.replace diagnostics uri (d :: t)
+  end;
+  let@ uri, ds = Seq.iter @~ Hashtbl.to_seq diagnostics in
+  assert (not @@ Filename.is_relative (Lsp.Uri.to_path uri));
+  Table.replace table uri @@
+    match Table.find_opt table uri with
+    | None -> ds
+    | Some previous -> ds @ previous

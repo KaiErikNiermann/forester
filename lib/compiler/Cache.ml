@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_prelude
 open Forester_core
-module T = Types
+open struct module T = Types end
 
 (*Inspired by
 https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html
@@ -85,39 +86,28 @@ let add_vertex t v color =
 
 let pred t v = Dependecy_graph.pred t.graph v
 
-let get_changed_paths
-  : host: string ->
-  t ->
-  Eio.Fs.dir_ty Eio.Path.t List.t ->
-  Eio.Fs.dir_ty Eio.Path.t Seq.t
-= fun ~host cache dirs ->
-  Dir_scanner.scan_directories dirs
-  |> Seq.filter_map
-      (fun path ->
-        let path_str = Eio.Path.native_exn path in
-        let uri = URI_scheme.path_to_uri ~host path_str in
-        let last_modified = Eio.Path.(stat ~follow: true path).mtime in
-        (* "flipped" bind, by default returns the current path. IDK, I am being lazy. *)
-        let (let*) o f = match o with None -> Some path | Some v -> f v in
-        let* {timestamp; _} = Dependency_tbl.find_opt cache.tbl (Tree uri) in
-        let* last_seen = timestamp in
-        if last_modified > last_seen then
-          Some path
-        else
-          None
-      )
+let get_changed_paths ~(config : Config.t) (cache : t) (dirs : Eio.Fs.dir_ty Eio.Path.t List.t) : Eio.Fs.dir_ty Eio.Path.t Seq.t =
+  let@ path = Seq.filter_map @~ Dir_scanner.scan_directories dirs in
+  let path_str = Eio.Path.native_exn path in
+  let uri = URI_scheme.path_to_uri ~base: config.url path_str in
+  let last_modified = Eio.Path.(stat ~follow: true path).mtime in
+  (* "flipped" bind, by default returns the current path. IDK, I am being lazy. *)
+  let (let*) o f = match o with None -> Some path | Some v -> f v in
+  let* {timestamp; _} = Dependency_tbl.find_opt cache.tbl (Tree uri) in
+  let* last_seen = timestamp in
+  if last_modified > last_seen then
+    Some path
+  else
+    None
 
 let rec try_mark_green t node =
   let exception Done of bool in
   let dependencies =
-    List.filter_map
-      (fun v ->
-        match Dependency_tbl.find_opt t.tbl v with
-        | None -> None
-        | Some c ->
-          Some (v, c)
-      )
-      (pred t node)
+    let@ v = List.filter_map @~ pred t node in
+    match Dependency_tbl.find_opt t.tbl v with
+    | None -> None
+    | Some c ->
+      Some (v, c)
   in
   let result =
     try

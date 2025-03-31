@@ -17,7 +17,7 @@ let normalize source_path =
         IO_error
         ~extra_remarks: [Asai.Diagnostic.loctextf "%s: %s" (Unix.error_message e) m]
 
-let install ~host ~source_path ~content =
+let install ~(config : Config.t) ~source_path ~content =
   let normalized = normalize source_path in
   match Hashtbl.find_opt router normalized with
   | Some uri -> uri
@@ -26,8 +26,7 @@ let install ~host ~source_path ~content =
     let cid = Cid.v ~version: `Cidv1 ~codec: `Raw ~base: `Base32 ~hash in
     let cid_str = Cid.to_string cid in
     let ext = Filename.extension normalized in
-    let filename = cid_str ^ ext in
-    let uri = URI_scheme.hash_uri ~host filename in
+    let uri = URI_scheme.named_uri ~base: config.url (cid_str ^ ext) in
     Hashtbl.add router normalized uri;
     uri
 

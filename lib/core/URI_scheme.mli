@@ -4,30 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Base
-
-(** Forester uses an URI scheme that incorporates a host that demarcates the current forest. A typical tree has have an address like this: [forest://host/xxx-NNNN]. Resources such as PDFs or images will be referred to by their hash.*)
-
-val scheme : string
-
-val base_uri :
-  host: string ->
-  URI.t
-
-val user_uri :
-  host: string ->
+val named_uri :
+  base: URI.t ->
   string ->
   URI.t
-
-val hash_uri :
-  host: string ->
-  string ->
-  URI.t
-
-val is_named_uri : URI.t -> bool
 
 val lsp_uri_to_uri :
-  host: string ->
+  base: URI.t ->
   Lsp.Uri.t ->
   URI.t
 
@@ -36,7 +19,7 @@ val split_addr :
   (string option * int) option
 
 val path_to_uri :
-  host: string ->
+  base: URI.t ->
   string ->
   URI.t
 

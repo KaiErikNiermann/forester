@@ -29,10 +29,10 @@ module Dx = Datalog_expr
 open Dx.Notation
 
 let reference_taxon : Vertex.t Dx.term =
-  Const (Content_vertex (Content [Text "reference"]))
+  Const (Content_vertex (Content [Text "Reference"]))
 
 let person_taxon : Vertex.t Dx.term =
-  Const (Content_vertex (Content [Text "person_taxon"]))
+  Const (Content_vertex (Content [Text "Person"]))
 
 let axioms : _ Dx.script = [
   is_reference @* [var "X"] << [has_taxon @* [var "X"; reference_taxon]];

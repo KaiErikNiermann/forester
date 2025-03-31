@@ -54,7 +54,7 @@ let resolve_uri_to_code
     | Some path ->
       let doc = load_tree Eio.Path.(forest.env#fs / path) in
       Result.to_option @@
-        Parse.parse_document ~host: forest.config.host doc
+        Parse.parse_document ~config: forest.config doc
     | None ->
       match Dir_scanner.find_tree dirs uri with
       | Some path ->
@@ -62,7 +62,7 @@ let resolve_uri_to_code
         URI.Tbl.add forest.resolver uri native;
         let doc = load_tree path in
         Result.to_option @@
-          Parse.parse_document ~host: forest.config.host doc
+          Parse.parse_document ~config: forest.config doc
       | None ->
         Reporter.fatal (Resource_not_found uri)
 
@@ -78,11 +78,10 @@ and analyse_code ~root (code : Code.t) =
 
 and analyse_node ~root (node : Code.node Asai.Range.located) =
   let env = Analysis_env.read () in
-  let host = env.forest.config.host in
+  let config = env.forest.config in
   match node.value with
   | Import (_, dep) ->
-    (* NOTE: Doesn't this imply we can't import like \import{forest://foo/bar}?*)
-    let dep_uri = URI_scheme.user_uri ~host dep in
+    let dep_uri = URI_scheme.named_uri ~base: config.url dep in
     let dependency = T.Uri_vertex dep_uri in
     let target = T.Uri_vertex root in
     Forest_graph.add_vertex env.graph dependency;
@@ -101,7 +100,7 @@ and analyse_node ~root (node : Code.node Asai.Range.located) =
       match addr with
       | None -> Tree.Anonymous
       | Some string ->
-        URI (URI_scheme.user_uri ~host string)
+        URI (URI_scheme.named_uri ~base: config.url string)
     in
     analyse_tree
       {identity; origin = Subtree {parent = URI root}; nodes; timestamp = None;}

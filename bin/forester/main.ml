@@ -52,14 +52,6 @@ let build ~env _ config_filename dev no_theme =
   Forester.render_forest ~dev ~forest;
   Logs.app (fun m -> m "Success!")
 
-let export ~env _ config_filename dev =
-  let config = Config_parser.parse_forest_config_file config_filename in
-  Logs.debug (fun m -> m "Parsed config file %s" config_filename);
-  let forest = Driver.batch_run ~env ~dev ~config in
-  forest.diagnostics
-  |> URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d);
-  Forester.export ~forest
-
 let new_tree ~env config_filename dest_dir prefix template random =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
@@ -86,20 +78,17 @@ let default_config_str =
 trees = ["trees" ]  # The directories in which your trees are stored
 assets = ["assets"] # The directories in which your assets are stored
 theme = "theme"     # The directory in which your theme is stored
-host = "CHANGEME"
-
-[renderer]
-home = "index"
+url = "https://www.my-great-forest.net/" # Replace this with your own domain or web storage. If you don't have one, you can use "http://localhost/"; the URL given here does not matter unless you plan to publish your forest.
 |}
 
 let index_tree_str =
   {|\title{Hello, World!}
 \p{Welcome to your first tree! This tree is the root of your forest.}
 \ul{
-  \li{[Build and view your forest for the first time](http://www.jonmsterling.com/jms-007D.xml)}
-  \li{[Overview of the Forester markup language](http://www.jonmsterling.com/jms-007N.xml)}
-  \li{[Creating new trees](http://www.jonmsterling.com/jms-007H.xml)}
-  \li{[Creating your personal biographical tree](http://www.jonmsterling.com/jms-007K.xml)}
+  \li{[Build and view your forest for the first time](https://www.jonmsterling.com/jms-007D)}
+  \li{[Overview of the Forester markup language](https://www.jonmsterling.com/jms-007N)}
+  \li{[Creating new trees](https://www.jonmsterling.com/jms-007H)}
+  \li{[Creating your personal biographical tree](https://www.jonmsterling.com/jms-007K)}
 }
 |}
 
@@ -210,25 +199,6 @@ let build_cmd ~env =
       $ arg_config
       $ arg_dev
       $ arg_no_theme
-    )
-
-let export_cmd ~env =
-  let arg_dev =
-    let doc = "Run forester in development mode; this will attach source file locations to the generated json." in
-    Arg.value @@ Arg.flag @@ Arg.info ["dev"] ~doc
-  in
-  let doc = "Export the forest" in
-  let man = [
-  ]
-  in
-  let info = Cmd.info "export" ~version ~doc ~man in
-  Cmd.v
-    info
-    Term.(
-      const (export ~env)
-      $ arg_logs
-      $ arg_config
-      $ arg_dev
     )
 
 let new_tree_cmd ~env =
@@ -374,7 +344,6 @@ let cmd ~env =
     info
     [
       build_cmd ~env;
-      export_cmd ~env;
       new_tree_cmd ~env;
       complete_cmd ~env;
       init_cmd ~env;

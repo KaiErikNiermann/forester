@@ -18,7 +18,7 @@ open State.Syntax
 let compute (document : Lsp.Text_document.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let lsp_uri = Lsp.Text_document.documentUri document in
-  let uri = URI_scheme.lsp_uri_to_uri ~host: forest.config.host lsp_uri in
+  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
   match forest.?{uri} with
   | [] ->
     Eio.traceln "Clearing diagnostics for %s" (Lsp.Uri.to_path lsp_uri);

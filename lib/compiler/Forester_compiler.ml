@@ -37,9 +37,6 @@ module Eval = Eval
 
     *)
 
-module Config = Config
-(** Configuration*)
-
 module Forest = Forest
 (** Augmented hash table used throughout compilation phases.*)
 

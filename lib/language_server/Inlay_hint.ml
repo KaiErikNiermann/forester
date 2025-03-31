@@ -21,8 +21,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
   } ->
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let config = forest.config in
-    let host = config.host in
-    let uri = URI_scheme.lsp_uri_to_uri ~host textDocument.uri in
+    let uri = URI_scheme.lsp_uri_to_uri ~base: config.url textDocument.uri in
     (* match Forest.find_opt forest.parsed  with *)
     match Option.bind forest.={uri} Tree.to_code with
     | None ->
@@ -41,7 +40,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
               match Analysis.extract_addr node with
               | None -> None
               | Some {value = str; _} ->
-                let uri = URI_scheme.user_uri ~host str in
+                let uri = URI_scheme.named_uri ~base: config.url str in
                 match State.get_article uri forest with
                 | None ->
                   None

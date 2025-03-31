@@ -30,9 +30,6 @@ val create_tree :
   forest: State.t ->
   string
 
-(* val export_publication : *)
-(*   env:< cwd : [> Eio.Fs.dir_ty ] Eio.Path.t; .. > -> Forester_compiler.Job.publication -> unit *)
-
 val json_manifest :
   dev: bool ->
   forest: State.t ->
@@ -42,5 +39,3 @@ val complete :
   forest: State.t ->
   string ->
   (string * string) List.t
-
-val export : forest: State.t -> unit

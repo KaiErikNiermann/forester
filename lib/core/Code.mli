@@ -6,7 +6,7 @@
 
 open Base
 
-module T = Types 
+module T := Types
 
 type node =
   | Text of string

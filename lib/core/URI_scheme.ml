@@ -6,29 +6,9 @@
 
 open Forester_prelude
 
-let scheme = "forest"
-
-let base_uri ~host =
-  URI.make ~scheme ~host ()
-
-let user_uri ~host str =
-  URI.make
-    ~host
-    ~scheme
-    ~path: [str]
-    ()
-
-let hash_uri ~host hash_str =
-  URI.make
-    ~host
-    ~scheme
-    ~path: ["hash"; hash_str]
-    ()
-
-let is_named_uri uri =
-  match URI.scheme uri, URI.path_components uri with
-  | sch, "hash" :: _ when sch = Some scheme -> false
-  | _ -> true
+let named_uri ~base name =
+  URI.resolve ~base @@
+    URI.make ~path: [name] ()
 
 let last_segment str =
   str
@@ -39,10 +19,11 @@ let last_segment str =
 let name (uri : URI.t) : string =
   uri
   |> URI.path_string
-  |> last_segment (* this is dodgy!*)
+  |> last_segment
+  |> Filename.remove_extension (* this is dodgy!*)
 
 let split_addr (uri : URI.t) : (string option * int) option =
-  let name = last_segment @@ URI.path_string uri in
+  let name = name uri in
   (* primitively check for address of form YYYY-MM-DD *)
   let date_regex = Str.regexp {|^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$|} in
   if Str.string_match date_regex name 0 then None
@@ -61,21 +42,18 @@ let split_addr (uri : URI.t) : (string option * int) option =
       let@ key = Option.map @~ BaseN.Base36.int_of_string name in
       None, key
 
-let lsp_uri_to_uri ~(host : string) (uri : Lsp.Uri.t) : URI.t =
+let lsp_uri_to_uri ~(base : URI.t) (uri : Lsp.Uri.t) : URI.t =
   let uri =
     uri
     |> Lsp.Uri.to_path
     |> Filename.chop_extension
     |> last_segment
-    |> user_uri ~host
+    |> named_uri ~base
   in
-  assert (Filename.extension (URI.path_string uri) = "");
   uri
 
-let path_to_uri ~host str =
+let path_to_uri ~(base : URI.t) str =
   str
   |> last_segment
   |> Filename.chop_extension
-  |> user_uri ~host
-
-let source_path_to_addr p = Filename.(chop_extension @@ basename p)
+  |> named_uri ~base

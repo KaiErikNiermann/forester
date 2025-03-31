@@ -176,42 +176,34 @@ let rec get_expanded_title ?scope ?(flags = T.{empty_when_untitled = false}) (fr
     | _ -> None
 
 let get_content_of_transclusion (transclusion : T.transclusion) forest =
-  let@ content =
-    Option.map @~
-      match transclusion.target with
-      | Full flags ->
-        let@ article = Option.map @~ get_article transclusion.href forest in
-        T.Content [T.Section (T.article_to_section article ~flags)]
-      | Mainmatter ->
-        let@ article = Option.map @~ get_article transclusion.href forest in
-        article.mainmatter
-      | Title flags ->
-        Option.some @@
-          begin
-            match get_article transclusion.href forest with
-            | None -> T.Content [T.Uri transclusion.href]
-            | Some article -> get_expanded_title ~flags article.frontmatter forest
-          end
-      | Taxon ->
-        let@ article = Option.map @~ get_article transclusion.href forest in
-        let default = T.Content [T.Text section_symbol] in
-        Option.value ~default article.frontmatter.taxon
-  in
-  T.apply_modifier_to_content transclusion.modifier content
+  match transclusion.target with
+  | Full flags ->
+    let@ article = Option.map @~ get_article transclusion.href forest in
+    T.Content [T.Section (T.article_to_section article ~flags)]
+  | Mainmatter ->
+    let@ article = Option.map @~ get_article transclusion.href forest in
+    article.mainmatter
+  | Title flags ->
+    Option.some @@
+      begin
+        match get_article transclusion.href forest with
+        | None -> T.Content [T.Uri transclusion.href]
+        | Some article -> get_expanded_title ~flags article.frontmatter forest
+      end
+  | Taxon ->
+    let@ article = Option.map @~ get_article transclusion.href forest in
+    let default = T.Content [T.Text section_symbol] in
+    Option.value ~default article.frontmatter.taxon
 
-let get_title_or_content_of_vertex ?(not_found = fun _ -> None) ~modifier vertex forest =
-  let@ content =
-    Option.map @~
-      match vertex with
-      | T.Content_vertex content -> Some content
-      | T.Uri_vertex uri ->
-        begin
-          match get_article uri forest with
-          | Some article -> article.frontmatter.title
-          | None -> not_found uri
-        end
-  in
-  T.apply_modifier_to_content modifier content
+let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
+  match vertex with
+  | T.Content_vertex content -> Some content
+  | T.Uri_vertex uri ->
+    begin
+      match get_article uri forest with
+      | Some article -> article.frontmatter.title
+      | None -> not_found uri
+    end
 
 let plant_resource resource forest =
   let module Graphs = (val forest.graphs) in
@@ -264,7 +256,7 @@ let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
     (* let graphs = Forest_graphs.init dl_db in *)
     paths
     |> Seq.iter (fun _path ->
-        (* let uri = URI_scheme.path_to_uri ~host: config.host (Eio.Path.native_exn path) in *)
+        (* let uri = URI_scheme.path_to_uri ~base: config.url (Eio.Path.native_exn path) in *)
         (* match URI.Tbl.find_opt forest uri with *)
         (* | None -> () *)
         (* | Some tree -> *)
