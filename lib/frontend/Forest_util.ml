@@ -3,16 +3,19 @@ open Forester_core
 open Forester_compiler
 open struct module T = Types end
 
-let get_sorted_articles (forest : State.t) addrs =
+let compare_article ~forest =
   let module C = Types.Comparators(struct
     let string_of_content x = Plain_text_client.string_of_content ~forest x
   end) in
+  C.compare_article
+
+let get_sorted_articles (forest : State.t) addrs =
   addrs
   |> Vertex_set.to_seq
   |> Seq.filter_map Vertex.uri_of_vertex
   |> Seq.filter_map (fun uri -> State.get_article uri forest)
   |> List.of_seq
-  |> List.sort C.compare_article
+  |> List.sort (compare_article ~forest)
 
 let collect_attributions (forest : State.t) (uri_opt : URI.t option) (primary_attributions : _ T.attribution list) =
   match uri_opt with
