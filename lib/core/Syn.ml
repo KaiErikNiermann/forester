@@ -52,3 +52,58 @@ type node =
 
 and t = node Range.located list
 [@@deriving show]
+
+let map f node =
+  match node with
+  | Group (d, t) -> Group (d, f @@ t)
+  | Math (m, t) -> Math (m, f @@ t)
+  | Subtree (a, t) -> Subtree (a, f @@ t)
+  | Link {dest; title} -> Link {dest = f @@ dest; title = Option.map f title}
+  | Fun (b, t) -> Fun (b, f t)
+  | Put (r, s, t) -> Put (f r, f s, f t)
+  | Default (r, s, t) -> Default (f r, f s, f t)
+  | Get t -> Get (f t)
+  | Xml_tag (q, qs, t) -> Xml_tag (q, List.map (fun (q, t) -> q, f t) qs, f t)
+  | Call (t, s) -> Call (f t, s)
+  | Object {self; methods} ->
+    Object
+      {
+        self;
+        methods = List.map (fun (str, t) -> str, f t) methods
+      }
+  | Patch {obj; self; super; methods} ->
+    Patch
+      {
+        obj = f obj;
+        self;
+        super;
+        methods = List.map (fun (str, t) -> str, f t) methods
+      }
+  | Dx_sequent (t, ts) -> Dx_sequent (f t, List.map f ts)
+  | Dx_query (s, ps, ns) -> Dx_query (s, List.map f ps, List.map f ns)
+  | Dx_const (s, n) -> Dx_const (s, f n)
+  | Dx_prop (t, ts) -> Dx_prop (f t, List.map f ts)
+  | Text _
+  | Verbatim _
+  | Var _
+  | Sym _
+  | TeX_cs _
+  | Prim _
+  | Results_of_query
+  | Transclude
+  | Embed_tex
+  | Ref
+  | Title
+  | Parent
+  | Taxon
+  | Meta
+  | Attribution (_, _)
+  | Tag _
+  | Date
+  | Number
+  | Dx_var _
+  | Dx_execute
+  | Route_asset
+  | Publish_results_of_query
+  | Current_tree ->
+    node
