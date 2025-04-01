@@ -79,11 +79,14 @@ module Basics = struct
 
   let relative_path_string ~(base : t) uri : string =
     Str.replace_first (Str.regexp (Format.asprintf "^%a" pp base)) "" @@
-    to_string @@ with_path_components (List.rev @@ strip_path_components @@ List.rev @@ path_components uri) uri
+    to_string uri
 
   let display_path_string ~base uri =
-    Filename.remove_extension @@
-      relative_path_string ~base uri
+    if host uri = host base then
+      Str.replace_first (Str.regexp (Format.asprintf "^%a" pp base)) "" @@
+      to_string @@ with_path_components (List.rev @@ strip_path_components @@ List.rev @@ path_components uri) uri
+    else
+      to_string uri
 end
 
 module Set = Set.Make(Basics)

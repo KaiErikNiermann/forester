@@ -109,15 +109,14 @@ let outputs_for_article ~(forest : State.t) (article : _ T.article) =
   match article.frontmatter.uri with
   | None -> []
   | Some uri ->
-    let path_components = Legacy_xml_client.local_path_components forest.config uri in
-    let xml_route = String.concat "/" @@ URI.append_path_component path_components "index.xml" in
-    let html_route = String.concat "/" @@ URI.append_path_component path_components "index.html" in
+    let xml_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.xml") uri in
+    let html_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.html") uri in
     let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-    let html_content = html_redirect @@ "/" ^ xml_route in
+    let html_content = html_redirect @@ "/" ^ URI.relative_path_string ~base:forest.config.url xml_route in
     [xml_route, xml_content; html_route, html_content]
 
-let outputs_for_asset ~(forest : State.t) (asset : T.asset) =
-  let route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config asset.uri in
+let outputs_for_asset (asset : T.asset) =
+  let route = asset.uri in
   [route, asset.content]
 
 let outputs_for_json_blob_syndication ~(forest : State.t) (syndication : _ T.json_blob_syndication) =
@@ -129,12 +128,10 @@ let outputs_for_json_blob_syndication ~(forest : State.t) (syndication : _ T.jso
     | Uri_vertex uri -> State.get_resource forest uri
   in
   let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
-  let path_components = Legacy_xml_client.local_path_components forest.config syndication.blob_uri in
-  let json_route = String.concat "/" path_components in
-  [json_route, json_content]
+  [syndication.blob_uri, json_content]
 
 let outputs_for_atom_feed_syndication ~(forest : State.t) (syndication : T.atom_feed_syndication) =
-  let atom_route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config syndication.feed_uri in
+  let atom_route = syndication.feed_uri in
   let atom_nodes = Atom_client.render_feed forest ~source_uri: syndication.source_uri ~feed_uri: syndication.feed_uri in
   let atom_content = Format.asprintf "%a" (Pure_html.pp_xml ~header: true) atom_nodes in
   [atom_route, atom_content]
@@ -145,8 +142,11 @@ let outputs_for_syndication ~(forest : State.t) = function
 
 let outputs_for_resource ~(forest : State.t) = function
   | T.Article article -> outputs_for_article ~forest article
-  | T.Asset asset -> outputs_for_asset ~forest asset
+  | T.Asset asset -> outputs_for_asset asset
   | T.Syndication syndication -> outputs_for_syndication ~forest syndication
+
+let uri_to_local_path ~(forest : State.t) uri =
+  String.concat "/" @@ Legacy_xml_client.local_path_components forest.config uri
 
 let render_forest ~dev ~(forest : State.t) : unit =
   let cwd = Eio.Stdenv.cwd forest.env in
@@ -160,8 +160,8 @@ let render_forest ~dev ~(forest : State.t) : unit =
     EP.save ~create: (`Or_truncate 0o644) json_path json_string
   end;
   let jobs =
-    let home_route = String.concat "/" @@ URI.append_path_component (URI.stripped_path_components forest.config.url) "index.html" in
-    let home_content = html_redirect @@ String.concat "/" @@ "" :: Legacy_xml_client.local_path_components forest.config (Config.home_uri forest.config) @ [""] in
+    let home_route = URI.with_path_components (URI.append_path_component (URI.path_components forest.config.url) "index.html") forest.config.url in
+    let home_content = html_redirect @@ "/" ^ URI.relative_path_string ~base: forest.config.url (Config.home_uri forest.config) in
     List.cons [home_route, home_content] @@
       let@ resource = Eio.Fiber.List.map ~max_fibers: 40 @~ List.of_seq all_resources in
       let@ () = Reporter.easy_run in
@@ -171,9 +171,9 @@ let render_forest ~dev ~(forest : State.t) : unit =
   begin
     (* Note: this part appears to be fast! *)
     let@ items = Eio.Fiber.List.iter ~max_fibers: 20 @~ jobs in
-    let@ (route : string), content = List.iter @~ items in
+    let@ (route : URI.t), content = List.iter @~ items in
     let@ () = Reporter.easy_run in
-    let path = EP.(cwd / output_dir_name / route) in
+    let path = EP.(cwd / output_dir_name / uri_to_local_path ~forest route) in
     Eio_util.ensure_context_of_path ~perm: 0o755 path;
     EP.save ~create: (`Or_truncate 0o644) path content;
   end
