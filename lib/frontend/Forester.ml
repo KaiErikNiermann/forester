@@ -58,7 +58,7 @@ let complete ~(forest : State.t) prefix : (string * string) List.t =
   let title =
     Plain_text_client.string_of_content
       ~forest
-      ~router: (Legacy_xml_client.route forest)
+      ~router: Fun.id
       title
   in
   if String.starts_with ~prefix title then
