@@ -108,7 +108,7 @@ let compute
             let render =
               Plain_text_client.string_of_content
                 ~forest
-                ~router: (Legacy_xml_client.route forest)
+                ~router: Fun.id
             in
             let title = Option.map (fun fm -> State.get_expanded_title fm forest) frontmatter in
             let taxon = Option.bind frontmatter (fun fm -> T.(fm.taxon)) in

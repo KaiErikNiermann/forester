@@ -20,7 +20,7 @@ let compute (params : L.DocumentLinkParams.t) =
   let render =
     Plain_text_client.string_of_content
       ~forest
-      ~router: (Legacy_xml_client.route forest)
+      ~router: Fun.id
   in
   let config = forest.config in
   match params with

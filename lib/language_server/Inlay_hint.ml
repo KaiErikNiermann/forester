@@ -52,7 +52,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
                       " " ^
                         Plain_text_client.string_of_content
                           ~forest
-                          ~router: (Legacy_xml_client.route forest)
+                          ~router: Fun.id
                           title
                     in
                     Some
