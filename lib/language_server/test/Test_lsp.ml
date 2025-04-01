@@ -37,7 +37,9 @@ module Test_env = Algaeff.State.Make(struct type t = test_env end)
 let find_tree addr =
   let env = Test_env.get () in
   let dirs = env.dirs in
-  Eio.Path.native_exn @@ Option.get @@ Dir_scanner.find_tree dirs @@
+  Eio.Path.native_exn @@
+  Option.get @@
+  Dir_scanner.find_tree dirs @@
   URI_scheme.named_uri ~base: env.config.url addr
 
 let test_code_actions () =
@@ -249,10 +251,21 @@ let test_hover () =
   end: Alcotest.TESTABLE with type t = L.Hover.t)
   in
   let textDocument = find_doc env "jms-0052" in
-  let params = L.HoverParams.create ~position: env.position ~textDocument () in
+  let params = L.HoverParams.create ~position: {character = 12; line = 32;} ~textDocument () in
   let result = Handlers.Hover.compute params in
   let expected =
-    Some (L.Hover.create ~contents: (`MarkupContent {kind = L.MarkupKind.Markdown; value = "character: 1, line: 17."}) ())
+    Some
+      (
+        L.Hover.create
+          ~contents: (
+            `MarkupContent
+              {
+                kind = L.MarkupKind.Markdown;
+                value = "In this section, we will walk through the installation of the Forester software.<omitted content: System requirements of Forester><omitted content: Installing the Forester software>"
+              }
+          )
+          ()
+      )
   in
   Alcotest.(check @@ option hover)
     ""
@@ -292,18 +305,35 @@ let test_contains () =
   let start_pos = Asai.Range.{source = src; offset = 1; start_of_line = 0; line_num = 1} in
   let end_pos = Asai.Range.{source = src; offset = 13; start_of_line = 0; line_num = 1} in
   let loc = Option.some @@ Asai.Range.make (start_pos, end_pos) in
-  let located = Range.{value = (); loc} in
-  let result = Analysis.contains ~position located in
+  let result = Analysis.contains ~position loc in
   Alcotest.(check bool) "" true result
 
 let test_node_at () =
-  let position = L.Position.create ~character: 12 ~line: 0 in
-  let code = Result.get_ok @@ parse_string_loc {|\import{asdf}|} in
-  let result = Option.get @@ Analysis.node_at ~position code in
-  Alcotest.(check code_node)
-    ""
-    (Import (Private, "asdf"))
-    (Asai.Range.(result.value))
+  let case_1 =
+    let position = L.Position.create ~character: 12 ~line: 0 in
+    let code = Result.get_ok @@ parse_string_loc {|\import{asdf}|} in
+    let result = Option.get @@ Analysis.code_node_at ~position code in
+    Alcotest.(check code_node)
+      ""
+      (Import (Private, "asdf"))
+      (Asai.Range.(result.value))
+  in
+  let case_2 =
+    let position = L.Position.create ~character: 40 ~line: 0 in
+    let code =
+      Result.get_ok @@
+        parse_string_loc
+          {|\def\Mor[arg1][arg2][arg3]{#{{\arg2}\xrightarrow{\arg1}{\arg3}}}
+      |}
+    in
+    let result = Option.get @@ Analysis.code_node_at ~position code in
+    Alcotest.(check code_node)
+      ""
+      (Ident ["xrightarrow"])
+      (Asai.Range.(result.value))
+  in
+  case_1;
+  case_2
 
 let test_addr_at () =
   let code = Result.get_ok @@ parse_string_loc {|\transclude{tfmt-0005}|} in

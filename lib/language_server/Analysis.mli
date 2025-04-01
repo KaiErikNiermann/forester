@@ -13,7 +13,7 @@ open Forester_core
 *)
 
 (** [contains ~position node] is true if [position] is contained in the range of [node]*)
-val contains : position: Lsp.Types.Position.t -> 'a Range.located -> bool
+val contains : position: Lsp.Types.Position.t -> Range.t option -> bool
 
 (** [extract_addr node] attempts to extract a string from the node. It does not verify the validity of the address.
 *)
@@ -21,11 +21,9 @@ val extract_addr :
   Code.node Range.located ->
   string Range.located option
 
-(** Attempts to find the smallest located {{!type:Forester_compiler.Code.node}node} which contains [position]*)
-val node_at :
-  position: Lsp.Types.Position.t ->
-  Code.t ->
-  Code.node Range.located option
+
+val code_node_at : position:Lsp.Types.Position.t -> Code.node Range.located list -> Code.node Range.located option
+val syn_node_at : position:Lsp.Types.Position.t -> Syn.node Range.located list -> Syn.node Range.located option
 
 (** [addr_at ~position code] uses {!extract_addr} to extract an address from [position] in [code]
 *)
@@ -39,4 +37,4 @@ val flatten : Code.t -> Code.t
 
 val analyse_syntax : Code.t -> [`Addr of string | `Path of Trie.path] Asai.Range.located Seq.t
 
-val word_at : position: Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
+val word_at : position:Lsp.Types.Position.t -> Lsp.Text_document.t -> string option

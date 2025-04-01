@@ -10,8 +10,10 @@ open State.Syntax
 
 module Unit_map = URI.Map
 
-module R = Resolver
-module Sc = R.Scope
+open struct
+  module R = Resolver
+  module Sc = R.Scope
+end
 
 module F = Algaeff.State.Make(struct type t = State.t end)
 module Parent = Algaeff.Reader.Make(struct type t = Tree.identity end)

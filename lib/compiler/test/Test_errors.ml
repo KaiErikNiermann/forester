@@ -13,7 +13,7 @@ open Testables
 let parse_string str =
   let lexbuf = Lexing.from_string str in
   let res = Parse.parse lexbuf in
-  Result.map strip_loc res
+  Result.map strip_code res
 
 let _test_parse_error_explanation src expect =
   Alcotest.(check @@ result code string)

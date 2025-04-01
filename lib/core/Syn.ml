@@ -104,6 +104,7 @@ let map f node =
   | Dx_var _
   | Dx_execute
   | Route_asset
-  | Publish_results_of_query
+  | Syndicate_current_tree_as_atom_feed
+  | Syndicate_query_as_json_blob
   | Current_tree ->
     node

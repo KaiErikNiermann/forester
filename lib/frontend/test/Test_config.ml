@@ -55,6 +55,7 @@ let test_missing_fields () =
         {|
         [forest]
         trees = ["trees"]
+        url = "/"
         |}
     )
 
@@ -68,7 +69,7 @@ let test_missing_host () =
           Alcotest.(check Testables.message) "" Configuration_error message;
           Alcotest.(check @@ list string)
             ""
-            ["You need to set the `host' key in your configuration file; this is a global identifier that will be used to distinguish your forest from other forests (you can use your name, e.g. `johnqpublic')"]
+            ["You need to set the `url' key in your configuration file; this should be a URL like `https://www.my-great-forest.org/` or `http://localhost/`. Even if you do not plan to publish your forest, please choose a URL."]
             (extra_remarks_to_strings extra_remarks)
       in
       let emit = function
@@ -117,14 +118,17 @@ let test_stylesheet_warning () =
     Config.{
       trees = ["trees"];
       theme = "theme";
-      url = URI.of_string_exn "/";
+      url = URI.of_string_exn "http://localhost";
       home = None;
       assets = [];
       foreign = [];
       prefixes = [];
     }
     begin
-      let fatal _ = assert false in
+      let fatal d =
+        Logs.debug (fun m -> m "%a" (pp_diagnostic Reporter.Message.pp) d);
+        assert false
+      in
       let emit = function
         | {extra_remarks; _} ->
           (
@@ -139,6 +143,7 @@ let test_stylesheet_warning () =
         {|[forest]
         trees = ["trees"]
         stylesheet = "custom.xsl"
+        url = "http://localhost"
         |}
     end
 
@@ -162,18 +167,19 @@ let test_root_warning () =
             ""
             ["In your configuration file, change `root' key to `home' in the [forest] group."]
             (extra_remarks_to_strings extra_remarks)
-      (* (Asai.Diagnostic.string_of_text explanation.value) *)
       in
       Forester_core.Reporter.run ~fatal ~emit @@ fun () ->
       Config_parser.parse_forest_config_string
         {|[forest]
         trees = ["trees"]
-        root = "index"
+        url = "/"
         |}
     end
 
 let () =
   let open Alcotest in
+  Logs.set_level (Some Debug);
+  Logs.set_reporter (Logs.format_reporter ());
   run
     "Config parsing"
     [
@@ -187,9 +193,9 @@ let () =
       ];
       "handles errors correctly",
       [
-        test_case "" `Quick test_missing_host;
-        test_case "" `Quick test_parse_error;
-        test_case "" `Quick test_stylesheet_warning;
-        test_case "" `Quick test_root_warning;
-      ];
+        test_case "missing host" `Quick test_missing_host;
+        test_case "parse error" `Quick test_parse_error;
+        test_case "stylesheet warning" `Quick test_stylesheet_warning;
+        test_case "root warning" `Quick test_root_warning;
+      ]
     ]

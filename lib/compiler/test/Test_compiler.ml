@@ -81,12 +81,16 @@ let test_includes_paths ~env () =
         Done
       ]
       history;
-    let uri = (URI.of_string_exn "forest://my-forest/t8") in
+    let uri = (URI.of_string_exn "http://localhost/t8/") in
     let path =
       match forest.@{uri} with
       | Some (Article {frontmatter = {source_path; _}; _}) ->
         source_path
-      | _ -> Reporter.fatal Internal_error
+      | Some _ ->
+        Alcotest.fail "not an article"
+      | None ->
+        URI.Tbl.iter (fun uri _ -> Logs.debug (fun m -> m "%a" URI.pp uri)) forest.index;
+        Alcotest.fail "not found"
     in
     Alcotest.(check bool) "path is some" true (Option.is_some path)
   )
@@ -133,9 +137,13 @@ let test_omits_paths ~env () =
   let@ () = Reporter.easy_run in
   let forest = Driver.batch_run ~env ~config ~dev: false in
   let path =
-    match forest.@{URI.of_string_exn "forest://my-forest/index"} with
-    | Some (T.Article {frontmatter = {source_path; _}; _}) -> source_path
-    | _ -> None
+    match forest.@{URI.of_string_exn "http://localhost/t8/"} with
+    | Some (Article {frontmatter = {source_path; _}; _}) -> source_path
+    | Some _ ->
+      Alcotest.fail "not an article"
+    | None ->
+      URI.Tbl.iter (fun uri _ -> Logs.debug (fun m -> m "%a" URI.pp uri)) forest.index;
+      Alcotest.fail "not found"
   in
   Alcotest.(check bool) "" true @@ Option.is_none path
 

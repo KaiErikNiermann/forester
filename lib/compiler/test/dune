@@ -4,6 +4,7 @@
 
 (tests
  (names
+  Test_expansion
   Test_LaTeX_pipeline
   Test_compiler
   Test_diagnostic_store
@@ -27,6 +28,7 @@
   logs.fmt
   yuujinchou
   ocamlgraph
+  forester.language_server
   forester.test
   forester.prelude
   forester.parser

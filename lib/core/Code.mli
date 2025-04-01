@@ -80,3 +80,5 @@ val import_private : string -> node
 val import_public : string -> node
 val inline_math : t -> node
 val display_math : t -> node
+
+val map : (t -> t) -> node -> node

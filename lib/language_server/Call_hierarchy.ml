@@ -73,7 +73,7 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
     | None -> None
     | Some tree ->
       let item =
-        match Analysis.node_at ~position tree.nodes with
+        match Analysis.code_node_at ~position tree.nodes with
         | None -> None
         | Some {loc = _; value} ->
           match value with

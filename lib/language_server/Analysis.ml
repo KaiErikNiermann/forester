@@ -6,7 +6,13 @@
  *)
 
 open Forester_prelude
+(* open Forester_compiler *)
 open Forester_core
+
+open struct
+  module R = Resolver
+  module Sc = R.Scope
+end
 
 module L = Lsp.Types
 
@@ -23,48 +29,92 @@ module S = Algaeff.Sequencer.Make(struct
   type t = Item.t Range.located
 end)
 
-let nodes_within (node : Code.node Range.located) =
+let code_children (node : Code.node Range.located) =
   match node.value with
-  | Code.Math (_, t)
-  | Code.Group (_, t)
-  | Code.Let (_, _, t)
-  | Code.Scope t
-  | Code.Put (_, t)
-  | Code.Fun (_, t)
-  | Code.Default (_, t)
-  | Code.Def (_, _, t)
-  | Code.Namespace (_, t)
-  | Code.Dx_const_uri t
-  | Code.Dx_const_content t
-  | Code.Call (t, _)
-  | Code.Subtree (_, t) ->
+  | Math (_, t)
+  | Group (_, t)
+  | Let (_, _, t)
+  | Scope t
+  | Put (_, t)
+  | Fun (_, t)
+  | Default (_, t)
+  | Def (_, _, t)
+  | Namespace (_, t)
+  | Dx_const_uri t
+  | Dx_const_content t
+  | Call (t, _)
+  | Subtree (_, t) ->
     t
-  | Code.Dx_prop (_, t)
-  | Code.Dx_query (_, _, t)
-  | Code.Dx_sequent (_, t) ->
+  | Dx_prop (_, t)
+  | Dx_query (_, _, t)
+  | Dx_sequent (_, t) ->
     (List.concat t)
-  | Code.Object {methods; _} ->
+  | Object {methods; _} ->
     (methods |> List.map snd |> List.concat)
-  | Code.Patch {obj; methods; _} ->
+  | Patch {obj; methods; _} ->
     let methods = (methods |> List.map snd |> List.concat) in
     (List.append obj methods)
-  | Code.Text _
-  | Code.Verbatim _
-  | Code.Ident _
-  | Code.Hash_ident _
-  | Code.Xml_ident (_, _)
-  | Code.Open _
-  | Code.Get _
-  | Code.Import (_, _)
-  | Code.Decl_xmlns (_, _)
-  | Code.Alloc _
-  | Code.Dx_var _
-  | Code.Comment _
-  | Code.Error _ ->
+  | Text _
+  | Verbatim _
+  | Ident _
+  | Hash_ident _
+  | Xml_ident (_, _)
+  | Open _
+  | Get _
+  | Import (_, _)
+  | Decl_xmlns (_, _)
+  | Alloc _
+  | Dx_var _
+  | Comment _
+  | Error _ ->
+    []
+
+let syn_children (node : Syn.node Range.located) =
+  match node.value with
+  | Text _
+  | Verbatim _
+  | Group (_, _)
+  | Math (_, _)
+  | Link _
+  | Subtree (_, _)
+  | Fun (_, _)
+  | Var _
+  | Sym _
+  | Put (_, _, _)
+  | Default (_, _, _)
+  | Get _
+  | Xml_tag (_, _, _)
+  | TeX_cs _
+  | Prim _
+  | Object _
+  | Patch _
+  | Call (_, _)
+  | Results_of_query
+  | Transclude
+  | Embed_tex
+  | Ref
+  | Title
+  | Parent
+  | Taxon
+  | Meta
+  | Attribution (_, _)
+  | Tag _
+  | Date
+  | Number
+  | Dx_sequent (_, _)
+  | Dx_query (_, _, _)
+  | Dx_prop (_, _)
+  | Dx_var _
+  | Dx_const (_, _)
+  | Dx_execute
+  | Route_asset
+  | Syndicate_current_tree_as_atom_feed
+  | Syndicate_query_as_json_blob
+  | Current_tree ->
     []
 
 let flatten (tree : Code.t) : Code.t =
-  List.concat_map nodes_within tree
+  List.concat_map code_children tree
 
 let paths_in_bindings =
   List.map snd
@@ -131,15 +181,15 @@ let rec analyse (node : Code.node Range.located) =
     let@ path = List.iter @~ paths in
     S.yield ({value = Item.path path; loc});
   end;
-  let children = nodes_within node in
+  let children = code_children node in
   List.iter analyse children
 
 let contains = fun
     ~(position : Lsp.Types.Position.t)
-    (located : _ Range.located)
+    (loc : Range.t option)
   ->
   let L.Position.{line = cursor_line; character = cursor_character} = position in
-  match located.loc with
+  match loc with
   | Some loc ->
     begin
       match Range.view loc with
@@ -159,16 +209,55 @@ let contains = fun
     end
   | None -> false
 
-let rec node_at ~(position : Lsp.Types.Position.t) (code : _ list) : Code.node Range.located option =
-  match List.find_opt (contains ~position) code with
+let rec node_at
+  : type a. position: L.Position.t -> children: (a Range.located -> a Range.located list) -> a Range.located list -> a Range.located option
+= fun ~position ~children code ->
+  match List.find_opt (fun Range.{loc; _} -> contains ~position loc) code with
   | None -> None
   | Some n ->
-    match (node_at ~position) (nodes_within n) with
+    match (node_at ~position ~children) (children n) with
     | Some inner -> Some inner
     | None -> Some n
 
+let code_node_at ~position = node_at ~position ~children: code_children
+let syn_node_at ~position = node_at ~position ~children: syn_children
+
+let _pp_print_pair pp1 pp2 ppf (left, right) =
+  pp1 ppf left; pp2 ppf right
+
+(* let rec get_visible *)
+(* = fun ~(position : L.Position.t) (code : Code.t) -> *)
+(*   let@ () = Sc.easy_run in *)
+(*   match code with *)
+(*   | [] -> *)
+(*     Trie.empty *)
+(*   | ({loc; value} as node) :: rest -> *)
+(*     let@ () = Expand.scope_effect node in *)
+(*     if contains ~position loc then *)
+(*       let _ = Logs.debug (fun m -> m "%a" Code.pp_node value) in *)
+(*       Logs.debug (fun m -> *)
+(*         m *)
+(*           "visible: %a" *)
+(*           Format.( *)
+(*             pp_print_seq *)
+(*               ( *)
+(*                 pp_print_pair *)
+(*                   Trie.pp_path *)
+(*                   (pp_print_pair Resolver.P.pp_data (pp_print_option Asai.Range.dump)) *)
+(*               ) *)
+(*           ) *)
+(*           (Trie.to_seq @@ Sc.get_visible ()) *)
+(*       ); *)
+(*       match (node_at ~position ~children: code_children) (code_children node) with *)
+(*       | None -> Resolver.Scope.get_visible () *)
+(*       | Some node' -> *)
+(*         let@ () = Expand.scope_effect node' in *)
+(*         Resolver.Scope.get_visible () *)
+(*     else *)
+(*       get_visible ~position rest *)
+
 let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located option =
-  Option.bind (node_at ~position code) extract_addr
+  Option.bind (node_at ~position ~children: code_children code) extract_addr
 
 let analyse_syntax nodes =
   let@ () = S.run in
