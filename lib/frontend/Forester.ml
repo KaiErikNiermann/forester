@@ -151,7 +151,7 @@ let outputs_for_resource ~(forest : State.t) = function
 let render_forest ~dev ~(forest : State.t) : unit =
   let cwd = Eio.Stdenv.cwd forest.env in
   let all_resources = forest |> State.get_all_resources in
-  Seq.iter (State.plant_resource @~ forest) all_resources;
+  Seq.iter (State.plant_resource @~ forest) all_resources; (* TODO: can someone explain why we need to plant all the resources again? I thought they were already there? *)
   Logs.debug (fun m -> m "Rendering %i resources" (Seq.length all_resources));
   begin
     let json_string = json_manifest ~dev ~forest in
