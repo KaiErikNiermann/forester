@@ -49,12 +49,12 @@ let get_date_range (article : _ T.article) : (Human_datetime.t * Human_datetime.
   with
     | _ -> None
 
-let render_title forest ?scope (frontmatter : _ T.frontmatter)  =
+let render_title forest ?scope (frontmatter : _ T.frontmatter) =
   A.title
     []
     "%s" @@
-    Plain_text_client.string_of_content ~forest ~router: Fun.id @@
-      State.get_expanded_title ?scope frontmatter forest
+  Plain_text_client.string_of_content ~forest ~router: Fun.id @@
+  State.get_expanded_title ?scope frontmatter forest
 
 let render_dates_exn dates =
   let sorted_dates = List.sort Human_datetime.compare dates in
@@ -66,9 +66,9 @@ let render_dates_exn dates =
     ]
 
 let render_updated_date dates =
-    let sorted_dates = List.sort Human_datetime.compare dates in
-    let newest = List.hd (List.rev sorted_dates) in
-    A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
+  let sorted_dates = List.sort Human_datetime.compare dates in
+  let newest = List.hd (List.rev sorted_dates) in
+  A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
 
 let render_dates dates =
   try render_dates_exn dates with _ -> A.null []
@@ -95,7 +95,6 @@ let render_attributions (forest : State.t) uri_opt attributions : P.node =
   A.null @@
   List.map (render_attribution forest) @@
   Forest_util.collect_attributions forest uri_opt attributions
-
 
 let get_embedded_articles (forest : State.t) (article : _ T.article) =
   let visit_node = function
@@ -163,5 +162,5 @@ let render_feed (forest : State.t) ~(source_uri : URI.t) ~(feed_uri : URI.t) : P
         A.link [A.rel "self"; A.href "%s" @@ URI.to_string feed_uri];
         A.null @@
           let@ article = List.map @~ articles in
-          render_entry ~forest ~scope:source_uri article
+          render_entry ~forest ~scope: source_uri article
       ]

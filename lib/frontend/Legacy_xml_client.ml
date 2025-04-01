@@ -250,7 +250,8 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
   [X.link attrs @@ render_content forest link.content]
 
 and render_attributions (forest : State.t) (scope : URI.t option) (primary_attributions : _ T.attribution list) =
-  X.authors [] @@ List.map (render_attribution forest) @@
+  X.authors [] @@
+  List.map (render_attribution forest) @@
   Forest_util.collect_attributions forest scope primary_attributions
 
 and render_attribution forest (attrib : _ T.attribution) =

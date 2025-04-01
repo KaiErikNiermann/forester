@@ -163,11 +163,6 @@ type content =
   Content of content content_node list
 [@@deriving show, repr]
 
-type syndication_format =
-(* | Atom_feed *)
-| Json_blob
-[@@deriving show]
-
 let html_elt uname (content : 'content) : 'content content_node =
   let name = {prefix = "html"; uname; xmlns = Some "http://www.w3.org/1999/xhtml"} in
   Xml_elt {content; name; attrs = []}

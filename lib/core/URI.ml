@@ -33,10 +33,10 @@ module Basics = struct
   let path_components x =
     String.split_on_char '/' @@ Uri.pct_decode x.path
 
-let rec strip_path_components xs =
-  match xs with
-  | "" :: xs -> strip_path_components xs
-  | xs -> xs
+  let rec strip_path_components xs =
+    match xs with
+    | "" :: xs -> strip_path_components xs
+    | xs -> xs
 
   let stripped_path_components x =
     strip_path_components @@ path_components x

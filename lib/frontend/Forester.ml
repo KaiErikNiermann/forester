@@ -105,10 +105,53 @@ let html_redirect uri_string =
           ]
       ]
 
+let outputs_for_article ~(forest : State.t) (article : _ T.article) =
+  match article.frontmatter.uri with
+  | None -> []
+  | Some uri ->
+    let path_components = Legacy_xml_client.local_path_components forest.config uri in
+    let xml_route = String.concat "/" @@ URI.append_path_component path_components "index.xml" in
+    let html_route = String.concat "/" @@ URI.append_path_component path_components "index.html" in
+    let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
+    let html_content = html_redirect @@ "/" ^ xml_route in
+    [xml_route, xml_content; html_route, html_content]
+
+let outputs_for_asset ~(forest : State.t) (asset : T.asset) =
+  let route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config asset.uri in
+  [route, asset.content]
+
+let outputs_for_json_blob_syndication ~(forest : State.t) (syndication : _ T.json_blob_syndication) =
+  let vertices = Forest.run_datalog_query forest.graphs syndication.query in
+  let resources =
+    let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
+    match vertex with
+    | Content_vertex _ -> None
+    | Uri_vertex uri -> State.get_resource forest uri
+  in
+  let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
+  let path_components = Legacy_xml_client.local_path_components forest.config syndication.blob_uri in
+  let json_route = String.concat "/" path_components in
+  [json_route, json_content]
+
+let outputs_for_atom_feed_syndication ~(forest : State.t) (syndication : T.atom_feed_syndication) =
+  let atom_route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config syndication.feed_uri in
+  let atom_nodes = Atom_client.render_feed forest ~source_uri: syndication.source_uri ~feed_uri: syndication.feed_uri in
+  let atom_content = Format.asprintf "%a" (Pure_html.pp_xml ~header: true) atom_nodes in
+  [atom_route, atom_content]
+
+let outputs_for_syndication ~(forest : State.t) = function
+  | T.Json_blob syndication -> outputs_for_json_blob_syndication ~forest syndication
+  | T.Atom_feed syndication -> outputs_for_atom_feed_syndication ~forest syndication
+
+let outputs_for_resource ~(forest : State.t) = function
+  | T.Article article -> outputs_for_article ~forest article
+  | T.Asset asset -> outputs_for_asset ~forest asset
+  | T.Syndication syndication -> outputs_for_syndication ~forest syndication
+
 let render_forest ~dev ~(forest : State.t) : unit =
   let cwd = Eio.Stdenv.cwd forest.env in
   let all_resources = forest |> State.get_all_resources in
-  Seq.iter (fun t -> State.plant_resource t forest) all_resources;
+  Seq.iter (State.plant_resource @~ forest) all_resources;
   Logs.debug (fun m -> m "Rendering %i resources" (Seq.length all_resources));
   begin
     let json_string = json_manifest ~dev ~forest in
@@ -122,39 +165,7 @@ let render_forest ~dev ~(forest : State.t) : unit =
     List.cons [home_route, home_content] @@
       let@ resource = Eio.Fiber.List.map ~max_fibers: 40 @~ List.of_seq all_resources in
       let@ () = Reporter.easy_run in
-      match resource with
-      | T.Article article ->
-        begin
-          match article.frontmatter.uri with
-          | None -> []
-          | Some uri ->
-            let path_components = Legacy_xml_client.local_path_components forest.config uri in
-            let xml_route = String.concat "/" @@ URI.append_path_component path_components "index.xml" in
-            let html_route = String.concat "/" @@ URI.append_path_component path_components "index.html" in
-            let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-            let html_content = html_redirect @@ "/" ^ xml_route in
-            [xml_route, xml_content; html_route, html_content]
-        end
-      | T.Asset asset ->
-        let route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config asset.uri in
-        [route, asset.content]
-      | T.Syndication (Json_blob {blob_uri; query}) ->
-        let vertices = Forest.run_datalog_query forest.graphs query in
-        let resources =
-          let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
-          match vertex with
-          | Content_vertex _ -> None
-          | Uri_vertex uri -> State.get_resource forest uri
-        in
-        let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
-        let path_components = Legacy_xml_client.local_path_components forest.config blob_uri in
-        let json_route = String.concat "/" path_components in
-        [json_route, json_content]
-      | T.Syndication (Atom_feed {source_uri; feed_uri}) ->
-        let atom_route = String.concat "/" @@ Legacy_xml_client.local_path_components forest.config feed_uri in
-        let atom_nodes = Atom_client.render_feed forest ~source_uri ~feed_uri in
-        let atom_content = Format.asprintf "%a" (Pure_html.pp_xml ~header: true) atom_nodes in
-        [atom_route, atom_content]
+      outputs_for_resource ~forest resource
   in
   Logs.debug (fun m -> m "Writing %i files to output" (List.length jobs));
   begin

@@ -89,33 +89,6 @@ let expand_all (forest : State.t) =
   Forest_graph.topo_iter task forest.import_graph;
   !diagnostics
 
-(* let syndicate ~env ~(forest : State.t) (syndication : _ T.syndication) : unit =
-  match syndication with
-  | Atom_feed _ ->
-    assert false
-  | Json_blob {blob_uri; query} ->
-    let vertices = Forest.run_datalog_query forest.graphs query in
-    let resources =
-      let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
-      match vertex with
-      | Content_vertex _ -> None
-      | Uri_vertex uri ->
-        match forest.@{uri} with
-        | None ->
-          Reporter.emit Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "Attempted to export syndication but tree `%a` has not yet been planted" URI.pp uri];
-          None
-        | Some result -> Some result
-    in
-    (* TODO: put this in the output directory instead! *)
-    let blob = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
-    let cwd = Eio.Stdenv.cwd env in
-    let dir = Eio.Path.(cwd / "publications") in
-    let filename = name ^ ".json" in
-    let path = Eio.Path.(dir / filename) in
-    Eio.Path.mkdirs ~exists_ok: true ~perm: 0o755 dir;
-    Eio.Path.save ~create: (`Or_truncate 0o644) path blob;
-    assert (Eio.Path.is_file path) *)
-
 let run_jobs (forest : State.t) jobs =
   Logs.debug (fun m -> m "Running %d jobs" (List.length jobs));
   (* All resources induced by LaTeX jobs must be planted prior to publication export. *)

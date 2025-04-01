@@ -96,13 +96,13 @@ let expand_hour (Hour (h, min_opt)) =
 let expand_time_with_offset (hms, offset) = expand_hour hms, offset
 
 let expand_day (Day (d, time_with_offset_opt)) =
-  Day (d, Option.some @@ Option.fold ~none:zero_time_with_offset ~some:expand_time_with_offset time_with_offset_opt )
+  Day (d, Option.some @@ Option.fold ~none: zero_time_with_offset ~some: expand_time_with_offset time_with_offset_opt)
 
 let expand_month (Month (m, day_opt)) =
-  Month (m, Option.some @@ Option.fold ~none:zero_day ~some:expand_day day_opt)
+  Month (m, Option.some @@ Option.fold ~none: zero_day ~some: expand_day day_opt)
 
 let expand_year (Year (y, month_opt)) =
-  Year (y, Option.some @@ Option.fold ~none: zero_month ~some:expand_month month_opt)
+  Year (y, Option.some @@ Option.fold ~none: zero_month ~some: expand_month month_opt)
 
 (* TODO *)
 let pp_rfc_3399 fmt dt = pp_datetime fmt @@ expand_year dt
