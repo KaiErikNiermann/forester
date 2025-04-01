@@ -79,7 +79,7 @@ module Basics = struct
 
   let relative_path_string ~(base : t) uri : string =
     Str.replace_first (Str.regexp (Format.asprintf "^%a" pp base)) "" @@
-    to_string uri
+      to_string uri
 
   let display_path_string ~base uri =
     if host uri = host base then

@@ -53,7 +53,7 @@ let render_title forest ?scope (frontmatter : _ T.frontmatter) =
   A.title
     []
     "%s" @@
-  Plain_text_client.string_of_content ~forest ~router: Fun.id @@
+  Plain_text_client.string_of_content ~forest @@
   State.get_expanded_title ?scope frontmatter forest
 
 let render_dates_exn dates =
@@ -73,7 +73,7 @@ let render_updated_date dates =
 let render_dates dates =
   try render_dates_exn dates with _ -> A.null []
 
-let string_of_content forest = Plain_text_client.string_of_content ~forest ~router: Fun.id
+let string_of_content forest = Plain_text_client.string_of_content ~forest
 
 let render_attribution forest (attribution : _ T.attribution) =
   let tag =

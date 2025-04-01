@@ -108,11 +108,7 @@ let compute
     ({query = _; _}: L.WorkspaceSymbolParams.t)
   =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let render =
-    Plain_text_client.string_of_content
-      ~forest
-      ~router: Fun.id
-  in
+  let render = Plain_text_client.string_of_content ~forest in
   let symbols
     =
     forest

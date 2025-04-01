@@ -42,5 +42,5 @@ and pp_section ~forest ~(router : URI.t -> URI.t) fmt (section : T.content T.sec
   | None -> Format.fprintf fmt "<omitted content>"
   | Some title -> Format.fprintf fmt "<omitted content: %a>" (pp_content ~forest ~router) title
 
-let string_of_content ~forest ~(router : URI.t -> URI.t) =
+let string_of_content ~forest ?(router : URI.t -> URI.t = Fun.id) =
   Format.asprintf "%a" (pp_content ~forest ~router)

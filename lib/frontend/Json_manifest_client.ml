@@ -17,7 +17,7 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
   (* TODO : Check routing *)
   let route = Legacy_xml_client.route forest uri in
   let title_string =
-    PT.string_of_content ~forest ~router: Fun.id @@
+    PT.string_of_content ~forest @@
       State.get_expanded_title doc.frontmatter forest
   in
   let title = `String title_string in
@@ -25,19 +25,19 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
     match doc.frontmatter.taxon with
     | None -> `Null
     | Some content ->
-      `String (PT.string_of_content ~forest ~router: Fun.id content)
+      `String (PT.string_of_content ~forest content)
   in
   let tags =
     `List
       begin
         let@ tag = List.filter_map @~ doc.frontmatter.tags in
         let@ content = Option.map @~ State.get_title_or_content_of_vertex tag forest in
-        `String (PT.string_of_content ~forest ~router: Fun.id content)
+        `String (PT.string_of_content ~forest content)
       end
   in
   let route = `String (URI.to_string route) in
   let metas =
-    let meta_string meta = String.trim @@ PT.string_of_content ~forest ~router: Fun.id meta in
+    let meta_string meta = String.trim @@ PT.string_of_content ~forest meta in
     let meta_assoc (s, meta) = (s, `String (meta_string meta)) in
     `Assoc (List.map meta_assoc doc.frontmatter.metas)
   in

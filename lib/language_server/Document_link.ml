@@ -17,11 +17,7 @@ let (let*) = Option.bind
 (* TODO: handle external links as well? *)
 let compute (params : L.DocumentLinkParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let render =
-    Plain_text_client.string_of_content
-      ~forest
-      ~router: Fun.id
-  in
+  let render = Plain_text_client.string_of_content ~forest in
   let config = forest.config in
   match params with
   | {textDocument; _} ->

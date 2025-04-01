@@ -49,11 +49,7 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
                   | None -> None
                   | Some title ->
                     let content =
-                      " " ^
-                        Plain_text_client.string_of_content
-                          ~forest
-                          ~router: Fun.id
-                          title
+                      " " ^ Plain_text_client.string_of_content ~forest title
                     in
                     Some
                       (

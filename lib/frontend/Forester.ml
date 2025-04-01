@@ -55,12 +55,7 @@ let complete ~(forest : State.t) prefix : (string * string) List.t =
   let@ uri = Option.bind article.frontmatter.uri in
   let short_uri = URI.display_path_string ~base: config.url uri in
   let@ title = Option.bind article.frontmatter.title in
-  let title =
-    Plain_text_client.string_of_content
-      ~forest
-      ~router: Fun.id
-      title
-  in
+  let title = Plain_text_client.string_of_content ~forest title in
   if String.starts_with ~prefix title then
     Some (short_uri, title)
   else
@@ -112,7 +107,7 @@ let outputs_for_article ~(forest : State.t) (article : _ T.article) =
     let xml_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.xml") uri in
     let html_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.html") uri in
     let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-    let html_content = html_redirect @@ "/" ^ URI.relative_path_string ~base:forest.config.url xml_route in
+    let html_content = html_redirect @@ "/" ^ URI.relative_path_string ~base: forest.config.url xml_route in
     [xml_route, xml_content; html_route, html_content]
 
 let outputs_for_asset (asset : T.asset) =

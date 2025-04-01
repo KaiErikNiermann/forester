@@ -11,7 +11,7 @@ module T := Types
 
 val string_of_content :
   forest: State.t ->
-  router: (URI.t -> URI.t) ->
+  ?router: (URI.t -> URI.t) ->
   Types.content ->
   string
 

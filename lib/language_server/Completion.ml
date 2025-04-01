@@ -105,11 +105,7 @@ let compute
       |> Seq.filter_map (fun (uri, tree) ->
           let frontmatter = Tree.get_frontmatter tree in
           let documentation =
-            let render =
-              Plain_text_client.string_of_content
-                ~forest
-                ~router: Fun.id
-            in
+            let render = Plain_text_client.string_of_content ~forest in
             let title = Option.map (fun fm -> State.get_expanded_title fm forest) frontmatter in
             let taxon = Option.bind frontmatter (fun fm -> T.(fm.taxon)) in
             let content =

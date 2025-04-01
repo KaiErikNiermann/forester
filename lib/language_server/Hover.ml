@@ -18,11 +18,7 @@ let (let*) = Option.bind
 
 let compute ({position; textDocument; _}: L.HoverParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let render =
-    Plain_text_client.string_of_content
-      ~forest
-      ~router: Fun.id
-  in
+  let render = Plain_text_client.string_of_content ~forest in
   let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url textDocument.uri in
   let* content =
     match forest.={uri} with

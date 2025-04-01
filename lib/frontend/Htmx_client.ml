@@ -442,7 +442,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : node lis
   | Section section ->
     [render_section forest section]
   | KaTeX (mode, content) ->
-    let body = Plain_text_client.string_of_content ~forest ~router: Fun.id content in
+    let body = Plain_text_client.string_of_content ~forest content in
     (* [txt ~raw: true "%s%s%s" l body r] *)
     begin
       match mode with

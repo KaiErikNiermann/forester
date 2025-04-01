@@ -40,7 +40,7 @@ let render_xml_qname qname =
   | _ -> Format.sprintf "%s:%s" qname.prefix qname.uname
 
 let render_xml_attr (forest : State.t) T.{key; value} =
-  let str_value = Plain_text_client.string_of_content ~forest: forest ~router: Fun.id value in
+  let str_value = Plain_text_client.string_of_content ~forest: forest value in
   P.string_attr (render_xml_qname key) "%s" str_value
 
 let render_xmlns_prefix ({prefix; xmlns}: Forester_xml_names.xmlns_attr) =

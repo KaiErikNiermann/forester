@@ -5,10 +5,7 @@ open struct module T = Types end
 
 let get_sorted_articles (forest : State.t) addrs =
   let module C = Types.Comparators(struct
-    let string_of_content =
-      Plain_text_client.string_of_content
-        ~forest
-        ~router: Fun.id
+    let string_of_content x = Plain_text_client.string_of_content ~forest x
   end) in
   addrs
   |> Vertex_set.to_seq
