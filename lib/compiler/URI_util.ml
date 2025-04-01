@@ -35,16 +35,16 @@ let next_uri
   in
   let default_dir = Option.map Unix.realpath @@ List.nth_opt forest.config.trees 0 in
   let keys =
-    let@ (addr, uri) = List.filter_map @~ addrs in
-    let@ prefix', key = Option.bind @@ URI_scheme.split_addr addr in
+    let@ (uri, path) = List.filter_map @~ addrs in
+    let@ prefix', key = Option.bind @@ URI_scheme.split_addr uri in
     if prefix = prefix'
-    then Some (key, Filename.dirname uri)
+    then Some (key, Filename.dirname path)
     else None
   in
   let last_sequential, dir =
     List.fold_left
-      (fun (acc_i, acc_uri) (i, uri) ->
-        if i > acc_i then (i, Some uri) else (acc_i, acc_uri)
+      (fun (acc_i, acc_dir) (i, dir) ->
+        if i > acc_i then (i, Some dir) else (acc_i, acc_dir)
       )
       (0, default_dir)
       keys
