@@ -21,9 +21,10 @@ let last_segment str =
 
 let name (uri : URI.t) : string =
   uri
-  |> URI.path_string
-  |> last_segment
-  |> Filename.remove_extension (* this is dodgy!*)
+  |> URI.path_components
+  |> List.filter (fun x -> not (x = ""))
+  |> List.rev
+  |> List.hd
 
 let split_addr (uri : URI.t) : (string option * int) option =
   let name = name uri in

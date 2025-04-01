@@ -37,8 +37,8 @@ let next_uri
   let keys =
     let@ (addr, uri) = List.filter_map @~ addrs in
     let@ prefix', key = Option.bind @@ URI_scheme.split_addr addr in
-    if prefix = prefix' then
-      Some (key, Filename.dirname uri)
+    if prefix = prefix'
+    then Some (key, Filename.dirname uri)
     else None
   in
   let last_sequential, dir =
