@@ -23,13 +23,11 @@ let next_uri
   =
   let addrs =
     forest.index
-    |> URI.Tbl.to_seq_keys
+    |> URI.Tbl.to_seq
     |> Seq.filter_map
-        (fun uri ->
-          match URI.Tbl.find_opt forest.resolver uri with
-          | None -> None
-          | Some path ->
-            Some (uri, path)
+        (fun (uri, tree) ->
+          let@ path = Option.map @~ Tree.get_source_path ~base:forest.config.url tree in
+          uri, path
         )
     |> List.of_seq
   in
@@ -54,7 +52,7 @@ let next_uri
     | `Sequential -> last_sequential + 1
     | `Random -> random_not_in @@ List.map fst keys
   in
-  (match prefix with None -> "" | Some "" -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
+  (match prefix with (None | Some "") -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
 
 let start_of_file =
   let beginning = L.Position.create ~character: 0 ~line: 0 in

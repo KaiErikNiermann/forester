@@ -60,8 +60,19 @@ let show_stage = function
   | Expanded _ -> "expanded"
   | Resource _ -> "resource"
 
-(* let get_uri ~host = fun t ->
-  let of_lsp_uri doc = Some (URI_scheme.lsp_uri_to_uri ~host (Lsp.Text_document.documentUri doc)) in
+let get_source_path ~base tree =
+  match tree with
+  | Document doc -> Some (Lsp.Uri.to_path (Lsp.Text_document.documentUri doc))
+  | Resource {tree = resource; _} ->
+    begin
+      match resource with
+      | T.Article article -> article.frontmatter.source_path
+      | _ -> None
+    end
+  | Expanded {identity; _} | Parsed { identity; _} -> None
+
+(* let get_uri ~base = fun t ->
+  let of_lsp_uri doc = Some (URI_scheme.lsp_uri_to_uri ~base (Lsp.Text_document.documentUri doc)) in
   let uri_opt =
     match t with
     | Document doc -> of_lsp_uri doc
