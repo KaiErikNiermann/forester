@@ -71,24 +71,31 @@ let code_children (node : Code.node Range.located) =
 
 let syn_children (node : Syn.node Range.located) =
   match node.value with
+  | Group (_, t) -> t
+  | Math (_, t) -> t
+  | Subtree (_, t) -> t
+  | Link {dest; title} -> Option.fold ~some: (fun t -> t @ dest) ~none: dest title
+  | Fun (_, t) -> t
+  | Put (r, s, t) -> r @ s @ t
+  | Default (r, s, t) -> r @ s @ t
+  | Get t -> t
+  | Xml_tag (_, qs, t) -> List.concat_map snd qs @ t
+  | Call (t, _) -> t
+  | Object {methods; _} ->
+    List.concat_map snd methods
+  | Patch {obj; methods; _} ->
+    List.concat_map snd methods @
+      obj
+  | Dx_sequent (t, ts) -> t @ List.concat ts
+  | Dx_query (_, ps, ns) -> List.concat ps @ List.concat ns
+  | Dx_const (_, n) -> n
+  | Dx_prop (t, ts) -> t @ List.concat ts
   | Text _
   | Verbatim _
-  | Group (_, _)
-  | Math (_, _)
-  | Link _
-  | Subtree (_, _)
-  | Fun (_, _)
   | Var _
   | Sym _
-  | Put (_, _, _)
-  | Default (_, _, _)
-  | Get _
-  | Xml_tag (_, _, _)
   | TeX_cs _
   | Prim _
-  | Object _
-  | Patch _
-  | Call (_, _)
   | Results_of_query
   | Transclude
   | Embed_tex
@@ -101,11 +108,7 @@ let syn_children (node : Syn.node Range.located) =
   | Tag _
   | Date
   | Number
-  | Dx_sequent (_, _)
-  | Dx_query (_, _, _)
-  | Dx_prop (_, _)
   | Dx_var _
-  | Dx_const (_, _)
   | Dx_execute
   | Route_asset
   | Syndicate_current_tree_as_atom_feed
