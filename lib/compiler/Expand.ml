@@ -123,167 +123,229 @@ let rec expand_method_calls (base : Syn.t) : Code.t -> Syn.t * Code.t = function
     expand_method_calls base rest
   | rest -> base, rest
 
-let rec expand : Code.t -> Syn.t = function
-  | [] -> []
-  | {value = Hash_ident x; loc} :: rest ->
-    {value = Syn.Text x; loc} :: expand rest
-  | {value = Text x; loc} :: rest ->
-    {value = Syn.Text x; loc} :: expand rest
-  | {value = Verbatim x; loc} :: rest ->
-    {value = Syn.Verbatim x; loc} :: expand rest
-  | {value = Namespace (path, body); _} :: rest ->
-    let result =
-      let@ () = Sc.section path in
-      expand body
-    in
-    result @ expand rest
-  | {value = Open path; _} :: rest ->
+let local_open path k =
+  let@ () = Sc.section path in
+  Sc.modify_visible @@
+    R.Lang.union
+      [
+        R.Lang.all;
+        R.Lang.renaming path []
+      ];
+  k ()
+
+let rec expand_object self methods loc =
+  let sym = Symbol.fresh () in
+  let var = Range.{value = Syn.Var sym; loc} in
+  begin
+    let@ self = Option.iter @~ self in
+    Sc.import_singleton self @@ (R.P.Term [var], loc)
+  end;
+  sym, List.map expand_method methods
+
+and expand_patch self methods loc =
+  let self_sym = Symbol.fresh () in
+  let super_sym = Symbol.fresh () in
+  let self_var = Range.locate_opt None @@ Syn.Var self_sym in
+  let super_var = Range.locate_opt None @@ Syn.Var super_sym in
+  begin
+    let@ self = Option.iter @~ self in
+    Sc.import_singleton self @@ (Term [self_var], loc);
+    Sc.import_singleton (self @ ["super"]) @@ (Term [super_var], loc)
+  end;
+  self_sym, super_sym, List.map expand_method methods
+
+and scope_effect
+  : type a. Code.node Range.located -> (unit -> a) -> a
+= fun (node : Code.node Asai.Range.located) kont ->
+  match node with
+  | {value = Namespace (path, _); _} ->
     let@ () = Sc.section path in
-    Sc.modify_visible @@
-      R.Lang.union
-        [
-          R.Lang.all;
-          R.Lang.renaming path []
-        ];
-    expand rest
-  | {value = Group (Squares, title); loc = loc1} :: {value = Group (Parens, dest); _} :: rest ->
-    let dest = expand dest in
-    let title = Option.some @@ expand title in
-    let link = Syn.Link {dest; title} in
-    {value = link; loc = loc1} :: expand rest
-  | {value = Group (Squares, [{value = Group (Squares, dest); _}]); loc} :: rest ->
-    let dest = expand dest in
-    {value = Syn.Link {dest; title = None}; loc} :: expand rest
-  | {value = Group (d, xs); loc} :: rest ->
-    {value = Syn.Group (d, expand xs); loc} :: expand rest
-  | {value = Subtree (addr, nodes); loc} :: rest ->
-    let config = (F.get ()).config in
-    let parent_uri = Parent.read () in
-    let identity =
-      match addr with
-      | Some addr -> Tree.URI (URI_scheme.named_uri ~base: config.url addr)
-      | None -> Tree.Anonymous
-    in
-    let subtree =
-      expand_tree_inner @@
-        Tree.{
-          identity;
-          timestamp = None;
-          origin = Subtree {parent = parent_uri};
-          nodes
-        }
-    in
-    {value = Syn.Subtree (addr, subtree.nodes); loc} :: expand rest
-  | {value = Math (m, xs); loc} :: rest ->
-    {value = Syn.Math (m, expand xs); loc} :: expand rest
-  | {value = Ident path; loc} :: rest ->
-    let out, rest = expand_method_calls (expand_ident loc path) rest in
-    out @ expand rest
-  | {value = Xml_ident (prefix, uname); loc} :: rest ->
-    let qname = expand_xml_ident loc (prefix, uname) in
-    let attrs, rest = get_xml_attrs [] rest in
-    let arg_opt, rest = get_arg_opt rest in
-    let tag = Syn.Xml_tag (qname, attrs, Option.value ~default: [] arg_opt) in
-    {value = tag; loc} :: expand rest
-  | {value = Scope body; _} :: rest ->
-    let body =
-      let@ () = Sc.section [] in
-      expand body
-    in
-    body @ expand rest
-  | {value = Put (k, v); loc} :: rest ->
-    let k = expand_ident loc k in
-    let v = expand v in
-    [{value = Syn.Put (k, v, expand rest); loc}]
-  | {value = Default (k, v); loc} :: rest ->
-    let k = expand_ident loc k in
-    let v = expand v in
-    [{value = Syn.Default (k, v, expand rest); loc}]
-  | {value = Get k; loc} :: rest ->
-    let k = expand_ident loc k in
-    {value = Syn.Get k; loc} :: expand rest
-  | {value = Dx_prop (rel, args); loc} :: rest ->
-    {value = Syn.Dx_prop (expand rel, List.map expand args); loc} :: expand rest
-  | {value = Dx_sequent (concl, premises); loc} :: rest ->
-    {value = Syn.Dx_sequent (expand concl, List.map expand premises); loc} :: expand rest
-  | {value = Dx_query (var, positives, negatives); loc} :: rest ->
-    {value = Syn.Dx_query (var, List.map expand positives, List.map expand negatives); loc} :: expand rest
-  | {value = Fun (xs, body); loc} :: rest ->
-    expand_lambda loc (xs, body) :: expand rest
-  | {value = Object {self; methods}; loc} :: rest ->
-    let self, methods =
-      let@ () = Sc.section [] in
-      let sym = Symbol.fresh () in
-      let var = Range.{value = Syn.Var sym; loc} in
-      begin
-        let@ self = Option.iter @~ self in
-        Sc.import_singleton self @@ (R.P.Term [var], loc)
-      end;
-      sym, List.map expand_method methods
-    in
-    {value = Syn.Object {self; methods}; loc} :: expand rest
-  | {value = Patch {obj; self; methods}; loc} :: rest ->
-    let self, super, methods =
-      let@ () = Sc.section [] in
-      let self_sym = Symbol.fresh () in
-      let super_sym = Symbol.fresh () in
-      let self_var = Range.locate_opt None @@ Syn.Var self_sym in
-      let super_var = Range.locate_opt None @@ Syn.Var super_sym in
-      begin
-        let@ self = Option.iter @~ self in
-        Sc.import_singleton self @@ (Term [self_var], loc);
-        Sc.import_singleton (self @ ["super"]) @@ (Term [super_var], loc)
-      end;
-      self_sym, super_sym, List.map expand_method methods
-    in
-    let patched = Syn.Patch {obj = expand obj; self; super; methods} in
-    {value = patched; loc} :: expand rest
-  | {value = Call (obj, method_name); loc} :: rest ->
-    {value = Syn.Call (expand obj, method_name); loc} :: expand rest
-  | {value = Import (vis, dep); loc} :: rest ->
+    kont ()
+  | {value = Open path; _} ->
+    let@ () = local_open path in
+    kont ()
+  | {value = Scope _; _} ->
+    let@ () = Sc.section [] in
+    kont ()
+  | {value = Import (vis, dep); loc} ->
     let forest = F.get () in
     let dep_uri = URI_scheme.named_uri ~base: forest.config.url dep in
     begin
       match forest./{dep_uri} with
       | None ->
-        Reporter.emit ?loc: loc (Import_not_found dep_uri)
+        Reporter.fatal ?loc: loc (Import_not_found dep_uri)
       | Some tree ->
         begin
           match vis with
-          | Public -> Sc.include_subtree [] tree
-          | Private -> Sc.import_subtree [] tree
+          | Public -> (let () = Sc.include_subtree [] tree in kont ())
+          | Private -> (let () = Sc.import_subtree [] tree in kont ())
         end
-    end;
-    expand rest
-  | {value = Dx_var name; loc} :: rest ->
-    {value = Syn.Dx_var name; loc} :: expand rest
-  | {value = Dx_const_content arg; loc} :: rest ->
-    {value = Syn.Dx_const (`Content, expand arg); loc} :: expand rest
-  | {value = Dx_const_uri arg; loc} :: rest ->
-    {value = Syn.Dx_const (`Uri, expand arg); loc} :: expand rest
-  | {value = Let (a, bs, def); loc} :: rest ->
-    let lam = expand_lambda loc (bs, def) in
+    end
+  | {value = Let (a, bs, def); loc} ->
+    (
+      let lam = expand_lambda loc (bs, def) in
+      let@ () = Sc.section [] in
+      Sc.import_singleton a @@ (Term [lam], loc);
+      kont ()
+    )
+  | {value = Def (path, xs, body); loc} ->
+    (
+      let lam = expand_lambda loc (xs, body) in
+      Sc.include_singleton path @@ (Term [lam], loc);
+      kont ()
+    )
+  | {value = Decl_xmlns (prefix, xmlns); loc} ->
+    (
+      let path = ["xmlns"; prefix] in
+      Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, loc);
+      kont ()
+    )
+  | {value = Alloc path; loc} ->
+    (
+      let symbol = Symbol.named path in
+      Sc.include_singleton path @@ (Term [Range.locate_opt loc (Syn.Sym symbol)], loc);
+      kont ()
+    )
+  | {value = Object _; _}
+  | {value = Patch _; _} ->
     let@ () = Sc.section [] in
-    Sc.import_singleton a @@ (Term [lam], loc);
-    expand rest
-  | {value = Def (path, xs, body); loc} :: rest ->
-    let lam = expand_lambda loc (xs, body) in
-    Sc.include_singleton path @@ (Term [lam], loc);
-    expand rest
-  | {value = Decl_xmlns (prefix, xmlns); loc} :: rest ->
-    let path = ["xmlns"; prefix] in
-    Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, loc);
-    expand rest
-  | {value = Alloc path; loc} :: rest ->
-    let symbol = Symbol.named path in
-    Sc.include_singleton path @@ (Term [Range.locate_opt loc (Syn.Sym symbol)], loc);
-    expand rest
-  | {value = Comment _; _} :: rest ->
-    ignore @@ assert false;
-    expand rest
-  | {value = Error _; loc = _} :: rest ->
-    ignore @@ assert false;
-    expand rest
+    kont ()
+  | {value = Subtree (_, _); _} ->
+    let@ () = Sc.section [] in
+    kont ()
+  | {value = Text _; _}
+  | {value = Verbatim _; _}
+  | {value = Group (_, _); _}
+  | {value = Math (_, _); _}
+  | {value = Ident _; _}
+  | {value = Hash_ident _; _}
+  | {value = Xml_ident (_, _); _}
+  | {value = Put (_, _); _}
+  | {value = Default (_, _); _}
+  | {value = Get _; _}
+  | {value = Fun (_, _); _}
+  | {value = Call (_, _); _}
+  | {value = Dx_sequent (_, _); _}
+  | {value = Dx_query (_, _, _); _}
+  | {value = Dx_prop (_, _); _}
+  | {value = Dx_var _; _}
+  | {value = Dx_const_content _; _}
+  | {value = Dx_const_uri _; _}
+  | {value = Comment _; _}
+  | {value = Error _; _} ->
+    kont ()
+
+and expand : Code.t -> Syn.t = function
+  | [] -> []
+  | node :: rest ->
+    let@ () = scope_effect node in
+    match node with
+    | {value = Hash_ident x; loc} ->
+      Asai.Range.{value = Syn.Text x; loc} :: expand rest
+    | {value = Text x; loc} ->
+      {value = Syn.Text x; loc} :: expand rest
+    | {value = Verbatim x; loc} ->
+      {value = Syn.Verbatim x; loc} :: expand rest
+    | {value = Namespace (_, body); _} ->
+      let result = expand body in
+      result @ expand rest
+    | {value = Open _; _} ->
+      expand rest
+    | {value = Group (Squares, xs); loc = loc1} ->
+      begin
+        match rest with
+        (* If the next group is Parens, we have a link*)
+        | {value = Group (Parens, dest); _} :: rest' ->
+          let dest = expand dest in
+          let title = Option.some @@ expand xs in
+          let link = Syn.Link {dest; title} in
+          {value = link; loc = loc1} :: expand rest'
+        | rest ->
+          {value = Syn.Group (Squares, expand xs); loc = loc1} :: expand rest
+      end
+    | {value = Group (d, xs); loc} ->
+      {value = Syn.Group (d, expand xs); loc} :: expand rest
+    | {value = Subtree (addr, nodes); loc} ->
+      let config = (F.get ()).config in
+      let parent_uri = Parent.read () in
+      let identity =
+        match addr with
+        | Some addr -> Tree.URI (URI_scheme.named_uri ~base: config.url addr)
+        | None -> Tree.Anonymous
+      in
+      let subtree =
+        expand_tree_inner @@
+          Tree.{
+            identity;
+            timestamp = None;
+            origin = Subtree {parent = parent_uri};
+            nodes
+          }
+      in
+      {value = Syn.Subtree (addr, subtree.nodes); loc} :: expand rest
+    | {value = Math (m, xs); loc} ->
+      {value = Syn.Math (m, expand xs); loc} :: expand rest
+    | {value = Ident path; loc} ->
+      let out, rest = expand_method_calls (expand_ident loc path) rest in
+      out @ expand rest
+    | {value = Xml_ident (prefix, uname); loc} ->
+      let qname = expand_xml_ident loc (prefix, uname) in
+      let attrs, rest = get_xml_attrs [] rest in
+      let arg_opt, rest = get_arg_opt rest in
+      let tag = Syn.Xml_tag (qname, attrs, Option.value ~default: [] arg_opt) in
+      {value = tag; loc} :: expand rest
+    | {value = Scope body; _} ->
+      expand body @ expand rest
+    | {value = Put (k, v); loc} ->
+      let k = expand_ident loc k in
+      let v = expand v in
+      [{value = Syn.Put (k, v, expand rest); loc}]
+    | {value = Default (k, v); loc} ->
+      let k = expand_ident loc k in
+      let v = expand v in
+      [{value = Syn.Default (k, v, expand rest); loc}]
+    | {value = Get k; loc} ->
+      let k = expand_ident loc k in
+      {value = Syn.Get k; loc} :: expand rest
+    | {value = Dx_prop (rel, args); loc} ->
+      {value = Syn.Dx_prop (expand rel, List.map expand args); loc} :: expand rest
+    | {value = Dx_sequent (concl, premises); loc} ->
+      {value = Syn.Dx_sequent (expand concl, List.map expand premises); loc} :: expand rest
+    | {value = Dx_query (var, positives, negatives); loc} ->
+      {value = Syn.Dx_query (var, List.map expand positives, List.map expand negatives); loc} :: expand rest
+    | {value = Fun (xs, body); loc} ->
+      expand_lambda loc (xs, body) :: expand rest
+    | {value = Object {self; methods}; loc} ->
+      let self, methods = expand_object self methods loc in
+      {value = Syn.Object {self; methods}; loc} :: expand rest
+    | {value = Patch {obj; self; methods}; loc} ->
+      let self, super, methods = expand_patch self methods loc in
+      let patched = Syn.Patch {obj = expand obj; self; super; methods} in
+      {value = patched; loc} :: expand rest
+    | {value = Call (obj, method_name); loc} ->
+      {value = Syn.Call (expand obj, method_name); loc} :: expand rest
+    | {value = Import (_, _); _} ->
+      expand rest
+    | {value = Dx_var name; loc} ->
+      {value = Syn.Dx_var name; loc} :: expand rest
+    | {value = Dx_const_content arg; loc} ->
+      {value = Syn.Dx_const (`Content, expand arg); loc} :: expand rest
+    | {value = Dx_const_uri arg; loc} ->
+      {value = Syn.Dx_const (`Uri, expand arg); loc} :: expand rest
+    | {value = Let (_, _, _); _} ->
+      expand rest
+    | {value = Def (_, _, _); _} ->
+      expand rest
+    | {value = Decl_xmlns (_, _); _} ->
+      expand rest
+    | {value = Alloc _; _} ->
+      expand rest
+    | {value = Comment _; _} ->
+      ignore @@ assert false;
+      expand rest
+    | {value = Error _; loc = _} ->
+      ignore @@ assert false;
+      expand rest
 
 and expand_method (key, body) =
   key, expand body
@@ -374,7 +436,6 @@ and expand_tree_inner (code : Tree.code) : Tree.syn =
       k ()
   in
   let@ () = trace in
-  let@ () = Sc.section [] in
   let nodes = expand code.nodes in
   let exports = Sc.get_export () in
   Tree.{nodes; identity = code.identity; code; units = exports;}

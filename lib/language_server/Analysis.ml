@@ -6,7 +6,7 @@
  *)
 
 open Forester_prelude
-(* open Forester_compiler *)
+open Forester_compiler
 open Forester_core
 
 open struct
@@ -222,39 +222,29 @@ let rec node_at
 let code_node_at ~position = node_at ~position ~children: code_children
 let syn_node_at ~position = node_at ~position ~children: syn_children
 
-let _pp_print_pair pp1 pp2 ppf (left, right) =
-  pp1 ppf left; pp2 ppf right
-
-(* let rec get_visible *)
-(* = fun ~(position : L.Position.t) (code : Code.t) -> *)
-(*   let@ () = Sc.easy_run in *)
-(*   match code with *)
-(*   | [] -> *)
-(*     Trie.empty *)
-(*   | ({loc; value} as node) :: rest -> *)
-(*     let@ () = Expand.scope_effect node in *)
-(*     if contains ~position loc then *)
-(*       let _ = Logs.debug (fun m -> m "%a" Code.pp_node value) in *)
-(*       Logs.debug (fun m -> *)
-(*         m *)
-(*           "visible: %a" *)
-(*           Format.( *)
-(*             pp_print_seq *)
-(*               ( *)
-(*                 pp_print_pair *)
-(*                   Trie.pp_path *)
-(*                   (pp_print_pair Resolver.P.pp_data (pp_print_option Asai.Range.dump)) *)
-(*               ) *)
-(*           ) *)
-(*           (Trie.to_seq @@ Sc.get_visible ()) *)
-(*       ); *)
-(*       match (node_at ~position ~children: code_children) (code_children node) with *)
-(*       | None -> Resolver.Scope.get_visible () *)
-(*       | Some node' -> *)
-(*         let@ () = Expand.scope_effect node' in *)
-(*         Resolver.Scope.get_visible () *)
-(*     else *)
-(*       get_visible ~position rest *)
+let get_visible
+= fun ~position code ->
+  let@ () = Sc.easy_run in
+  Expand.Builtins.register_builtins Expand.builtins;
+  let rec go ~(position : L.Position.t) (code : Code.t) =
+    match code with
+    | [] ->
+      Sc.get_visible ()
+    | ({loc; _} as node) :: rest ->
+      let@ () = Expand.scope_effect node in
+      if contains ~position loc then
+        match (node_at ~position ~children: code_children) (code_children node) with
+        | None ->
+          Sc.get_visible ()
+        | Some node' ->
+          let@ () = Expand.scope_effect node' in
+          Resolver.Scope.get_visible ()
+      else
+        begin
+          go ~position rest
+        end
+  in
+  go ~position code
 
 let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located option =
   Option.bind (node_at ~position ~children: code_children code) extract_addr

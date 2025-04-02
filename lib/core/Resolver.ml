@@ -37,6 +37,19 @@ module Scope = struct
   let pp_path ppf path =
     let pp_slash ppf () = Format.fprintf ppf "/" in
     Format.(fprintf ppf "%a" (pp_print_list ~pp_sep: pp_slash pp_print_string) path)
+
+  let pp_trie =
+    let pp_print_pair pp1 pp2 ppf (left, right) =
+      pp1 ppf left; pp2 ppf right
+    in
+    Format.(
+      pp_print_seq
+        (
+          pp_print_pair
+            Trie.pp_path
+            (pp_print_pair P.pp_data (pp_print_option Asai.Range.dump))
+        )
+    )
 end
 
 module Lang = Yuujinchou.Language

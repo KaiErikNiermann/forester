@@ -12,6 +12,7 @@ val builtins : (string list * Syn.node) list
 
 module Builtins :
 sig
+  val register_builtins : (Yuujinchou.Trie.path * Syn.node) list -> unit
   module Transclude :
   sig
     val expanded_sym : Symbol.t
@@ -25,5 +26,5 @@ end
 val suggestions : string list -> ('a, 'b) Trie.t -> (Trie.path * 'a * int) list
 
 val expand_tree : forest:State.t -> Tree.code -> Tree.syn * Reporter.Message.t Asai.Diagnostic.t list
-
 val expand : Code.t -> Syn.t
+val scope_effect : Code.node Asai.Range.located -> (unit -> 'a) -> 'a
