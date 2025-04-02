@@ -21,41 +21,56 @@ open struct
   let _data = Alcotest.testable P.pp_data (=)
 end
 
+open State.Syntax
+let expand src =
+  let@ code = Result.map @~ parse_string src in
+  let@ () = Expand.Parent.run ~env: (URI (URI.of_string_exn "http://localhost/tree")) in
+  let@ () = S.easy_run in
+  Expand.expand code
+
+let render expanded =
+  let forest = Expand.F.get () in
+  Result.map
+    (fun expanded ->
+      let Eval.{articles; _}, _ =
+        Eval.eval_tree
+          ~config: Config.default
+          ~uri: (URI.of_string_exn "http://localhost/test")
+          ~source_path: None
+          expanded
+      in
+      let () =
+        List.iter
+          (fun article ->
+            let@ uri = Option.iter @~ T.(article.frontmatter.uri) in
+            forest.={uri} <- Resource {tree = Article article; expanded = None}
+          )
+          articles
+      in
+      let rendered =
+        List.map
+          (fun article ->
+            Plain_text_client.string_of_content ~forest T.(article.mainmatter)
+          )
+          articles
+      in
+      String.concat "" rendered
+    )
+    expanded
+
 let test ~env () =
+  let forest = State.make ~env ~config ~dev: false () in
+  let@ () = Expand.F.run ~init: forest in
   let expanded =
-    let@ code =
-      Result.map @~
-        parse_string
-          {|
+    expand
+      {|
       \namespace\foo{
         \let\greet[name]{Hello, \name!}
         \greet{Jon}
       }
     |}
-    in
-    let@ () = S.easy_run in
-    Expand.expand code
   in
-  let evaluated =
-    Result.map
-      (fun expanded ->
-        let forest = State.make ~env ~config ~dev: false () in
-        let Eval.{articles; _}, _ =
-          Eval.eval_tree
-            ~config: Config.default
-            ~uri: (URI.of_string_exn "http://localhost/test")
-            ~source_path: None
-            expanded
-        in
-        let rendered =
-          List.map
-            (fun article -> Plain_text_client.string_of_content ~forest T.(article.mainmatter))
-            articles
-        in
-        String.concat "" rendered
-      )
-      expanded
-  in
+  let evaluated = render expanded in
   Alcotest.(check @@ result syn diagnostic)
     ""
     (
@@ -81,6 +96,28 @@ let test ~env () =
   Alcotest.(check @@ result string diagnostic)
     ""
     (Ok "Hello, Jon!")
+    evaluated
+
+let test_subtree ~env () =
+  let@ () = Reporter.easy_run in
+  let forest = State.make ~env ~config ~dev: false () in
+  let@ () = Expand.F.run ~init: forest in
+  let expanded =
+    expand
+      {|
+  \subtree[foo]{
+    \title{Hello}
+    \taxon{Example}
+  }
+  |}
+  in
+  let evaluated = render expanded in
+  Alcotest.(check @@ result string diagnostic)
+    ""
+    (
+      Ok
+        {|<omitted content>\title {Hello}\taxon {Example}|}
+    )
     evaluated
 
 let test_visible () =
@@ -116,6 +153,7 @@ let () =
       "",
       [
         test_case "expand" `Quick (test ~env);
+        test_case "subtree" `Quick (test_subtree ~env);
         test_case "get_visible" `Quick test_visible;
       ]
     ]
