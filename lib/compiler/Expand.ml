@@ -251,6 +251,9 @@ and expand : Code.t -> Syn.t = function
       result @ expand rest
     | {value = Open _; _} ->
       expand rest
+    | {value = Group (Squares, [{value = Group (Squares, dest); _}]); loc} ->
+      let dest = expand dest in
+      {value = Syn.Link {dest; title = None}; loc} :: expand rest
     | {value = Group (Squares, xs); loc = loc1} ->
       begin
         match rest with
