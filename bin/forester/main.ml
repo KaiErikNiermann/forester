@@ -92,30 +92,6 @@ let index_tree_str =
 }
 |}
 
-let try_create_dir ~cwd dname =
-  let (/) = EP.(/) in
-  if Eio.Path.is_directory (cwd / dname) then
-    Reporter.emit
-      Initialization_warning
-      ~extra_remarks: [Asai.Diagnostic.loctextf "`%s` already exists" dname]
-  else
-    try
-      Eio.Path.mkdir ~perm: 0o755 (cwd / dname)
-    with
-      | exn ->
-        Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Failed to create directory `%s`: %a" dname Eio.Exn.pp exn]
-
-let try_create_file ~cwd ?(content = "") fname =
-  let (/) = EP.(/) in
-  if Eio.Path.is_file (cwd / fname) then
-    Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "`%s` already exists" fname]
-  else
-    try
-      Eio.Path.save ~create: (`Exclusive 0o644) (cwd / fname) content
-    with
-      | exn ->
-        Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Failed to create file `%s`: %a" fname Eio.Exn.pp exn]
-
 let init ~env dir =
   let default_theme_url = "https://git.sr.ht/~jonsterling/forester-base-theme" in
   let theme_version = "4.3.0" in
@@ -164,11 +140,11 @@ git -C theme checkout %s
               theme_version
           ]
   end;
-  ["trees"; "assets"] |> List.iter (try_create_dir ~cwd);
-  try_create_file ~cwd ~content: default_config_str "forest.toml";
-  try_create_file ~cwd ~content: "output/" ".gitignore";
-  try_create_file ~cwd ~content: "" "assets/.gitkeep";
-  try_create_file ~cwd ~content: index_tree_str "trees/index.tree";
+  ["trees"; "assets"] |> List.iter (Eio_util.try_create_dir ~cwd);
+  Eio_util.try_create_file ~cwd ~content: default_config_str "forest.toml";
+  Eio_util.try_create_file ~cwd ~content: "output/" ".gitignore";
+  Eio_util.try_create_file ~cwd ~content: "" "assets/.gitkeep";
+  Eio_util.try_create_file ~cwd ~content: index_tree_str "trees/index.tree";
   Reporter.emit Log ~extra_remarks: [Asai.Diagnostic.loctextf "%s" "Initialized forest, try editing `trees/index.tree` and running `forester build`. Afterwards, you can open `output/index.xml` in your browser to view your forest."]
 
 let arg_config =

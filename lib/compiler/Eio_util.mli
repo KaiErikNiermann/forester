@@ -51,10 +51,10 @@ val run_process :
 
 val file_exists : [> Fs.dir_ty] Path.t -> bool
 
-(* val try_create_dir : cwd:[> Fs.dir_ty ] Path.t -> string -> unit *)
-(**)
-(* val try_create_file : *)
-(*   cwd:[> Fs.dir_ty ] Path.t -> ?content:string -> string -> unit *)
+val try_create_dir : cwd:[> Fs.dir_ty ] Path.t -> string -> unit
+
+val try_create_file :
+  cwd:[> Fs.dir_ty ] Path.t -> ?content:string -> string -> unit
 
 val copy_to_dir :
   env:

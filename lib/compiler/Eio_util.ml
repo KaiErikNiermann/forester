@@ -100,3 +100,27 @@ let copy_to_dir ~env ~cwd ~source ~dest_dir =
     run_process ~quiet: true ~env ~cwd ["cp"; "-R"; source; dest_dir ^ "/"]
   else
     run_process ~quiet: true ~env ~cwd ["xcopy"; source; dest_dir ^ "/"]
+
+let try_create_dir ~cwd dname =
+  let (/) = Path.(/) in
+  if Eio.Path.is_directory (cwd / dname) then
+    Reporter.emit
+      Initialization_warning
+      ~extra_remarks: [Asai.Diagnostic.loctextf "`%s` already exists" dname]
+  else
+    try
+      Eio.Path.mkdir ~perm: 0o755 (cwd / dname)
+    with
+      | exn ->
+        Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Failed to create directory `%s`: %a" dname Eio.Exn.pp exn]
+
+let try_create_file ~cwd ?(content = "") fname =
+  let (/) = Path.(/) in
+  if Eio.Path.is_file (cwd / fname) then
+    Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "`%s` already exists" fname]
+  else
+    try
+      Eio.Path.save ~create: (`Exclusive 0o644) (cwd / fname) content
+    with
+      | exn ->
+        Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Failed to create file `%s`: %a" fname Eio.Exn.pp exn]
