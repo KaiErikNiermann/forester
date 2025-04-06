@@ -26,7 +26,7 @@ let next_uri
     |> URI.Tbl.to_seq
     |> Seq.filter_map
         (fun (uri, tree) ->
-          let@ path = Option.map @~ Tree.get_source_path ~base:forest.config.url tree in
+          let@ path = Option.map @~ Tree.get_source_path ~base: forest.config.url tree in
           uri, path
         )
     |> List.of_seq
@@ -35,8 +35,8 @@ let next_uri
   let keys =
     let@ (uri, path) = List.filter_map @~ addrs in
     let@ prefix', key = Option.bind @@ URI_scheme.split_addr uri in
-    if prefix = prefix'
-    then Some (key, Filename.dirname path)
+    if prefix = prefix' then
+      Some (key, Filename.dirname path)
     else None
   in
   let last_sequential, dir =
