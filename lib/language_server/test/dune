@@ -20,7 +20,7 @@
  (name Test_lsp)
  (public_name test-lsp)
  (preprocess
-  (pps ppx_yojson_conv))
+  (pps ppx_yojson_conv ppx_deriving.show))
  (libraries
   asai
   alcotest
@@ -34,6 +34,7 @@
   eio.unix
   lsp
   yojson
+  yuujinchou
   forester.test
   forester.prelude
   forester.core

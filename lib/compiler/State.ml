@@ -112,7 +112,7 @@ let get_all_unexpanded state =
 let get_all_expanded state =
   state.index
   |> URI.Tbl.to_seq_values
-  |> Seq.filter_map to_expanded
+  |> Seq.filter_map to_syn
 
 let get_all_unevaluated state =
   state.index

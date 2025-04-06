@@ -22,8 +22,9 @@ open struct
 end
 
 open State.Syntax
+
 let expand src =
-  let@ code = Result.map @~ parse_string src in
+  let@ code = Result.map @~ parse_string_no_loc src in
   let@ () = Expand.Parent.run ~env: (URI (URI.of_string_exn "http://localhost/tree")) in
   let@ () = S.easy_run in
   Expand.expand code
@@ -123,7 +124,7 @@ let test_subtree ~env () =
 let test_visible () =
   let code =
     Result.get_ok @@
-      parse_string_loc
+      parse_string
         {|
 \def\greet[name]{Hello, \name!}
 \p{\greet{Jon}}

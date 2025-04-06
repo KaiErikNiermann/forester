@@ -10,6 +10,7 @@ open Forester_core
 (**/**)
 module Lsp_state = Lsp_state
 module LspEio = LspEio
+module Lsp_shims = Lsp_shims
 (**/**)
 
 (** An implementation of the {{: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/} Microsoft Language Server Protocol } for forester. *)

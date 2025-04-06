@@ -309,32 +309,55 @@ let test_contains () =
 let test_node_at () =
   let case_1 =
     let position = L.Position.create ~character: 12 ~line: 0 in
-    let code = Result.get_ok @@ parse_string_loc {|\import{asdf}|} in
-    let result = Option.get @@ Analysis.code_node_at ~position code in
+    (*                                         0123456789012*)
+    let code = Result.get_ok @@ parse_string {|\import{asdf}|} in
+    let result = Option.get @@ Analysis.node_at_code ~position code in
     Alcotest.(check code_node)
       ""
       (Import (Private, "asdf"))
       (Asai.Range.(result.value))
   in
   let case_2 =
-    let position = L.Position.create ~character: 40 ~line: 0 in
     let code =
       Result.get_ok @@
-        parse_string_loc
+        parse_string
+          (*          1         2         3         4         5          *)
+          (*0123456789012345678901234567890123456789012345678901234567890*)
           {|\def\Mor[arg1][arg2][arg3]{#{{\arg2}\xrightarrow{\arg1}{\arg3}}}
       |}
     in
-    let result = Option.get @@ Analysis.code_node_at ~position code in
-    Alcotest.(check code_node)
-      ""
-      (Ident ["xrightarrow"])
-      (Asai.Range.(result.value))
+    let position_1 = L.Position.create ~character: 40 ~line: 0 in
+    let position_2 = L.Position.create ~character: 50 ~line: 0 in
+    let result1 = Option.get @@ Analysis.node_at_code ~position: position_1 code in
+    let result2 = Option.get @@ Analysis.node_at_code ~position: position_2 code in
+    Alcotest.(check code_node) "" (Ident ["xrightarrow"]) (Asai.Range.(result1.value));
+    Alcotest.(check code_node) "" (Ident ["arg1"]) (Asai.Range.(result2.value))
+  in
+  let case_3 =
+    let code =
+      Result.get_ok @@
+        parse_string
+          {|
+%123456789012345678901234567890123456789012345678901234567890
+\p{
+  \foo{
+    \ul{
+      \li{asdf}
+    }
+  }
+}
+        |}
+    in
+    let position = L.Position.create ~character: 12 ~line: 5 in
+    let result = Option.get @@ Analysis.node_at_code ~position code in
+    Alcotest.(check code_node) "" (Text "asdf") (Asai.Range.(result.value))
   in
   case_1;
-  case_2
+  case_2;
+  case_3
 
 let test_addr_at () =
-  let code = Result.get_ok @@ parse_string_loc {|\transclude{tfmt-0005}|} in
+  let code = Result.get_ok @@ parse_string {|\transclude{tfmt-0005}|} in
   let position = L.Position.create ~character: 13 ~line: 0 in
   let result = Option.get @@ Analysis.addr_at ~position code in
   Alcotest.(check string) "" "tfmt-0005" (Asai.Range.(result.value))
@@ -381,6 +404,132 @@ non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
   Alcotest.(check string) "" "dolor" dolor;
   Alcotest.(check string) "" "irure" irure
 
+let test_find_with_prev () =
+  let code =
+    Result.get_ok @@
+      parse_string
+        {|
+\li{I am on line 1}
+\li{I am on line 2}
+\li{I am on line 3}
+\li{I am on line 4}
+|}
+  in
+  Logs.debug (fun m -> m "%a" Code.pp code);
+  let result = Analysis.find_with_prev ~position: {line = 4; character = 5;} code in
+  begin
+    let@ {loc; _} = List.iter @~ code in
+    Logs.debug (fun m -> m "%s" (Yojson.Safe.to_string (L.Range.yojson_of_t (Lsp_shims.Loc.lsp_range_of_range loc))));
+  end;
+  match result with
+  | None -> Alcotest.fail "no result"
+  | Some (prev, node) ->
+    let open DSL.Code in
+    Alcotest.(check code_node)
+      "node"
+      (
+        Group
+          (
+            Braces,
+            [
+              text "I";
+              text " ";
+              text "am";
+              text " ";
+              text "on";
+              text " ";
+              text "line";
+              text " ";
+              text "4"
+            ]
+          )
+      )
+      (Code.map strip_code node.value);
+    match prev with
+    | None -> Alcotest.fail "no prev"
+    | Some prev ->
+      Alcotest.(check code_node) "Pred" (Ident ["li"]) prev.value
+
+let test_node_at_pos_with_prev_or_parent () =
+  let code =
+    Result.get_ok @@
+      parse_string
+        {|
+\def\foo[arg]{Hello, \arg!}
+\p{\ul{\li{item}}}
+|}
+  in
+  let prev = Analysis.find_with_prev ~position: {character = 5; line = 2;} code in
+  begin
+    match prev with
+    | None -> Alcotest.fail "node not found"
+    | Some (prev, node) ->
+      match prev with
+      | None -> Alcotest.fail "no pred"
+      | Some prev ->
+        Alcotest.(check code_node) "check pred" (Ident ["p"]) prev.value;
+        Alcotest.(check code_node)
+          "check node"
+          (DSL.Code.(braces [ul; braces [li; braces [text "item"]]]).value)
+          (Code.map strip_code node.value)
+  end;
+  let result = Analysis.parent_or_prev_at_code ~position: {character = 5; line = 2;} code in
+  match result with
+  | None -> Alcotest.fail "no result"
+  | Some (`Prev (_pred, _node)) -> Alcotest.fail "pred"
+  | Some (`Node node) -> Alcotest.(check code_node) "node" (Ident ["ul"]) node.value
+  | Some (`Parent _) -> Alcotest.fail "parent"
+
+let test_enclosing_group () =
+  (*                                         012345678901234*)
+  let code = Result.get_ok @@ parse_string {|\foo{\bar{baz}}|} in
+  let expanded =
+    let@ () = Expand.Parent.run ~env: (URI (URI.of_string_exn "http://localhost/tree")) in
+    let@ () = Resolver.Scope.easy_run in
+    Expand.expand code
+  in
+  let case_1 =
+    let position = L.Position.{line = 0; character = 6} in
+    match Analysis.get_enclosing_syn_group ~position expanded with
+    | None -> Alcotest.fail "no enclosing group"
+    | Some {value = (d, nodes); _} ->
+      let open DSL.Syn in
+      Alcotest.(check delim) "" Braces d;
+      Alcotest.(check syn)
+        ""
+        [tex_cs "bar"; braces [text "baz"]]
+        (strip_syn nodes)
+  in
+  let case_2 =
+    let position = L.Position.{line = 0; character = 10} in
+    match Analysis.get_enclosing_syn_group ~position expanded with
+    | None -> Alcotest.fail "no enclosing group"
+    | Some {value = (d, nodes); _} ->
+      let open DSL.Syn in
+      Alcotest.(check delim) "" Braces d;
+      Alcotest.(check syn) "" [text "baz"] (strip_syn nodes)
+  in
+  List.iter Fun.id [case_1; case_2]
+
+let test_asset_completion () =
+  let@ () = Reporter.easy_run in
+  let textDocument = find_doc (Test_env.get ()) "sterling-2024-cl-forester" in
+  let position : L.Position.t = {line = 4; character = 27} in
+  let params = L.CompletionParams.create ~position ~textDocument () in
+  let completions =
+    Handlers.Completion.compute params
+    |> Option.map (fun (`CompletionList L.CompletionList.{items; _}) ->
+        String.concat "" @@
+          List.map
+            (fun i -> Format.asprintf "%s" (Yojson.Safe.to_string @@ L.CompletionItem.yojson_of_t i))
+            items
+      )
+  in
+  Alcotest.(check @@ option string)
+    ""
+    (Some {|{"insertText":"assets/sterling-2024-cl-forester.pdf","kind":17,"label":"assets/sterling-2024-cl-forester.pdf"}|})
+    completions
+
 let () =
   Random.self_init ();
   Printexc.record_backtrace true;
@@ -411,6 +560,13 @@ let () =
         "node_at", `Quick, test_node_at;
         "addr_at", `Quick, test_addr_at;
         "word_at", `Quick, test_word_at;
+        "get_enclosing_group", `Quick, test_enclosing_group;
+      ];
+      "Completion",
+      [
+        "find_with_pred", `Quick, test_find_with_prev;
+        "node_at_pos_with_predecessor_or_parent", `Quick, test_node_at_pos_with_prev_or_parent;
+        "asset_completion", `Quick, test_asset_completion;
       ];
       "Handlers",
       [

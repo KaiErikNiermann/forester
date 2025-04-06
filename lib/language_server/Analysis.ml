@@ -222,8 +222,81 @@ let rec node_at
     | Some inner -> Some inner
     | None -> Some n
 
-let code_node_at ~position = node_at ~position ~children: code_children
-let syn_node_at ~position = node_at ~position ~children: syn_children
+let get_enclosing_code_group ~position nodes =
+  let rec go ~position nodes =
+    match List.find_opt (fun Range.{loc; _} -> contains ~position loc) nodes with
+    | None -> None
+    | Some n ->
+      match n.value with
+      | (Code.Group (delim, t)) ->
+        begin
+          match go ~position t with
+          | None -> Some (delim, t)
+          | Some t -> Some t
+        end
+      | _ ->
+        (go ~position) (code_children n)
+  in
+  go ~position nodes
+
+let get_enclosing_syn_group ~position nodes =
+  let rec go ~position nodes =
+    match List.find_opt (fun Range.{loc; _} -> contains ~position loc) nodes with
+    | None -> None
+    | Some n ->
+      match n.value with
+      | (Syn.Group (delim, children)) ->
+        begin
+          match go ~position children with
+          | None -> Some Asai.Range.{value = (delim, children); loc = n.loc}
+          | Some t -> Some t
+        end
+      | _ ->
+        go ~position (syn_children n)
+  in
+  go ~position nodes
+
+let find_with_prev ~position =
+  let rec go prev = function
+    | [] -> None
+    | x :: xs -> if contains ~position Asai.Range.(x.loc) then Some (prev, x) else go (Some x) xs
+  in
+  go None
+
+let parent_or_prev_at
+  : type a. position: L.Position.t ->
+  children: (a Range.located -> a Range.located list) ->
+  a Range.located list ->
+  [
+    | `Prev of (a Range.located * a Range.located)
+    | `Parent of a Range.located
+    | `Node of a Range.located
+  ] option
+= fun ~position ~children code ->
+  let go ~position ~children nodes =
+    match find_with_prev ~position nodes with
+    | None -> None
+    | Some (None, node) ->
+      begin
+        match (node_at ~position ~children) (children node) with
+        | Some inner ->
+          (* go ~position ~children (children inner) *)
+          Some (`Node inner)
+        | None -> Some (`Node node)
+      end
+    | Some (Some prev, node) ->
+      match (node_at ~position ~children) (children node) with
+      | None -> Some (`Prev (prev, node))
+      | Some inner ->
+        Some (`Node inner)
+  in
+  go ~position ~children code
+
+let parent_or_prev_at_code ~position = parent_or_prev_at ~position ~children: code_children
+let parent_or_prev_at_syn ~position = parent_or_prev_at ~position ~children: syn_children
+
+let node_at_code ~position = node_at ~position ~children: code_children
+let node_at_syn ~position = node_at ~position ~children: syn_children
 
 let get_visible
 = fun ~position code ->
@@ -236,9 +309,11 @@ let get_visible
     | ({loc; _} as node) :: rest ->
       let@ () = Expand.scope_effect node in
       if contains ~position loc then
-        match (node_at ~position ~children: code_children) (code_children node) with
+        let children = code_children node in
+        match node_at_code ~position children with
         | None ->
-          Sc.get_visible ()
+          (* This case means "parent node is at position, but no child node is. I don't think this can happen"*)
+          Resolver.Scope.get_visible ()
         | Some node' ->
           let@ () = Expand.scope_effect node' in
           Resolver.Scope.get_visible ()

@@ -43,6 +43,7 @@ module Handlers : sig
      textDocument_completion}[textDocument/completion]}
      *)
   module Completion : sig
+    val completion_types : position: Lsp.Types.Position.t -> Forester_core.Tree.t -> [> `Addrs | `Assets | `Visible] list
     val compute : Lsp.Types.CompletionParams.t -> [> `CompletionList of Lsp.Types.CompletionList.t] option
   end
 

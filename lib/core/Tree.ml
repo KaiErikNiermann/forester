@@ -54,7 +54,7 @@ type t =
   | Resource of evaluated
 [@@deriving show]
 
-let show_stage = function
+let show_phase = function
   | Document _ -> "document"
   | Parsed _ -> "parsed"
   | Expanded _ -> "expanded"
@@ -69,7 +69,7 @@ let get_source_path ~base tree =
       | T.Article article -> article.frontmatter.source_path
       | _ -> None
     end
-  | Expanded {identity; _} | Parsed { identity; _} -> None
+  | Expanded {identity; _} | Parsed {identity; _} -> None
 
 (* let get_uri ~base = fun t ->
   let of_lsp_uri doc = Some (URI_scheme.lsp_uri_to_uri ~base (Lsp.Text_document.documentUri doc)) in
@@ -140,7 +140,7 @@ let to_code : t -> code option = function
     end
   | Expanded {code; _;} -> Some code
 
-let to_expanded : t -> syn option = function
+let to_syn : t -> syn option = function
   | Document _ -> None
   | Parsed _ -> None
   | Expanded syn -> Some syn

@@ -27,7 +27,7 @@ let compute ({position; textDocument; _}: L.HoverParams.t) =
       match Tree.to_code tree with
       | None -> None
       | Some {nodes; _} ->
-        match Analysis.code_node_at ~position nodes with
+        match Analysis.node_at_code ~position nodes with
         | None -> None
         | Some node ->
           let tree_under_cursor =

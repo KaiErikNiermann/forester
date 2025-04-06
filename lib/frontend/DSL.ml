@@ -95,6 +95,10 @@ module Code = struct
   let squares = Fun.compose (locate_opt None) @@ Code.squares
   let braces = Fun.compose (locate_opt None) @@ Code.braces
 
+  let ident i = locate_opt None @@ Ident i
+
+  let ul = ident ["ul"]
+  let li = ident ["li"]
   let text str = locate_opt None @@ Text str
   let verbatim str = locate_opt None @@ Verbatim str
   let math mode nodes = locate_opt None @@ Math (mode, nodes)
@@ -117,4 +121,5 @@ module Syn = struct
   let parens e = locate_opt None @@ Group (Parens, e)
   let squares e = locate_opt None @@ Group (Squares, e)
   let braces e = locate_opt None @@ Group (Braces, e)
+  let tex_cs w = locate_opt None @@ TeX_cs (Word w)
 end

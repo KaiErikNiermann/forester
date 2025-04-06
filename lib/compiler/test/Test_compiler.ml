@@ -66,7 +66,6 @@ let test_includes_paths ~env () =
       State.make ~env ~config ~dev: true ()
       |> Driver.run_with_history Load_all_configured_dirs
     in
-    (* Alcotest.(check int) "number of loaded documents" 8 (Hashtbl.length forest.documents); *)
     Alcotest.(check int) "number of parsed trees" 8 (URI.Tbl.length forest.index);
     Alcotest.(check int) "number of trees in resolver" 8 (URI.Tbl.length forest.resolver);
     Alcotest.(check @@ list action)

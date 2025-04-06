@@ -38,8 +38,10 @@ type 'a diagnostic =
 
 let message = testable Reporter.Message.pp (=)
 
+let delim = testable Forester_core.pp_delim (=)
 let code = testable Forester_core.Code.pp (=)
 let code_node = testable Forester_core.Code.pp_node (=)
+let syn_node = testable Forester_core.Syn.pp_node (=)
 let syn = testable Syn.pp (=)
 let eval_result = testable Eval.pp_result (=)
 let path = testable Trie.pp_path (=)

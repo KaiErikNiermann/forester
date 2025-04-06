@@ -21,9 +21,8 @@ val extract_addr :
   Code.node Range.located ->
   string Range.located option
 
-
-val code_node_at : position:Lsp.Types.Position.t -> Code.node Range.located list -> Code.node Range.located option
-val syn_node_at : position:Lsp.Types.Position.t -> Syn.node Range.located list -> Syn.node Range.located option
+val node_at_code : position: Lsp.Types.Position.t -> Code.node Range.located list -> Code.node Range.located option
+val node_at_syn : position: Lsp.Types.Position.t -> Syn.node Range.located list -> Syn.node Range.located option
 
 (** [addr_at ~position code] uses {!extract_addr} to extract an address from [position] in [code]
 *)
@@ -37,5 +36,31 @@ val flatten : Code.t -> Code.t
 
 val analyse_syntax : Code.t -> [`Addr of string | `Path of Trie.path] Asai.Range.located Seq.t
 
-val word_at : position:Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
-val get_visible : position:Lsp.Types.Position.t -> Code.t -> (Resolver.Scope.data, Resolver.P.tag) Trie.t
+val word_at : position: Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
+val get_visible : position: Lsp.Types.Position.t -> Code.t -> (Resolver.Scope.data, Resolver.P.tag) Trie.t
+
+val get_enclosing_code_group : position: Lsp.Types.Position.t -> Code.t -> (delim * Code.t) option
+val get_enclosing_syn_group : position: Lsp.Types.Position.t -> Syn.t -> (delim * Syn.t) Asai.Range.located option
+
+val parent_or_prev_at_code :
+  position: Lsp.Types.Position.t ->
+  Code.node Range.located list ->
+  [
+    | `Node of Code.node Range.located
+    | `Parent of Code.node Range.located
+    | `Prev of Code.node Range.located * Code.node Range.located
+  ] option
+
+val parent_or_prev_at_syn :
+  position: Lsp.Types.Position.t ->
+  Syn.node Range.located list ->
+  [
+    | `Node of Syn.node Range.located
+    | `Parent of Syn.node Range.located
+    | `Prev of Syn.node Range.located * Syn.node Range.located
+  ] option
+
+val find_with_prev :
+  position: Lsp.Types.Position.t ->
+  'a Range.located list ->
+  ('a Range.located option * 'a Range.located) option

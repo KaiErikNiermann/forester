@@ -24,13 +24,13 @@ let rec strip_code : Code.t -> Code.t = fun code ->
 
 type raw_tree = {path: string; content: string}
 
-let parse_string_loc str =
+let parse_string str =
   let lexbuf = Lexing.from_string str in
   Parse.parse lexbuf
 
-let parse_string str =
+let parse_string_no_loc str =
   Result.map strip_code @@
-    parse_string_loc str
+    parse_string str
 
 let with_open_tmp_dir ~env kont =
   let open Eio in

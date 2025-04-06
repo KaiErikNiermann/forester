@@ -29,7 +29,7 @@ let test_prim () =
         ]
     )
     (
-      parse_string
+      parse_string_no_loc
         {|\p{\ul{\li{foo}}}|}
     )
 
@@ -37,11 +37,11 @@ let test_open () =
   Alcotest.(check @@ result code diagnostic)
     "same nodes"
     (Ok [open_ ["foo"]])
-    (parse_string {|\open\foo|});
+    (parse_string_no_loc {|\open\foo|});
   Alcotest.(check @@ result code diagnostic)
     "same nodes"
     (Ok [open_ ["foo"; "bar"; "baz"]])
-    (parse_string {|\open\foo/bar/baz|})
+    (parse_string_no_loc {|\open\foo/bar/baz|})
 
 let test_scope () =
   Alcotest.(check @@ result code diagnostic)
@@ -56,13 +56,13 @@ let test_scope () =
             ]
         ]
     )
-    (parse_string {|\scope{\p{}}|})
+    (parse_string_no_loc {|\scope{\p{}}|})
 
 let test_verbatim () =
   Alcotest.(check @@ result code diagnostic)
     "same nodes"
     (Ok [verbatim "asdf"])
-    (parse_string {|\verb<<|asdf<<|})
+    (parse_string_no_loc {|\verb<<|asdf<<|})
 
 let test_math () =
   Alcotest.(check @@ result code diagnostic)
@@ -85,7 +85,7 @@ let test_math () =
             ]
         ]
     )
-    (parse_string {|#{a^2 + b^2 = c^2}|});
+    (parse_string_no_loc {|#{a^2 + b^2 = c^2}|});
   Alcotest.(check @@ result code diagnostic)
     "same nodes"
     (
@@ -106,7 +106,7 @@ let test_math () =
             ]
         ]
     )
-    (parse_string {|##{a^2 + b^2 = c^2}|})
+    (parse_string_no_loc {|##{a^2 + b^2 = c^2}|})
 
 let test_object () =
   Alcotest.(check @@ result code diagnostic)
@@ -127,7 +127,7 @@ let test_object () =
         ]
     )
     (
-      parse_string
+      parse_string_no_loc
         {|
         \object[self]{
           [foo]{}
