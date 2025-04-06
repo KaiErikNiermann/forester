@@ -64,14 +64,23 @@ let complete ~(forest : State.t) prefix : (string * string) List.t =
 let is_hidden_file fname =
   String.starts_with ~prefix: "." fname
 
-let copy_contents_of_dir ~env dir =
+let output_path ~cwd ~(forest : State.t) =
+  let suffix =
+    String.concat "/" @@
+    List.filter (fun x -> not (x = "")) @@
+    output_dir_name :: URI.path_components forest.config.url
+  in
+  Eio.Path.(cwd / output_dir_name / suffix)
+
+let copy_contents_of_dir ~env ~(forest : State.t) dir =
   Logs.debug (fun m -> m "copying contents of directory %s." (Eio.Path.native_exn dir));
   let cwd = Eio.Stdenv.cwd env in
   let@ fname = List.iter @~ EP.read_dir dir in
   if not @@ is_hidden_file fname then
     let path = EP.(dir / fname) in
     let source = EP.native_exn path in
-    Eio_util.copy_to_dir ~env ~cwd ~source ~dest_dir: output_dir_name
+    let dest_dir = EP.native_exn @@ output_path ~cwd ~forest in
+    Eio_util.copy_to_dir ~env ~cwd ~source ~dest_dir
 
 let json_manifest ~dev ~(forest : State.t) : string =
   let render = Json_manifest_client.render_tree ~forest in
@@ -107,7 +116,8 @@ let outputs_for_article ~(forest : State.t) (article : _ T.article) =
     let xml_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.xml") uri in
     let html_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.html") uri in
     let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-    let html_content = html_redirect @@ "/" ^ URI.relative_path_string ~base: forest.config.url xml_route in
+    let bare_host_uri = URI.with_path_components [] forest.config.url in
+    let html_content = html_redirect @@ "/" ^ URI.relative_path_string ~base: bare_host_uri xml_route in
     [xml_route, xml_content; html_route, html_content]
 
 let outputs_for_asset (asset : T.asset) =
@@ -149,13 +159,14 @@ let render_forest ~dev ~(forest : State.t) : unit =
   Logs.debug (fun m -> m "Rendering %i resources" (Seq.length all_resources));
   begin
     let json_string = json_manifest ~dev ~forest in
-    let json_path = EP.(cwd / output_dir_name / "forest.json") in
+    let json_path = EP.(output_path ~cwd ~forest / "forest.json") in
     Eio_util.ensure_context_of_path ~perm: 0o755 json_path;
     EP.save ~create: (`Or_truncate 0o644) json_path json_string
   end;
   let jobs =
+    let bare_host_uri = URI.with_path_components [] forest.config.url in
     let home_route = URI.with_path_components (URI.append_path_component (URI.path_components forest.config.url) "index.html") forest.config.url in
-    let home_content = html_redirect @@ "/" ^ URI.relative_path_string ~base: forest.config.url (Config.home_uri forest.config) in
+    let home_content = html_redirect @@ "/" ^ URI.relative_path_string ~base: bare_host_uri (Config.home_uri forest.config) in
     List.cons [home_route, home_content] @@
       let@ resource = Eio.Fiber.List.map ~max_fibers: 40 @~ List.of_seq all_resources in
       let@ () = Reporter.easy_run in

@@ -18,6 +18,7 @@ val render_forest :
 
 val copy_contents_of_dir :
   env: env ->
+  forest: State.t ->
   dir ->
   unit
 

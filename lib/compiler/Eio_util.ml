@@ -94,13 +94,6 @@ let file_exists path =
   with
     | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) -> false
 
-(* TODO: test this! *)
-let copy_to_dir ~env ~cwd ~source ~dest_dir =
-  if Sys.unix then
-    run_process ~quiet: true ~env ~cwd ["cp"; "-R"; source; dest_dir ^ "/"]
-  else
-    run_process ~quiet: true ~env ~cwd ["xcopy"; source; dest_dir ^ "/"]
-
 let try_create_dir ~cwd dname =
   let (/) = Path.(/) in
   if Eio.Path.is_directory (cwd / dname) then
@@ -124,3 +117,12 @@ let try_create_file ~cwd ?(content = "") fname =
     with
       | exn ->
         Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Failed to create file `%s`: %a" fname Eio.Exn.pp exn]
+
+(* TODO: test this! *)
+let copy_to_dir ~env ~cwd ~source ~dest_dir =
+  let path = Path.(cwd / dest_dir) in
+  Path.mkdirs ~exists_ok: true ~perm: 0o755 path;
+  if Sys.unix then
+    run_process ~quiet: true ~env ~cwd ["cp"; "-R"; source; dest_dir]
+  else
+    run_process ~quiet: true ~env ~cwd ["xcopy"; source; dest_dir ^ "/"]

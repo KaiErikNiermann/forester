@@ -41,14 +41,14 @@ let build ~env _ config_filename dev no_theme =
   Reporter.easy_run @@ fun () ->
   let config = Config_parser.parse_forest_config_file config_filename in
   Logs.debug (fun m -> m "Parsed config file %s" config_filename);
-  begin
-    if not no_theme then
-      let@ () = Reporter.trace "when copying theme directory" in
-      Forester.copy_contents_of_dir ~env @@ Eio_util.path_of_dir ~env config.theme
-  end;
   let forest = Driver.batch_run ~env ~dev ~config in
   forest.diagnostics
   |> URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d);
+  begin
+    if not no_theme then
+      let@ () = Reporter.trace "when copying theme directory" in
+      Forester.copy_contents_of_dir ~env ~forest @@ Eio_util.path_of_dir ~env config.theme
+  end;
   Forester.render_forest ~dev ~forest;
   Logs.app (fun m -> m "Success!")
 
