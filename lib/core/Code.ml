@@ -109,3 +109,43 @@ let map f node =
   | Comment _
   | Error _ ->
     node
+
+let children (node : node Range.located) =
+  match node.value with
+  | Math (_, t)
+  | Group (_, t)
+  | Let (_, _, t)
+  | Scope t
+  | Put (_, t)
+  | Fun (_, t)
+  | Default (_, t)
+  | Def (_, _, t)
+  | Namespace (_, t)
+  | Dx_const_uri t
+  | Dx_const_content t
+  | Call (t, _)
+  | Subtree (_, t) ->
+    t
+  | Dx_prop (_, t)
+  | Dx_query (_, _, t)
+  | Dx_sequent (_, t) ->
+    (List.concat t)
+  | Object {methods; _} ->
+    (methods |> List.map snd |> List.concat)
+  | Patch {obj; methods; _} ->
+    let methods = (methods |> List.map snd |> List.concat) in
+    (List.append obj methods)
+  | Text _
+  | Verbatim _
+  | Ident _
+  | Hash_ident _
+  | Xml_ident (_, _)
+  | Open _
+  | Get _
+  | Import (_, _)
+  | Decl_xmlns (_, _)
+  | Alloc _
+  | Dx_var _
+  | Comment _
+  | Error _ ->
+    []

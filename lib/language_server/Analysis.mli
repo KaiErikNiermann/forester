@@ -34,7 +34,9 @@ val addr_at :
 (** [flatten code] is a "flat" list of nodes. This function is underspecified and needs to be thought about more.*)
 val flatten : Code.t -> Code.t
 
-val analyse_syntax : Code.t -> [`Addr of string | `Path of Trie.path] Asai.Range.located Seq.t
+module Item : sig type t = Path of Trie.path | Addr of string end
+
+val analyse_syntax : Code.t -> Item.t Asai.Range.located Seq.t
 
 val word_at : position: Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
 val get_visible : position: Lsp.Types.Position.t -> Code.t -> (Resolver.Scope.data, Resolver.P.tag) Trie.t

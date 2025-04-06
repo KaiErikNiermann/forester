@@ -82,3 +82,4 @@ val inline_math : t -> node
 val display_math : t -> node
 
 val map : (t -> t) -> node -> node
+val children : node Range.located -> t

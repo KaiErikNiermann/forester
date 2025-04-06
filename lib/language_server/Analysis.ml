@@ -17,107 +17,19 @@ end
 module L = Lsp.Types
 
 module Item = struct
-  type t = [
-    | `Path of Trie.path
-    | `Addr of string
-  ]
-  let addr str = `Addr str
-  let path p = `Path p
+  type t =
+    | Path of Trie.path
+    | Addr of string
+  let addr str = Addr str
+  let path p = Path p
 end
 
 module S = Algaeff.Sequencer.Make(struct
   type t = Item.t Range.located
 end)
 
-let code_children (node : Code.node Range.located) =
-  match node.value with
-  | Math (_, t)
-  | Group (_, t)
-  | Let (_, _, t)
-  | Scope t
-  | Put (_, t)
-  | Fun (_, t)
-  | Default (_, t)
-  | Def (_, _, t)
-  | Namespace (_, t)
-  | Dx_const_uri t
-  | Dx_const_content t
-  | Call (t, _)
-  | Subtree (_, t) ->
-    t
-  | Dx_prop (_, t)
-  | Dx_query (_, _, t)
-  | Dx_sequent (_, t) ->
-    (List.concat t)
-  | Object {methods; _} ->
-    (methods |> List.map snd |> List.concat)
-  | Patch {obj; methods; _} ->
-    let methods = (methods |> List.map snd |> List.concat) in
-    (List.append obj methods)
-  | Text _
-  | Verbatim _
-  | Ident _
-  | Hash_ident _
-  | Xml_ident (_, _)
-  | Open _
-  | Get _
-  | Import (_, _)
-  | Decl_xmlns (_, _)
-  | Alloc _
-  | Dx_var _
-  | Comment _
-  | Error _ ->
-    []
-
-let syn_children (node : Syn.node Range.located) =
-  match node.value with
-  | Group (_, t) -> t
-  | Math (_, t) -> t
-  | Subtree (_, t) -> t
-  | Link {dest; title} -> Option.fold ~some: (fun t -> t @ dest) ~none: dest title
-  | Fun (_, t) -> t
-  | Put (r, s, t) -> r @ s @ t
-  | Default (r, s, t) -> r @ s @ t
-  | Get t -> t
-  | Xml_tag (_, qs, t) -> List.concat_map snd qs @ t
-  | Call (t, _) -> t
-  | Object {methods; _} ->
-    List.concat_map snd methods
-  | Patch {obj; methods; _} ->
-    List.concat_map snd methods @
-      obj
-  | Dx_sequent (t, ts) -> t @ List.concat ts
-  | Dx_query (_, ps, ns) -> List.concat ps @ List.concat ns
-  | Dx_const (_, n) -> n
-  | Dx_prop (t, ts) -> t @ List.concat ts
-  | Text _
-  | Verbatim _
-  | Var _
-  | Sym _
-  | TeX_cs _
-  | Prim _
-  | Results_of_query
-  | Transclude
-  | Embed_tex
-  | Ref
-  | Title
-  | Parent
-  | Taxon
-  | Meta
-  | Attribution (_, _)
-  | Tag _
-  | Date
-  | Number
-  | Dx_var _
-  | Dx_execute
-  | Route_asset
-  | Syndicate_current_tree_as_atom_feed
-  | Syndicate_query_as_json_blob
-  | Current_tree ->
-    []
-
 let flatten (tree : Code.t) : Code.t =
-  List.concat_map code_children tree
+  List.concat_map Code.children tree
 
 let paths_in_bindings =
   List.map snd
@@ -184,8 +96,12 @@ let rec analyse (node : Code.node Range.located) =
     let@ path = List.iter @~ paths in
     S.yield ({value = Item.path path; loc});
   end;
-  let children = code_children node in
+  let children = Code.children node in
   List.iter analyse children
+
+let analyse_syntax nodes =
+  let@ () = S.run in
+  List.iter analyse nodes
 
 let contains = fun
     ~(position : Lsp.Types.Position.t)
@@ -235,7 +151,7 @@ let get_enclosing_code_group ~position nodes =
           | Some t -> Some t
         end
       | _ ->
-        (go ~position) (code_children n)
+        (go ~position) (Code.children n)
   in
   go ~position nodes
 
@@ -252,7 +168,7 @@ let get_enclosing_syn_group ~position nodes =
           | Some t -> Some t
         end
       | _ ->
-        go ~position (syn_children n)
+        go ~position (Syn.children n)
   in
   go ~position nodes
 
@@ -292,11 +208,11 @@ let parent_or_prev_at
   in
   go ~position ~children code
 
-let parent_or_prev_at_code ~position = parent_or_prev_at ~position ~children: code_children
-let parent_or_prev_at_syn ~position = parent_or_prev_at ~position ~children: syn_children
+let parent_or_prev_at_code ~position = parent_or_prev_at ~position ~children: Code.children
+let parent_or_prev_at_syn ~position = parent_or_prev_at ~position ~children: Syn.children
 
-let node_at_code ~position = node_at ~position ~children: code_children
-let node_at_syn ~position = node_at ~position ~children: syn_children
+let node_at_code ~position = node_at ~position ~children: Code.children
+let node_at_syn ~position = node_at ~position ~children: Syn.children
 
 let get_visible
 = fun ~position code ->
@@ -309,7 +225,7 @@ let get_visible
     | ({loc; _} as node) :: rest ->
       let@ () = Expand.scope_effect node in
       if contains ~position loc then
-        let children = code_children node in
+        let children = Code.children node in
         match node_at_code ~position children with
         | None ->
           (* This case means "parent node is at position, but no child node is. I don't think this can happen"*)
@@ -325,11 +241,7 @@ let get_visible
   go ~position code
 
 let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located option =
-  Option.bind (node_at ~position ~children: code_children code) extract_addr
-
-let analyse_syntax nodes =
-  let@ () = S.run in
-  List.iter analyse nodes
+  Option.bind (node_at ~position ~children: Code.children code) extract_addr
 
 exception Found of string
 
@@ -340,7 +252,6 @@ let word_at ~position (doc : Lsp.Text_document.t) =
   | None -> None
   | Some line ->
     let words = String.split_on_char ' ' line in
-    Logs.debug (fun m -> m "line has %d words" (List.length words));
     try
       let acc = ref 0 in
       List.iter

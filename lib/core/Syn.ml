@@ -108,3 +108,50 @@ let map f node =
   | Syndicate_query_as_json_blob
   | Current_tree ->
     node
+
+let children (node : node Range.located) =
+  match node.value with
+  | Group (_, t) -> t
+  | Math (_, t) -> t
+  | Subtree (_, t) -> t
+  | Link {dest; title} -> Option.fold ~some: (fun t -> t @ dest) ~none: dest title
+  | Fun (_, t) -> t
+  | Put (r, s, t) -> r @ s @ t
+  | Default (r, s, t) -> r @ s @ t
+  | Get t -> t
+  | Xml_tag (_, qs, t) -> List.concat_map snd qs @ t
+  | Call (t, _) -> t
+  | Object {methods; _} ->
+    List.concat_map snd methods
+  | Patch {obj; methods; _} ->
+    List.concat_map snd methods @
+      obj
+  | Dx_sequent (t, ts) -> t @ List.concat ts
+  | Dx_query (_, ps, ns) -> List.concat ps @ List.concat ns
+  | Dx_const (_, n) -> n
+  | Dx_prop (t, ts) -> t @ List.concat ts
+  | Text _
+  | Verbatim _
+  | Var _
+  | Sym _
+  | TeX_cs _
+  | Prim _
+  | Results_of_query
+  | Transclude
+  | Embed_tex
+  | Ref
+  | Title
+  | Parent
+  | Taxon
+  | Meta
+  | Attribution (_, _)
+  | Tag _
+  | Date
+  | Number
+  | Dx_var _
+  | Dx_execute
+  | Route_asset
+  | Syndicate_current_tree_as_atom_feed
+  | Syndicate_query_as_json_blob
+  | Current_tree ->
+    []
