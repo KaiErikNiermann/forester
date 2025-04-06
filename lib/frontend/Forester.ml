@@ -68,18 +68,18 @@ let output_path ~cwd ~(forest : State.t) =
   let suffix =
     String.concat "/" @@
     List.filter (fun x -> not (x = "")) @@
-    output_dir_name :: URI.path_components forest.config.url
+    URI.path_components forest.config.url
   in
   Eio.Path.(cwd / output_dir_name / suffix)
 
 let copy_contents_of_dir ~env ~(forest : State.t) dir =
-  Logs.debug (fun m -> m "copying contents of directory %s." (Eio.Path.native_exn dir));
   let cwd = Eio.Stdenv.cwd env in
+  let dest_dir = EP.native_exn @@ output_path ~cwd ~forest in
+  Logs.debug (fun m -> m "copying contents of directory %s to %s." (Eio.Path.native_exn dir) dest_dir);
   let@ fname = List.iter @~ EP.read_dir dir in
   if not @@ is_hidden_file fname then
     let path = EP.(dir / fname) in
     let source = EP.native_exn path in
-    let dest_dir = EP.native_exn @@ output_path ~cwd ~forest in
     Eio_util.copy_to_dir ~env ~cwd ~source ~dest_dir
 
 let json_manifest ~dev ~(forest : State.t) : string =
