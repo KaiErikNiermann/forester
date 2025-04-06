@@ -77,38 +77,38 @@ let compute (params : L.CallHierarchyPrepareParams.t) =
         | None -> None
         | Some {loc = _; value} ->
           match value with
-          | Code.Def (_, _, _)
-          | Code.Fun (_, _) ->
+          | Def (_, _, _)
+          | Fun (_, _) ->
             None
-          | Code.Text _
-          | Code.Verbatim _
-          | Code.Group (_, _)
-          | Code.Math (_, _)
-          | Code.Ident _
-          | Code.Hash_ident _
-          | Code.Xml_ident (_, _)
-          | Code.Subtree (_, _)
-          | Code.Let (_, _, _)
-          | Code.Open _
-          | Code.Scope _
-          | Code.Put (_, _)
-          | Code.Default (_, _)
-          | Code.Get _
-          | Code.Object _
-          | Code.Patch _
-          | Code.Call (_, _)
-          | Code.Import (_, _)
-          | Code.Decl_xmlns (_, _)
-          | Code.Alloc _
-          | Code.Namespace (_, _)
-          | Code.Dx_sequent (_, _)
-          | Code.Dx_query (_, _, _)
-          | Code.Dx_prop (_, _)
-          | Code.Dx_var _
-          | Code.Dx_const_content _
-          | Code.Dx_const_uri _
-          | Code.Comment _
-          | Code.Error _ ->
+          | Text _
+          | Verbatim _
+          | Group (_, _)
+          | Math (_, _)
+          | Ident _
+          | Hash_ident _
+          | Xml_ident (_, _)
+          | Subtree (_, _)
+          | Let (_, _, _)
+          | Open _
+          | Scope _
+          | Put (_, _)
+          | Default (_, _)
+          | Get _
+          | Object _
+          | Patch _
+          | Call (_, _)
+          | Import (_, _)
+          | Decl_xmlns (_, _)
+          | Alloc _
+          | Namespace (_, _)
+          | Dx_sequent (_, _)
+          | Dx_query (_, _, _)
+          | Dx_prop (_, _)
+          | Dx_var _
+          | Dx_const_content _
+          | Dx_const_uri _
+          | Comment _
+          | Error _ ->
             None
       in
       Option.map (fun item -> [item]) item

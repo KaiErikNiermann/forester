@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-(* At the moment these tests are mainly stubs.*)
-
 open Forester_prelude
 open Forester_core
 open Forester_compiler
