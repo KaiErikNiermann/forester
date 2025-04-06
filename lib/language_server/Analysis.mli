@@ -21,7 +21,10 @@ val extract_addr :
   Code.node Range.located ->
   string Range.located option
 
+(** [node_at_code ~position code] returns the smallest node in [code] that contains [position] (if it exists)*)
 val node_at_code : position: Lsp.Types.Position.t -> Code.node Range.located list -> Code.node Range.located option
+
+(** [node_at_syn ~position syn] returns the smallest node in [syn] that contains [position] (if it exists)*)
 val node_at_syn : position: Lsp.Types.Position.t -> Syn.node Range.located list -> Syn.node Range.located option
 
 (** [addr_at ~position code] uses {!extract_addr} to extract an address from [position] in [code]
@@ -39,6 +42,8 @@ module Item : sig type t = Path of Trie.path | Addr of string end
 val analyse_syntax : Code.t -> Item.t Asai.Range.located Seq.t
 
 val word_at : position: Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
+
+(* [get_visible ~position code] returns the bindings visible at [position] in [code]. This is used to compute context-sensitive completion.*)
 val get_visible : position: Lsp.Types.Position.t -> Code.t -> (Resolver.Scope.data, Resolver.P.tag) Trie.t
 
 val get_enclosing_code_group : position: Lsp.Types.Position.t -> Code.t -> (delim * Code.t) option
