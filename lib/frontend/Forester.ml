@@ -116,18 +116,8 @@ let outputs_for_article ~(forest : State.t) (article : _ T.article) =
     let xml_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.xml") uri in
     let html_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.html") uri in
     let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-    let is_foreign = not (URI.host forest.config.url = URI.host uri) in
-    let bare_host_uri =
-      URI.with_path_components [] @@
-      if is_foreign then uri else forest.config.url
-    in
     let html_content =
-      let prefix =
-        if is_foreign
-          then "foreign/" ^ Option.value ~default:"" (Option.map (fun x -> x ^ "/") (URI.host uri))
-          else ""
-        in
-      html_redirect @@ "/" ^ prefix ^ URI.relative_path_string ~base: bare_host_uri xml_route
+      html_redirect @@ String.concat "/" @@ "" :: Legacy_xml_client.local_path_components forest.config xml_route
     in
     [xml_route, xml_content; html_route, html_content]
 
