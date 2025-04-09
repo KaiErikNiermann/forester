@@ -107,8 +107,7 @@ and analyse_attributions graphs (scope : URI.t) =
 and analyse_tags graphs (scope : URI.t) =
   List.iter @@ analyse_tag graphs scope
 
-and analyse_frontmatter graphs (fm : T.content T.frontmatter) : unit =
-  let@ scope = Option.iter @~ fm.uri in
+and analyse_frontmatter graphs (scope : URI.t) (fm : T.content T.frontmatter) : unit =
   Option.iter (analyse_content graphs scope) fm.title;
   analyse_taxon graphs scope fm.taxon;
   analyse_attributions graphs scope fm.attributions;
@@ -126,12 +125,13 @@ and analyse_section graphs (scope : URI.t) (section : T.content T.section) : uni
     let@ target = Option.iter @~ section.frontmatter.uri in
     add_edge graphs Builtin_relation.transcludes ~source: (Uri_vertex scope) ~target: (Uri_vertex target)
   end;
-  analyse_frontmatter graphs section.frontmatter;
-  analyse_content graphs (Option.value ~default: scope section.frontmatter.uri) section.mainmatter
+  let scope = Option.value ~default: scope section.frontmatter.uri in
+  analyse_frontmatter graphs scope section.frontmatter;
+  analyse_content graphs scope section.mainmatter
 
 let analyse_article graphs (article : article) : unit =
-  analyse_frontmatter graphs article.frontmatter;
   let@ scope = Option.iter @~ article.frontmatter.uri in
+  analyse_frontmatter graphs scope article.frontmatter;
   analyse_content graphs scope article.mainmatter;
   analyse_content graphs scope article.backmatter
 
