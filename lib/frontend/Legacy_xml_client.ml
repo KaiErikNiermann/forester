@@ -291,6 +291,15 @@ and render_date forest (date : Human_datetime.t) =
     ]
 
 let render_article (forest : State.t) (article : T.content T.article) : P.node =
+  let before = Unix.gettimeofday () in
+  let@ () = fun kont ->
+    let result = kont () in
+    let after = Unix.gettimeofday () in
+    let elapsed = after -. before in
+    if elapsed > 0.1 then
+      Logs.debug (fun m -> m "[Performance] rendering %a took %f seconds" Format.(pp_print_option URI.pp) article.frontmatter.uri elapsed);
+    result
+  in
   let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.uri in
   let config = forest.config in
   let@ () = Loop_detection.run in
