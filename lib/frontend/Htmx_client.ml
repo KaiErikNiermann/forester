@@ -58,13 +58,16 @@ let section_flags_to_http_header (flags : T.section_flags) =
       | Some v -> Some (l, `String (Bool.to_string v))
       | None -> None
     in
-    let a = to_header "Hidden-When-Empty" hidden_when_empty in
-    let b = to_header "Included-In-Toc" included_in_toc in
-    let c = to_header "Header-Shown" header_shown in
-    let d = to_header "Metadata-Shown" metadata_shown in
-    let e = to_header "Numbered" numbered in
-    let f = to_header "Expanded" expanded in
-    `Assoc (List.filter_map Fun.id [a; b; c; d; e; f])
+    let headers = [
+      to_header "Hidden-When-Empty" hidden_when_empty;
+      to_header "Included-In-Toc" included_in_toc;
+      to_header "Header-Shown" header_shown;
+      to_header "Metadata-Shown" metadata_shown;
+      to_header "Numbered" numbered;
+      to_header "Expanded" expanded;
+    ]
+    in
+    `Assoc (List.filter_map Fun.id headers)
 
 let content_target_to_http_header (target : T.content_target) =
   match target with
@@ -281,7 +284,7 @@ and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter
     | Some uri ->
       let uri_str =
         (* TODO: replace with proper routing from legacy xml client *)
-        Format.asprintf "%a" URI.pp uri
+        Format.asprintf "%a" URI.pp (route forest uri)
       in
       a
         [class_ "slug"; href "%s" uri_str;]
@@ -385,7 +388,7 @@ and render_transclusion transclusion =
       span
         [
           Hx.trigger "load";
-          Hx.get "/trees/%s" (URI.path_string href);
+          Hx.get "/trees%s" (URI.path_string href);
           Hx.target "this";
           Hx.swap "outerHTML";
           Hx.headers "%s" headers;
