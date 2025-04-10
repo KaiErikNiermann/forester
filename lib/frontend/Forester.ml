@@ -126,21 +126,23 @@ let outputs_for_asset (asset : T.asset) =
   [route, asset.content]
 
 let outputs_for_json_blob_syndication ~(forest : State.t) (syndication : _ T.json_blob_syndication) =
-  let vertices = Forest.run_datalog_query forest.graphs syndication.query in
-  let resources =
-    let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
-    match vertex with
-    | Content_vertex _ -> None
-    | Uri_vertex uri -> State.get_resource forest uri
-  in
-  let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
-  [syndication.blob_uri, json_content]
+  if URI.host syndication.blob_uri = URI.host forest.config.url then
+    let vertices = Forest.run_datalog_query forest.graphs syndication.query in
+    let resources =
+      let@ vertex = List.filter_map @~ Vertex_set.elements vertices in
+      match vertex with
+      | Content_vertex _ -> None
+      | Uri_vertex uri -> State.get_resource forest uri
+    in
+    let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
+    [syndication.blob_uri, json_content]
+  else
+    []
 
 let outputs_for_atom_feed_syndication ~(forest : State.t) (syndication : T.atom_feed_syndication) =
-  let atom_route = syndication.feed_uri in
   let atom_nodes = Atom_client.render_feed forest ~source_uri: syndication.source_uri ~feed_uri: syndication.feed_uri in
   let atom_content = Format.asprintf "%a" (Pure_html.pp_xml ~header: true) atom_nodes in
-  [atom_route, atom_content]
+  [syndication.feed_uri, atom_content]
 
 let outputs_for_syndication ~(forest : State.t) = function
   | T.Json_blob syndication -> outputs_for_json_blob_syndication ~forest syndication
