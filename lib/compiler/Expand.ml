@@ -182,30 +182,22 @@ and scope_effect
         end
     end
   | {value = Let (a, bs, def); loc} ->
-    (
-      let lam = expand_lambda loc (bs, def) in
-      let@ () = Sc.section [] in
-      Sc.import_singleton a @@ (Term [lam], loc);
-      kont ()
-    )
+    let lam = expand_lambda loc (bs, def) in
+    let@ () = Sc.section [] in
+    Sc.import_singleton a @@ (Term [lam], loc);
+    kont ()
   | {value = Def (path, xs, body); loc} ->
-    (
-      let lam = expand_lambda loc (xs, body) in
-      Sc.include_singleton path @@ (Term [lam], loc);
-      kont ()
-    )
+    let lam = expand_lambda loc (xs, body) in
+    Sc.include_singleton path @@ (Term [lam], loc);
+    kont ()
   | {value = Decl_xmlns (prefix, xmlns); loc} ->
-    (
-      let path = ["xmlns"; prefix] in
-      Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, loc);
-      kont ()
-    )
+    let path = ["xmlns"; prefix] in
+    Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, loc);
+    kont ()
   | {value = Alloc path; loc} ->
-    (
-      let symbol = Symbol.named path in
-      Sc.include_singleton path @@ (Term [Range.locate_opt loc (Syn.Sym symbol)], loc);
-      kont ()
-    )
+    let symbol = Symbol.named path in
+    Sc.include_singleton path @@ (Term [Range.locate_opt loc (Syn.Sym symbol)], loc);
+    kont ()
   | {value = Object _; _}
   | {value = Patch _; _} ->
     let@ () = Sc.section [] in
