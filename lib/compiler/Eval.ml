@@ -326,17 +326,7 @@ and eval_node node : Value.t =
   | Route_asset ->
     let source_path = pop_text_arg ~loc in
     let uri = Asset_router.uri_of_asset ?loc ~source_path () in
-    let sequents =
-      Option.value ~default: [] @@
-        let fm = Frontmatter.get () in
-        let@ current_uri = Option.map @~ fm.uri in
-        let open Datalog_expr.Notation in
-        [
-          Builtin_relation.in_bundle_step @* [const (T.Uri_vertex current_uri); const (T.Uri_vertex uri)] << []
-        ]
-    in
-    let datalog = T.Datalog_script sequents in
-    emit_content_nodes ~loc @@ [datalog; T.Route_of_uri uri]
+    emit_content_nodes ~loc @@ [T.Route_of_uri uri]
   | Object {self; methods} ->
     let table =
       let env = Lex_env.read () in
