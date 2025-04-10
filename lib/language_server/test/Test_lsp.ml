@@ -10,35 +10,8 @@ open Forester_compiler
 open Forester_frontend
 open Forester_lsp
 open Forester_test
-open Testables
-
-module Handlers = Server.Handlers
 
 module L = Lsp.Types
-
-type test_env = {
-  dirs: Eio.Fs.dir_ty Eio.Path.t list;
-  config: Config.t;
-  position: L.Position.t;
-}
-
-let find_doc (env : test_env) addr =
-  let path =
-    Eio.Path.native_exn @@
-    Option.get @@
-    Dir_scanner.find_tree env.dirs (URI_scheme.named_uri ~base: env.config.url addr)
-  in
-  ({uri = Lsp.Uri.of_path path}: L.TextDocumentIdentifier.t)
-
-module Test_env = Algaeff.State.Make(struct type t = test_env end)
-
-let find_tree addr =
-  let env = Test_env.get () in
-  let dirs = env.dirs in
-  Eio.Path.native_exn @@
-  Option.get @@
-  Dir_scanner.find_tree dirs @@
-  URI_scheme.named_uri ~base: env.config.url addr
 
 let test_code_actions () =
   let@ () = Reporter.easy_run in
@@ -52,7 +25,7 @@ let test_code_actions () =
       ()
   in
   let result =
-    Handlers.Code_action.compute params |> function
+    Code_action.compute params |> function
       | None -> assert false
       | Some actions -> List.map (function `CodeAction a -> a | _ -> assert false) actions
   in
@@ -71,7 +44,7 @@ let test_call_hierarchy () =
       ~position: env.position
       ()
   in
-  let result = Handlers.Call_hierarchy.compute params in
+  let result = Call_hierarchy.compute params in
   Alcotest.(check @@ option @@ list unit)
     ""
     None
@@ -82,7 +55,7 @@ let test_change_configuration () =
   (* Eio.Path.save  ~create: *)
   let settings = `Assoc ["configuration_file", `String "other.toml"] in
   let params = L.DidChangeConfigurationParams.create ~settings in
-  let result = Handlers.Change_configuration.compute params in
+  let result = Change_configuration.compute params in
   Alcotest.(check unit)
     ""
     result
@@ -102,7 +75,7 @@ let test_definitions () =
   let position = L.Position.create ~line: 16 ~character: 13 in
   let params = L.DefinitionParams.create ~position ~textDocument () in
   let result =
-    Handlers.Definitions.compute params |> function
+    Definitions.compute params |> function
       | Some (`Location locations) -> locations
       | Some (`LocationLink _location_links) ->
         assert false
@@ -124,7 +97,7 @@ let test_code_lens () =
   let env = Test_env.get () in
   let textDocument = find_doc env "tfmt-0005" in
   let params = L.CodeLensParams.create ~textDocument () in
-  let result = List.length @@ Handlers.Code_lens.compute params in
+  let result = List.length @@ Code_lens.compute params in
   Alcotest.(check int) "" 0 result
 
 let test_completion () =
@@ -134,7 +107,7 @@ let test_completion () =
   let textDocument = find_doc env "tfmt-0005" in
   let params = L.CompletionParams.create ~position ~textDocument () in
   let result =
-    Handlers.Completion.compute params |> function
+    Completion.compute params |> function
       | Some (`CompletionList completions) -> List.length completions.items
       | None -> -1
   in
@@ -152,7 +125,7 @@ let test_did_change () =
       ~contentChanges: []
       ~textDocument: ({uri = textDocument.uri; version = 2})
   in
-  let result = Handlers.Did_change.compute params in
+  let result = Did_change.compute params in
   Alcotest.(check unit)
     ""
     ()
@@ -171,7 +144,7 @@ let test_did_open () =
         version = 1;
       }
   in
-  let result = Handlers.Did_open.compute params in
+  let result = Did_open.compute params in
   Alcotest.(check unit)
     ""
     ()
@@ -196,7 +169,7 @@ let test_document_link () =
   URI.Tbl.iter
     (fun _ diag -> List.iter Reporter.Tty.display diag)
     forest.diagnostics;
-  let result = Handlers.Document_link.compute params in
+  let result = Document_link.compute params in
   Alcotest.(check int)
     ""
     10
@@ -214,7 +187,7 @@ let test_document_symbols () =
   let env = Test_env.get () in
   let textDocument = find_doc env "jms-0052" in
   let params = L.DocumentSymbolParams.create ~textDocument () in
-  let `DocumentSymbol result = Option.get @@ Handlers.Document_symbols.compute params in
+  let `DocumentSymbol result = Option.get @@ Document_symbols.compute params in
   Alcotest.(check int)
     ""
     29
@@ -232,7 +205,7 @@ let test_highlight () =
   let env = Test_env.get () in
   let textDocument = find_doc env "jms-0052" in
   let params = L.DocumentHighlightParams.create ~position: env.position ~textDocument () in
-  let result = Handlers.Highlight.compute params in
+  let result = Highlight.compute params in
   Alcotest.(check int)
     ""
     48
@@ -250,7 +223,7 @@ let test_hover () =
   in
   let textDocument = find_doc env "jms-0052" in
   let params = L.HoverParams.create ~position: {character = 12; line = 32;} ~textDocument () in
-  let result = Handlers.Hover.compute params in
+  let result = Hover.compute params in
   let expected =
     Some
       (
@@ -282,7 +255,7 @@ let test_inlay_hint () =
   in
   let textDocument = find_doc env "jms-0052" in
   let params = L.InlayHintParams.create ~range: (L.Range.create ~start: env.position ~end_: env.position) ~textDocument () in
-  let result = Handlers.Inlay_hint.compute params in
+  let result = Inlay_hint.compute params in
   Alcotest.(check int)
     ""
     25
@@ -291,243 +264,11 @@ let test_inlay_hint () =
 let test_workspace_symbols () =
   let@ () = Reporter.easy_run in
   let params = L.WorkspaceSymbolParams.create ~query: "foo" () in
-  let result = Option.get @@ Handlers.Workspace_symbols.compute params in
+  let result = Option.get @@ Workspace_symbols.compute params in
   Alcotest.(check int)
     ""
     151
     (List.length result)
-
-let test_contains () =
-  let position = L.Position.create ~character: 12 ~line: 0 in
-  let src = `File "foo" in
-  let start_pos = Asai.Range.{source = src; offset = 1; start_of_line = 0; line_num = 1} in
-  let end_pos = Asai.Range.{source = src; offset = 13; start_of_line = 0; line_num = 1} in
-  let loc = Option.some @@ Asai.Range.make (start_pos, end_pos) in
-  let result = Analysis.contains ~position loc in
-  Alcotest.(check bool) "" true result
-
-let test_node_at () =
-  let case_1 =
-    let position = L.Position.create ~character: 12 ~line: 0 in
-    (*                                         0123456789012*)
-    let code = Result.get_ok @@ parse_string {|\import{asdf}|} in
-    let result = Option.get @@ Analysis.node_at_code ~position code in
-    Alcotest.(check code_node)
-      ""
-      (Import (Private, "asdf"))
-      (Asai.Range.(result.value))
-  in
-  let case_2 =
-    let code =
-      Result.get_ok @@
-        parse_string
-          (*          1         2         3         4         5          *)
-          (*0123456789012345678901234567890123456789012345678901234567890*)
-          {|\def\Mor[arg1][arg2][arg3]{#{{\arg2}\xrightarrow{\arg1}{\arg3}}}
-      |}
-    in
-    let position_1 = L.Position.create ~character: 40 ~line: 0 in
-    let position_2 = L.Position.create ~character: 50 ~line: 0 in
-    let result1 = Option.get @@ Analysis.node_at_code ~position: position_1 code in
-    let result2 = Option.get @@ Analysis.node_at_code ~position: position_2 code in
-    Alcotest.(check code_node) "" (Ident ["xrightarrow"]) (Asai.Range.(result1.value));
-    Alcotest.(check code_node) "" (Ident ["arg1"]) (Asai.Range.(result2.value))
-  in
-  let case_3 =
-    let code =
-      Result.get_ok @@
-        parse_string
-          {|
-%123456789012345678901234567890123456789012345678901234567890
-\p{
-  \foo{
-    \ul{
-      \li{asdf}
-    }
-  }
-}
-        |}
-    in
-    let position = L.Position.create ~character: 12 ~line: 5 in
-    let result = Option.get @@ Analysis.node_at_code ~position code in
-    Alcotest.(check code_node) "" (Text "asdf") (Asai.Range.(result.value))
-  in
-  case_1;
-  case_2;
-  case_3
-
-let test_addr_at () =
-  let code = Result.get_ok @@ parse_string {|\transclude{tfmt-0005}|} in
-  let position = L.Position.create ~character: 13 ~line: 0 in
-  let result = Option.get @@ Analysis.addr_at ~position code in
-  Alcotest.(check string) "" "tfmt-0005" (Asai.Range.(result.value))
-
-let test_word_at () =
-  let text =
-    {|Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis
-nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse
-cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat
-non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
-    |}
-  in
-  let doc
-    =
-    Lsp.Text_document.make
-      ~position_encoding: `UTF8
-      {
-        textDocument =
-        L.TextDocumentItem.create
-          ~languageId: "forester"
-          ~uri: (Lsp.Uri.of_string "")
-          ~version: 1
-          ~text
-      }
-  in
-  let lorem =
-    Option.get @@
-      let position = L.Position.create ~character: 0 ~line: 0 in
-      Analysis.word_at ~position doc
-  in
-  let dolor =
-    Option.get @@
-      let position = L.Position.create ~character: 13 ~line: 0 in
-      Analysis.word_at ~position doc
-  in
-  let irure =
-    Option.get @@
-      let position = L.Position.create ~character: 25 ~line: 3 in
-      Analysis.word_at ~position doc
-  in
-  Alcotest.(check string) "" "Lorem" lorem;
-  Alcotest.(check string) "" "dolor" dolor;
-  Alcotest.(check string) "" "irure" irure
-
-let test_find_with_prev () =
-  let code =
-    Result.get_ok @@
-      parse_string
-        {|
-\li{I am on line 1}
-\li{I am on line 2}
-\li{I am on line 3}
-\li{I am on line 4}
-|}
-  in
-  Logs.debug (fun m -> m "%a" Code.pp code);
-  let result = Analysis.find_with_prev ~position: {line = 4; character = 5;} code in
-  begin
-    let@ {loc; _} = List.iter @~ code in
-    Logs.debug (fun m -> m "%s" (Yojson.Safe.to_string (L.Range.yojson_of_t (Lsp_shims.Loc.lsp_range_of_range loc))));
-  end;
-  match result with
-  | None -> Alcotest.fail "no result"
-  | Some (prev, node) ->
-    let open DSL.Code in
-    Alcotest.(check code_node)
-      "node"
-      (
-        Group
-          (
-            Braces,
-            [
-              text "I";
-              text " ";
-              text "am";
-              text " ";
-              text "on";
-              text " ";
-              text "line";
-              text " ";
-              text "4"
-            ]
-          )
-      )
-      (Code.map strip_code node.value);
-    match prev with
-    | None -> Alcotest.fail "no prev"
-    | Some prev ->
-      Alcotest.(check code_node) "Pred" (Ident ["li"]) prev.value
-
-let test_node_at_pos_with_prev_or_parent () =
-  let code =
-    Result.get_ok @@
-      parse_string
-        {|
-\def\foo[arg]{Hello, \arg!}
-\p{\ul{\li{item}}}
-|}
-  in
-  let prev = Analysis.find_with_prev ~position: {character = 5; line = 2;} code in
-  begin
-    match prev with
-    | None -> Alcotest.fail "node not found"
-    | Some (prev, node) ->
-      match prev with
-      | None -> Alcotest.fail "no pred"
-      | Some prev ->
-        Alcotest.(check code_node) "check pred" (Ident ["p"]) prev.value;
-        Alcotest.(check code_node)
-          "check node"
-          (DSL.Code.(braces [ul; braces [li; braces [text "item"]]]).value)
-          (Code.map strip_code node.value)
-  end;
-  let result = Analysis.parent_or_prev_at_code ~position: {character = 5; line = 2;} code in
-  match result with
-  | None -> Alcotest.fail "no result"
-  | Some (`Prev (_pred, _node)) -> Alcotest.fail "pred"
-  | Some (`Node node) -> Alcotest.(check code_node) "node" (Ident ["ul"]) node.value
-  | Some (`Parent _) -> Alcotest.fail "parent"
-
-let test_enclosing_group ~forest () =
-  (*                                         012345678901234*)
-  let code = Result.get_ok @@ parse_string {|\foo{\bar{baz}}|} in
-  let expanded =
-    let@ () = Resolver.Scope.easy_run in
-    Expand.expand ~forest code
-  in
-  let case_1 =
-    let position = L.Position.{line = 0; character = 6} in
-    match Analysis.get_enclosing_syn_group ~position expanded with
-    | None -> Alcotest.fail "no enclosing group"
-    | Some {value = (d, nodes); _} ->
-      let open DSL.Syn in
-      Alcotest.(check delim) "" Braces d;
-      Alcotest.(check syn)
-        ""
-        [tex_cs "bar"; braces [text "baz"]]
-        (strip_syn nodes)
-  in
-  let case_2 =
-    let position = L.Position.{line = 0; character = 10} in
-    match Analysis.get_enclosing_syn_group ~position expanded with
-    | None -> Alcotest.fail "no enclosing group"
-    | Some {value = (d, nodes); _} ->
-      let open DSL.Syn in
-      Alcotest.(check delim) "" Braces d;
-      Alcotest.(check syn) "" [text "baz"] (strip_syn nodes)
-  in
-  List.iter Fun.id [case_1; case_2]
-
-let test_asset_completion () =
-  let@ () = Reporter.easy_run in
-  let textDocument = find_doc (Test_env.get ()) "sterling-2024-cl-forester" in
-  let position : L.Position.t = {line = 4; character = 27} in
-  let params = L.CompletionParams.create ~position ~textDocument () in
-  let completions =
-    Handlers.Completion.compute params
-    |> Option.map (fun (`CompletionList L.CompletionList.{items; _}) ->
-        String.concat "" @@
-          List.map
-            (fun i -> Format.asprintf "%s" (Yojson.Safe.to_string @@ L.CompletionItem.yojson_of_t i))
-            items
-      )
-  in
-  Alcotest.(check @@ option string)
-    ""
-    (Some {|{"insertText":"assets/sterling-2024-cl-forester.pdf","kind":17,"label":"assets/sterling-2024-cl-forester.pdf"}|})
-    completions
 
 let () =
   Random.self_init ();
@@ -553,20 +294,6 @@ let () =
   Alcotest.run
     "Test_lsp"
     [
-      "Analysis",
-      [
-        "contains", `Quick, test_contains;
-        "node_at", `Quick, test_node_at;
-        "addr_at", `Quick, test_addr_at;
-        "word_at", `Quick, test_word_at;
-        "get_enclosing_group", `Quick, (test_enclosing_group ~forest);
-      ];
-      "Completion",
-      [
-        "find_with_pred", `Quick, test_find_with_prev;
-        "node_at_pos_with_predecessor_or_parent", `Quick, test_node_at_pos_with_prev_or_parent;
-        "asset_completion", `Quick, test_asset_completion;
-      ];
       "Handlers",
       [
         "call hierarchy", `Quick, test_call_hierarchy;

@@ -9,11 +9,13 @@
   (pps ppx_deriving.show ppx_yojson_conv))
  (libraries
   alcotest
+  algaeff
   forester.prelude
   forester.core
   forester.compiler
   forester.parser
   forester.frontend
+  forester.language_server
   logs
   eio
   eio_main

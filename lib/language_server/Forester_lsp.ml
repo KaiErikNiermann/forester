@@ -13,6 +13,24 @@ module Lsp_state = Lsp_state
 module LspEio = LspEio
 module Lsp_shims = Lsp_shims
 
+module Call_hierarchy = Call_hierarchy
+module Change_configuration = Change_configuration
+module Code_action = Code_action
+module Code_lens = Code_lens
+module Completion = Completion
+module Definitions = Definitions
+module Did_change = Did_change
+module Did_open = Did_open
+module Document_link = Document_link
+module Document_symbols = Document_symbols
+module Highlight = Highlight
+module Hover = Hover
+module Inlay_hint = Inlay_hint
+module Publish = Publish
+module Semantic_tokens = Semantic_tokens
+module Workspace_symbols = Workspace_symbols
+module Did_create_files = Did_create_files
+
 open Forester_core
 open Forester_compiler
 
@@ -68,8 +86,8 @@ let server_capabilities =
   let definitionProvider = `DefinitionOptions (L.DefinitionOptions.create ()) in
   let completionProvider =
     L.CompletionOptions.create
-      ~triggerCharacters: ["\\"; "{"; "(";]
-      ~allCommitCharacters: ["}"; ")";]
+      ~triggerCharacters: ["\\"; "{"; "("; "["]
+      ~allCommitCharacters: ["}"; ")"; "]"]
       ()
   in
   let documentLinkProvider =

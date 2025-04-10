@@ -6,7 +6,9 @@
 
 open Forester_prelude
 open Forester_core
-open Forester_parser
+open Forester_compiler
+
+module L = Lsp.Types
 
 let rec strip_syn : Syn.t -> Syn.t = fun syn ->
   List.map
@@ -75,3 +77,41 @@ let with_test_forest ~env ~raw_trees ~(config : Config.t) kont =
     )
     raw_trees;
   kont tmp
+
+let mk_tree ~uri ~code ~expanded =
+  Tree.Expanded
+    {
+      nodes = expanded;
+      identity = URI uri;
+      units = Trie.empty;
+      code = {
+        nodes = code;
+        identity = URI uri;
+        origin = Subtree {parent = Anonymous};
+        timestamp = None;
+      }
+    }
+
+type test_env = {
+  dirs: Eio.Fs.dir_ty Eio.Path.t list;
+  config: Config.t;
+  position: L.Position.t;
+}
+
+module Test_env = Algaeff.State.Make(struct type t = test_env end)
+
+let find_tree addr =
+  let env = Test_env.get () in
+  let dirs = env.dirs in
+  Eio.Path.native_exn @@
+  Option.get @@
+  Dir_scanner.find_tree dirs @@
+  URI_scheme.named_uri ~base: env.config.url addr
+
+let find_doc (env : test_env) addr =
+  let path =
+    Eio.Path.native_exn @@
+    Option.get @@
+    Dir_scanner.find_tree env.dirs (URI_scheme.named_uri ~base: env.config.url addr)
+  in
+  ({uri = Lsp.Uri.of_path path}: L.TextDocumentIdentifier.t)

@@ -138,7 +138,7 @@ let rec node_at
     | Some inner -> Some inner
     | None -> Some n
 
-let get_enclosing_code_group ~position nodes =
+let get_enclosing_code_group ~position tree =
   let rec go ~position nodes =
     match List.find_opt (fun Range.{loc; _} -> contains ~position loc) nodes with
     | None -> None
@@ -147,15 +147,18 @@ let get_enclosing_code_group ~position nodes =
       | (Code.Group (delim, t)) ->
         begin
           match go ~position t with
-          | None -> Some (delim, t)
+          | None -> Some Asai.Range.{value = (delim, t); loc = n.loc}
           | Some t -> Some t
         end
       | _ ->
         (go ~position) (Code.children n)
   in
-  go ~position nodes
+  match Tree.to_code tree with
+  | None -> None
+  | Some code ->
+    go ~position code.nodes
 
-let get_enclosing_syn_group ~position nodes =
+let get_enclosing_syn_group ~position tree =
   let rec go ~position nodes =
     match List.find_opt (fun Range.{loc; _} -> contains ~position loc) nodes with
     | None -> None
@@ -170,7 +173,29 @@ let get_enclosing_syn_group ~position nodes =
       | _ ->
         go ~position (Syn.children n)
   in
-  go ~position nodes
+  match Tree.to_syn tree with
+  | None -> None
+  | Some syn ->
+    go ~position syn.nodes
+
+let enclosing_group_start
+    ~position
+    ~(enclosing_group : position: L.Position.t -> Tree.t -> (delim * 'a) Range.located option)
+    (tree : Tree.t)
+  =
+  match enclosing_group ~position tree with
+  | None -> Some position
+  | Some {loc; value = _} ->
+    let start =
+      Option.map (function
+        | `Range (start, _) -> start
+        | `End_of_file pos -> pos
+      ) @@
+        Option.map Range.view loc
+    in
+    Option.map
+      (Lsp_shims.Loc.lsp_pos_of_pos)
+      start
 
 let find_with_prev ~position =
   let rec go prev = function
@@ -179,15 +204,19 @@ let find_with_prev ~position =
   in
   go None
 
+module Context = struct
+  (* Kind of like a zipper where you can only go backwards? *)
+  type 'a t =
+    | Prev of 'a * 'a
+    | Parent of 'a
+    | Top of 'a
+end
+
 let parent_or_prev_at
   : type a. position: L.Position.t ->
   children: (a Range.located -> a Range.located list) ->
   a Range.located list ->
-  [
-    | `Prev of (a Range.located * a Range.located)
-    | `Parent of a Range.located
-    | `Node of a Range.located
-  ] option
+  a Range.located Context.t option
 = fun ~position ~children code ->
   let go ~position ~children nodes =
     match find_with_prev ~position nodes with
@@ -197,14 +226,14 @@ let parent_or_prev_at
         match (node_at ~position ~children) (children node) with
         | Some inner ->
           (* go ~position ~children (children inner) *)
-          Some (`Node inner)
-        | None -> Some (`Node node)
+          Some (Context.Top inner)
+        | None -> Some (Top node)
       end
     | Some (Some prev, node) ->
       match (node_at ~position ~children) (children node) with
-      | None -> Some (`Prev (prev, node))
+      | None -> Some (Prev (prev, node))
       | Some inner ->
-        Some (`Node inner)
+        Some (Top inner)
   in
   go ~position ~children code
 
@@ -251,7 +280,6 @@ let word_at ~position (doc : Lsp.Text_document.t) =
       let acc = ref 0 in
       List.iter
         (fun word ->
-          Logs.debug (fun m -> m "%s" word);
           let length = String.length word in
           if !acc + length + 1 > character then raise (Found word)
           else acc := !acc + length + 1
@@ -260,3 +288,16 @@ let word_at ~position (doc : Lsp.Text_document.t) =
       None
     with
       | Found str -> Some str
+
+let word_before ~position (doc : Lsp.Text_document.t) =
+  let L.Position.{line; character;} = position in
+  let line = List.nth_opt (String.split_on_char '\n' (Lsp.Text_document.text doc)) line in
+  match line with
+  | None -> None
+  | Some line ->
+    try
+      let until_cursor = String.sub line 0 character in
+      let words = List.rev @@ String.split_on_char ' ' until_cursor in
+      Some (List.hd words)
+    with
+      | _ -> None

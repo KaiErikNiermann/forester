@@ -14,11 +14,13 @@
    (run git clone https://git.sr.ht/~jonsterling/forester-notes.org)
    (chdir
     forester-notes.org
-    (run %{bin:test-lsp})))))
+    (progn
+     (run %{bin:test-completion})
+     (run %{bin:test-lsp}))))))
 
-(executable
- (name Test_lsp)
- (public_name test-lsp)
+(executables
+ (names Test_lsp Test_completion)
+ (public_names test-lsp test-completion)
  (preprocess
   (pps ppx_yojson_conv ppx_deriving.show))
  (libraries
@@ -35,6 +37,7 @@
   lsp
   yojson
   yuujinchou
+  str
   forester.test
   forester.prelude
   forester.core

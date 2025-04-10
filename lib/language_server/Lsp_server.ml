@@ -12,26 +12,6 @@ module RPC = Jsonrpc
 module Lsp_Request = Lsp.Client_request
 module Lsp_Notification = Lsp.Client_notification
 
-module Handlers = struct
-  module Call_hierarchy = Call_hierarchy
-  module Change_configuration = Change_configuration
-  module Code_action = Code_action
-  module Code_lens = Code_lens
-  module Completion = Completion
-  module Definitions = Definitions
-  module Did_change = Did_change
-  module Did_open = Did_open
-  module Document_link = Document_link
-  module Document_symbols = Document_symbols
-  module Highlight = Highlight
-  module Hover = Hover
-  module Inlay_hint = Inlay_hint
-  module Publish = Publish
-  module Semantic_tokens = Semantic_tokens
-  module Workspace_symbols = Workspace_symbols
-  module Did_create_files = Did_create_files
-end
-
 module Semantic_tokens = Semantic_tokens
 
 let () =
@@ -74,7 +54,6 @@ module Request = struct
   type packed = Lsp_Request.packed
 
   let dispatch : type resp. string -> resp Lsp.Client_request.t -> resp = fun mthd ->
-    let open Handlers in
     function
       | Initialize _ ->
         let err = "Server can only recieve a single initialization request." in

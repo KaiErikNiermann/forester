@@ -64,3 +64,5 @@ let result = testable Eval.pp_result (=)
 let content = testable Types.pp_content (=)
 
 let action = testable Action.pp (=)
+
+let completion_type = testable Forester_lsp.Completion.pp_completion (=)
