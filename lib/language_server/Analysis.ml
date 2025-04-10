@@ -6,7 +6,7 @@
  *)
 
 open Forester_prelude
-open Forester_compiler
+(* open Forester_compiler *)
 open Forester_core
 
 open struct
@@ -214,9 +214,9 @@ let parent_or_prev_at_syn ~position = parent_or_prev_at ~position ~children: Syn
 let node_at_code ~position = node_at ~position ~children: Code.children
 let node_at_syn ~position = node_at ~position ~children: Syn.children
 
-let get_visible
-= fun ~position code ->
-  let@ () = Sc.easy_run in
+let get_visible ~position:_ _code =
+  assert false
+  (* let@ () = Sc.easy_run in
   Expand.Builtins.register_builtins Expand.builtins;
   let rec go ~(position : L.Position.t) (code : Code.t) =
     match code with
@@ -234,11 +234,9 @@ let get_visible
           let@ () = Expand.scope_effect node' in
           Resolver.Scope.get_visible ()
       else
-        begin
           go ~position rest
-        end
   in
-  go ~position code
+  go ~position code *)
 
 let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located option =
   Option.bind (node_at ~position ~children: Code.children code) extract_addr
