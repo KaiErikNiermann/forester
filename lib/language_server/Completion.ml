@@ -270,6 +270,24 @@ let make (path, (data, _): Yuujinchou.Trie.path * (Resolver.P.data * Asai.Range.
     assert false
 
 (* These are useful completion items that are handled during parsing, not during expansion and are thus not "builtins"*)
+
+module Syntax = struct
+  let verb =
+    let insertText =
+      Lsp.Snippet.(
+        let open O in
+        to_string @@
+        "\\startverb<<|\n" @+ tabstop 1 +@ "\n<<|"
+      )
+    in
+    L.CompletionItem.create
+      ~insertTextFormat: Snippet
+      ~insertText
+      ~label: "startverb"
+      ~documentation: (`String "Create a verbatim block")
+      ()
+end
+
 let syntax_completions =
   [
     ("startverb", "startverb");
