@@ -48,8 +48,6 @@ module Asset_router = Asset_router
 
 module URI_util = URI_util
 
-module Diagnostic_store = Diagnostic_store
-
 (** {1 IO}*)
 
 (** {2 LaTeX pipeline}*)
