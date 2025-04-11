@@ -15,10 +15,6 @@ open struct
   module Sc = R.Scope
 end
 
-(* Remove these effects? *)
-module F = Algaeff.State.Make(struct type t = State.t end)
-module Parent = Algaeff.Reader.Make(struct type t = Tree.identity end)
-
 (* TODO: remove this in favor of https://github.com/ocaml/ocaml/pull/13760 *)
 let edit_distance ~cutoff x y =
   let len_x, len_y = String.length x, String.length y in
@@ -129,21 +125,21 @@ type 'a Effect.t += Entered_range : Range.t option -> unit Effect.t
 let entered_range (loc : Range.t option) : unit =
   Effect.perform @@ Entered_range loc
 
-let rec observe_expand : Code.t -> Syn.t = function
+let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
   | [] -> []
   | node :: rest ->
     entered_range node.loc;
     match node.value with
     | Hash_ident x | Text x ->
-      {node with value = Text x} :: observe_expand rest
+      {node with value = Text x} :: expand_eff ~forest rest
     | Verbatim x ->
-      {node with value = Verbatim x} :: observe_expand rest
+      {node with value = Verbatim x} :: expand_eff ~forest rest
     | Namespace (path, body) ->
       let result =
         let@ () = Sc.section path in
-        observe_expand body
+        expand_eff ~forest body
       in
-      result @ observe_expand rest
+      result @ expand_eff ~forest rest
     | Open path ->
       let@ () = Sc.section path in (* TODO: wtf is this? *)
       Sc.modify_visible @@
@@ -152,117 +148,110 @@ let rec observe_expand : Code.t -> Syn.t = function
             R.Lang.all;
             R.Lang.renaming path []
           ];
-      observe_expand rest
+      expand_eff ~forest rest
     | Group (Squares, x) ->
       begin
         match x with
         | [{value = Group (Squares, y); loc = yloc}] ->
           entered_range yloc;
-          let y = observe_expand y in
-          {node with value = Link {dest = y; title = None}} :: observe_expand rest
+          let y = expand_eff ~forest y in
+          {node with value = Link {dest = y; title = None}} :: expand_eff ~forest rest
         | _ ->
-          let x = observe_expand x in
+          let x = expand_eff ~forest x in
           begin
             match rest with
             | {value = Group (Parens, y); loc = yloc} :: rest ->
               entered_range yloc;
-              let y = observe_expand y in
+              let y = expand_eff ~forest y in
               (* TODO: merge the ranges *)
-              {node with value = Link {dest = y; title = Some x}} :: observe_expand rest
-            | _ -> {node with value = Group (Squares, x)} :: observe_expand rest
+              {node with value = Link {dest = y; title = Some x}} :: expand_eff ~forest rest
+            | _ -> {node with value = Group (Squares, x)} :: expand_eff ~forest rest
           end
       end
     | Group (d, x) ->
-      let x = observe_expand x in
-      {node with value = Group (d, x)} :: observe_expand rest
+      let x = expand_eff ~forest x in
+      {node with value = Group (d, x)} :: expand_eff ~forest rest
     | Subtree (addr, nodes) ->
-      let forest = F.get () in
-      let parent_uri = Parent.read () in
       let identity =
         match addr with
         | Some addr -> Tree.URI (URI_scheme.named_uri ~base: forest.config.url addr)
         | None -> Tree.Anonymous
       in
-      let subtree =
-        expand_tree_inner @@
-          Tree.{
-            identity;
-            timestamp = None;
-            origin = Subtree {parent = parent_uri};
-            nodes
-          }
+      let nodes =
+        let@ () = Sc.section [] in
+        expand_eff ~forest nodes
       in
-      {node with value = Syn.Subtree (addr, subtree.nodes)} :: observe_expand rest
+      {node with value = Syn.Subtree (addr, nodes)} :: expand_eff ~forest rest
     | Math (m, x) ->
-      let x = observe_expand x in
-      {node with value = Math (m, x)} :: observe_expand rest
+      let x = expand_eff ~forest x in
+      {node with value = Math (m, x)} :: expand_eff ~forest rest
     | Ident path ->
       let out, rest = expand_method_calls (expand_ident node.loc path) rest in
-      out @ observe_expand rest
+      out @ expand_eff ~forest rest
     | Xml_ident (prefix, uname) ->
       let qname = expand_xml_ident node.loc (prefix, uname) in
-      let attrs, rest = get_xml_attrs [] rest in
-      let arg_opt, rest = get_arg_opt rest in
-      {node with value = Xml_tag (qname, attrs, Option.value ~default: [] arg_opt)} :: observe_expand rest
+      let attrs, rest = get_xml_attrs ~forest [] rest in
+      let arg_opt, rest = get_arg_opt ~forest rest in
+      {node with value = Xml_tag (qname, attrs, Option.value ~default: [] arg_opt)} :: expand_eff ~forest rest
     | Scope body ->
       let body =
         let@ () = Sc.section [] in
-        observe_expand body
+        expand_eff ~forest body
       in
-      body @ observe_expand rest
+      body @ expand_eff ~forest rest
     | Alloc x ->
       let symbol = Symbol.named x in
       Sc.include_singleton x @@ (Term [Range.locate_opt node.loc (Syn.Sym symbol)], node.loc);
-      observe_expand rest
+      expand_eff ~forest rest
     | Put (k, v) ->
       let k = expand_ident node.loc k in
-      let v = observe_expand v in
+      let v = expand_eff ~forest v in
       (* TODO: merge locations! the resulting location is narrowed to the 'put' node, and therefore breaks the nesting of locations. That could lead to trouble in the future. *)
-      [{node with value = Put (k, v, observe_expand rest)}]
+      [{node with value = Put (k, v, expand_eff ~forest rest)}]
     | Default (k, v) ->
       let k = expand_ident node.loc k in
-      let v = observe_expand v in
+      let v = expand_eff ~forest v in
       (* TODO: merge locations! the resulting location is narrowed to the 'put' node, and therefore breaks the nesting of locations. That could lead to trouble in the future. *)
-      [{node with value = Default (k, v, observe_expand rest)}]
+      [{node with value = Default (k, v, expand_eff ~forest rest)}]
     | Get k ->
       let k = expand_ident node.loc k in
-      {node with value = Get k} :: observe_expand rest
+      {node with value = Get k} :: expand_eff ~forest rest
     | Dx_var name ->
-      {node with value = Dx_var name} :: observe_expand rest
+      {node with value = Dx_var name} :: expand_eff ~forest rest
     | Dx_const_content x ->
-      let x = observe_expand x in
-      {node with value = Dx_const (`Content, x)} :: observe_expand rest
+      let x = expand_eff ~forest x in
+      {node with value = Dx_const (`Content, x)} :: expand_eff ~forest rest
     | Dx_const_uri x ->
-      let x = observe_expand x in
-      {node with value = Dx_const (`Uri, x)} :: observe_expand rest
+      let x = expand_eff ~forest x in
+      {node with value = Dx_const (`Uri, x)} :: expand_eff ~forest rest
     | Dx_prop (rel, args) ->
-      let rel = observe_expand rel in
-      let args = List.map observe_expand args in
-      {node with value = Dx_prop (rel, args)} :: observe_expand rest
+      let rel = expand_eff ~forest  rel in
+      let args = List.map (expand_eff ~forest) args in
+      {node with value = Dx_prop (rel, args)} :: expand_eff ~forest rest
     | Dx_query (var, pos, neg) ->
-      let pos = List.map observe_expand pos in
-      let neg = List.map observe_expand neg in
-      {node with value = Dx_query (var, pos, neg)} :: observe_expand rest
+      let pos = List.map (expand_eff ~forest) pos in
+      let neg = List.map (expand_eff ~forest) neg in
+      {node with value = Dx_query (var, pos, neg)} :: expand_eff ~forest rest
     | Dx_sequent (concl, prems) ->
-      let concl = observe_expand concl in
-      let prems = List.map observe_expand prems in
-      {node with value = Dx_sequent (concl, prems)} :: observe_expand rest
+      let concl = expand_eff ~forest  concl in
+      let prems = List.map (expand_eff ~forest) prems in
+      {node with value = Dx_sequent (concl, prems)} :: expand_eff ~forest rest
     | Fun (xs, body) ->
-      let lam = expand_lambda node.loc (xs, body) in
-      lam :: observe_expand rest
+      let lam = expand_lambda ~forest node.loc (xs, body) in
+      lam :: expand_eff ~forest rest
     | Let (x, ys, def) ->
-      let lam = expand_lambda node.loc (ys, def) in
+      let lam = expand_lambda ~forest node.loc (ys, def) in
       let@ () = Sc.section [] in
       Sc.import_singleton x @@ (Term [lam], node.loc);
-      observe_expand rest
+      expand_eff ~forest rest
     | Def (x, ys, def) ->
-      let lam = expand_lambda node.loc (ys, def) in
+      let lam = expand_lambda ~forest node.loc (ys, def) in
       Sc.include_singleton x @@ (Term [lam], node.loc);
-      observe_expand rest
+      expand_eff ~forest rest
     | Decl_xmlns (prefix, xmlns) ->
       let path = ["xmlns"; prefix] in
       Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, node.loc);
-      observe_expand rest
+      expand_eff ~forest rest
     | Object {self; methods} ->
       let self, methods =
         let@ () = Sc.section [] in
@@ -272,11 +261,11 @@ let rec observe_expand : Code.t -> Syn.t = function
           let@ self = Option.iter @~ self in
           Sc.import_singleton self @@ (R.P.Term [var], node.loc) (* TODO: correct the location*)
         end;
-        sym, List.map expand_method methods
+        sym, List.map (expand_method ~forest) methods
       in
-      {node with value = Object {self; methods}} :: observe_expand rest
+      {node with value = Object {self; methods}} :: expand_eff ~forest rest
     | Patch {obj; self; methods} ->
-      let obj = observe_expand obj in
+      let obj = expand_eff ~forest  obj in
       let self, super, methods =
         let@ () = Sc.section [] in
         let self_sym = Symbol.fresh () in
@@ -289,15 +278,14 @@ let rec observe_expand : Code.t -> Syn.t = function
           (* TODO: correct location*)
           Sc.import_singleton (self @ ["super"]) @@ (Term [super_var], node.loc)
         end;
-        self_sym, super_sym, List.map expand_method methods
+        self_sym, super_sym, List.map (expand_method ~forest) methods
       in
       let patched = Syn.Patch {obj; self; super; methods} in
-      {node with value = patched} :: observe_expand rest
+      {node with value = patched} :: expand_eff ~forest rest
     | Call (obj, meth) ->
-      let obj = observe_expand obj in
-      {node with value = Call (obj, meth)} :: observe_expand rest
+      let obj = expand_eff ~forest  obj in
+      {node with value = Call (obj, meth)} :: expand_eff ~forest rest
     | Import (vis, dep) ->
-      let forest = F.get () in
       let dep_uri = URI_scheme.named_uri ~base: forest.config.url dep in
       begin
         match forest./{dep_uri} with
@@ -310,24 +298,24 @@ let rec observe_expand : Code.t -> Syn.t = function
             | Private -> Sc.import_subtree [] tree
           end
       end;
-      observe_expand rest
+      expand_eff ~forest rest
     | Comment _ | Error _ ->
       ignore @@ assert false;
-      observe_expand rest
+      expand_eff ~forest rest
 
-and get_xml_attrs acc = function
+and get_xml_attrs ~forest acc = function
   | {value = Group (Squares, [{value = Text key; loc = loc1}]); _} :: {value = Group (Braces, value); loc = loc2} :: rest ->
     entered_range loc1;
     entered_range loc2;
     let qname = expand_xml_ident loc1 @@ Forester_xml_names.split_xml_qname key in
-    let value = observe_expand value in
-    get_xml_attrs (acc @ [qname, value]) rest
+    let value = expand_eff ~forest  value in
+    get_xml_attrs ~forest (acc @ [qname, value]) rest
   | rest -> acc, rest
 
-and get_arg_opt : Code.t -> _ = function
+and get_arg_opt ~forest : Code.t -> _ = function
   | {value = Group (Braces, arg); loc} :: rest ->
     entered_range loc;
-    Some (observe_expand arg), rest
+    Some (expand_eff ~forest arg), rest
   | rest -> None, rest
 
 and expand_ident loc path =
@@ -384,10 +372,10 @@ and expand_xml_ident loc (prefix, uname) : Types.xml_qname =
             prefix
         ]
 
-and expand_method (key, body) =
-  key, observe_expand body
+and expand_method ~forest (key, body) =
+  key, expand_eff ~forest body
 
-and expand_lambda loc (xs, body) =
+and expand_lambda ~forest loc (xs, body) =
   let@ () = Sc.section [] in
   let syms =
     let@ strategy, x = List.map @~ xs in
@@ -396,22 +384,7 @@ and expand_lambda loc (xs, body) =
     Sc.import_singleton x @@ (Term [var], loc);
     strategy, sym
   in
-  Range.{value = Syn.Fun (syms, observe_expand body); loc}
-
-and expand_tree_inner (code : Tree.code) : Tree.syn =
-  (* I think that we need to handle Parent.run somewhere in here, or else subtrees of subtrees will be wrong? Unless I a misunderstanding what this is for. --- JMS *)
-  let trace k =
-    match Tree.identity_to_uri code.identity with
-    | None -> k ()
-    | Some uri ->
-      let@ () = Reporter.tracef "when expanding tree %s" (URI.to_string uri) in
-      k ()
-  in
-  let@ () = trace in
-  let@ () = Sc.section [] in
-  let nodes = observe_expand code.nodes in
-  let exports = Sc.get_export () in
-  Tree.{nodes; identity = code.identity; code; units = exports;}
+  Range.{value = Syn.Fun (syms, expand_eff ~forest body); loc}
 
 let ignore_entered_range f x =
   let open Effect.Deep in
@@ -427,10 +400,8 @@ let ignore_entered_range f x =
         | _ -> None
     }
 
-
-let expand (xs : Code.t) : Syn.t =
-  ignore_entered_range observe_expand xs
-
+let expand ~forest (xs : Code.t) : Syn.t =
+  ignore_entered_range (expand_eff ~forest) xs
 
 let builtins = [
   ["p"], Syn.Prim `P;
@@ -478,33 +449,41 @@ let builtins = [
   ["current-tree"], Syn.Current_tree;
 ]
 
-let expand_tree
-  : forest: State.t -> Tree.code -> Tree.syn * Reporter.Message.t Asai.Diagnostic.t list
-= fun ~forest code ->
+let expand_tree_inner ~forest (code : Tree.code) : Tree.syn =
+  (* I think that we need to handle Parent.run somewhere in here, or else subtrees of subtrees will be wrong? Unless I a misunderstanding what this is for. --- JMS *)
+  let trace k =
+    match Tree.identity_to_uri code.identity with
+    | None -> k ()
+    | Some uri ->
+      let@ () = Reporter.tracef "when expanding tree %s" (URI.to_string uri) in
+      k ()
+  in
+  let@ () = trace in
+  let@ () = Sc.section [] in
+  let nodes = expand_eff ~forest code.nodes in
+  let exports = Sc.get_export () in
+  Tree.{nodes; identity = code.identity; code; units = exports}
+
+let expand_tree ~(forest : State.t) (code : Tree.code) : Tree.syn * Reporter.Message.t Asai.Diagnostic.t list =
   let diagnostics = ref [] in
-  let push d = diagnostics := d :: !diagnostics in
-  Reporter.run
-    ~emit: push
-    ~fatal: (fun d ->
-      (* TODO: Use error type that allows us to recover *)
-      push d;
-      Tree.{
-        nodes = [];
-        identity = code.identity;
-        code = code;
-        units = Trie.empty;
-      },
-      !diagnostics
-    )
-    @@ fun () ->
-    let@ () = F.run ~init: forest in
-    let@ () = Parent.run ~env: code.identity in
-    let@ () = Sc.easy_run in
-    Builtins.register_builtins builtins;
-    Builtins.Transclude.alloc_expanded ();
-    Builtins.Transclude.alloc_show_heading ();
-    Builtins.Transclude.alloc_toc ();
-    Builtins.Transclude.alloc_numbered ();
-    Builtins.Transclude.alloc_show_metadata ();
-    let expanded_tree = ignore_entered_range expand_tree_inner code in
-    expanded_tree, !diagnostics
+  let emit d = diagnostics := d :: !diagnostics in
+  let fatal d =
+    emit d;
+    Tree.{
+      nodes = [];
+      identity = code.identity;
+      code = code;
+      units = Trie.empty;
+    },
+    !diagnostics
+  in
+  Reporter.run ~emit ~fatal @@ fun () ->
+  let@ () = Sc.easy_run in
+  Builtins.register_builtins builtins;
+  Builtins.Transclude.alloc_expanded ();
+  Builtins.Transclude.alloc_show_heading ();
+  Builtins.Transclude.alloc_toc ();
+  Builtins.Transclude.alloc_numbered ();
+  Builtins.Transclude.alloc_show_metadata ();
+  let expanded_tree = ignore_entered_range (expand_tree_inner ~forest) code in
+  expanded_tree, !diagnostics

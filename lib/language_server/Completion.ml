@@ -250,7 +250,7 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
             Option.to_list @@
             Option.map
               (fun ({nodes; _}: Tree.code) ->
-                Analysis.get_visible ~position nodes
+                Analysis.get_visible ~forest ~position nodes
                 |> Trie.to_seq
                 |> List.of_seq
                 |> List.filter_map make

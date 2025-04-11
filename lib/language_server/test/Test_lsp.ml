@@ -480,13 +480,12 @@ let test_node_at_pos_with_prev_or_parent () =
   | Some (`Node node) -> Alcotest.(check code_node) "node" (Ident ["ul"]) node.value
   | Some (`Parent _) -> Alcotest.fail "parent"
 
-let test_enclosing_group () =
+let test_enclosing_group ~forest () =
   (*                                         012345678901234*)
   let code = Result.get_ok @@ parse_string {|\foo{\bar{baz}}|} in
   let expanded =
-    let@ () = Expand.Parent.run ~env: (URI (URI.of_string_exn "http://localhost/tree")) in
     let@ () = Resolver.Scope.easy_run in
-    Expand.expand code
+    Expand.expand ~forest code
   in
   let case_1 =
     let position = L.Position.{line = 0; character = 6} in
@@ -560,7 +559,7 @@ let () =
         "node_at", `Quick, test_node_at;
         "addr_at", `Quick, test_addr_at;
         "word_at", `Quick, test_word_at;
-        "get_enclosing_group", `Quick, test_enclosing_group;
+        "get_enclosing_group", `Quick, (test_enclosing_group ~forest);
       ];
       "Completion",
       [

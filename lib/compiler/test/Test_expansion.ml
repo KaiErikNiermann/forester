@@ -23,14 +23,12 @@ end
 
 open State.Syntax
 
-let expand src =
+let expand ~forest src =
   let@ code = Result.map @~ parse_string_no_loc src in
-  let@ () = Expand.Parent.run ~env: (URI (URI.of_string_exn "http://localhost/tree")) in
   let@ () = S.easy_run in
-  Expand.expand code
+  Expand.expand ~forest code
 
-let render expanded =
-  let forest = Expand.F.get () in
+let render ~forest expanded =
   Result.map
     (fun expanded ->
       let Eval.{articles; _}, _ =
@@ -61,9 +59,8 @@ let render expanded =
 
 let test ~env () =
   let forest = State.make ~env ~config ~dev: false () in
-  let@ () = Expand.F.run ~init: forest in
   let expanded =
-    expand
+    expand ~forest
       {|
       \namespace\foo{
         \let\greet[name]{Hello, \name!}
@@ -71,7 +68,7 @@ let test ~env () =
       }
     |}
   in
-  let evaluated = render expanded in
+  let evaluated = render ~forest expanded in
   Alcotest.(check @@ result syn diagnostic)
     ""
     (
@@ -102,9 +99,8 @@ let test ~env () =
 let test_subtree ~env () =
   let@ () = Reporter.easy_run in
   let forest = State.make ~env ~config ~dev: false () in
-  let@ () = Expand.F.run ~init: forest in
   let expanded =
-    expand
+    expand ~forest
       {|
   \subtree[foo]{
     \title{Hello}
@@ -112,7 +108,7 @@ let test_subtree ~env () =
   }
   |}
   in
-  let evaluated = render expanded in
+  let evaluated = render ~forest expanded in
   Alcotest.(check @@ result string diagnostic)
     ""
     (
@@ -121,7 +117,8 @@ let test_subtree ~env () =
     )
     evaluated
 
-let test_visible () =
+let test_visible ~env () =
+    let forest = State.make ~env ~config ~dev: false () in
   let code =
     Result.get_ok @@
       parse_string
@@ -132,7 +129,7 @@ let test_visible () =
   in
   let result =
     Trie.to_seq @@
-      Analysis.get_visible ~position: {line = 2; character = 5;} code
+      Analysis.get_visible ~forest ~position: {line = 2; character = 5;} code
   in
   let greet =
     let@ (path, _) = Option.map @~ Seq.find (fun (p, _) -> p = ["greet"]) result in
@@ -155,6 +152,6 @@ let () =
       [
         test_case "expand" `Quick (test ~env);
         test_case "subtree" `Quick (test_subtree ~env);
-        test_case "get_visible" `Quick test_visible;
+        test_case "get_visible" `Quick (test_visible ~env);
       ]
     ]

@@ -6,6 +6,7 @@
  *)
 
 open Forester_core
+open Forester_compiler
 
 (** {1 Syntactic analysis}
 
@@ -44,7 +45,7 @@ val analyse_syntax : Code.t -> Item.t Asai.Range.located Seq.t
 val word_at : position: Lsp.Types.Position.t -> Lsp.Text_document.t -> string option
 
 (* [get_visible ~position code] returns the bindings visible at [position] in [code]. This is used to compute context-sensitive completion.*)
-val get_visible : position: Lsp.Types.Position.t -> Code.t -> (Resolver.Scope.data, Resolver.P.tag) Trie.t
+val get_visible : forest: State.t -> position: Lsp.Types.Position.t -> Code.t -> (Resolver.Scope.data, Resolver.P.tag) Trie.t
 
 val get_enclosing_code_group : position: Lsp.Types.Position.t -> Code.t -> (delim * Code.t) option
 val get_enclosing_syn_group : position: Lsp.Types.Position.t -> Syn.t -> (delim * Syn.t) Asai.Range.located option

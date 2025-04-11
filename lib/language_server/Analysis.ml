@@ -214,12 +214,12 @@ let parent_or_prev_at_syn ~position = parent_or_prev_at ~position ~children: Syn
 let node_at_code ~position = node_at ~position ~children: Code.children
 let node_at_syn ~position = node_at ~position ~children: Syn.children
 
-let get_visible ~position code =
+let get_visible ~forest ~position code =
   let@ () = Sc.easy_run in
   Expand.Builtins.register_builtins Expand.builtins;
   let open Effect.Deep in
   match_with
-    Expand.observe_expand
+    (Expand.expand_eff ~forest)
     code
     {
       retc = (fun _ -> Sc.get_visible ());
