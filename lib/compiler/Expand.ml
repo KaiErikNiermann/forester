@@ -141,7 +141,6 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       in
       result @ expand_eff ~forest rest
     | Open path ->
-      let@ () = Sc.section path in (* TODO: wtf is this? *)
       Sc.modify_visible @@
         R.Lang.union
           [
