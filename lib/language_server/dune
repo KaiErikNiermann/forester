@@ -2,6 +2,11 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 WITH LLVM-exception
 
+(env
+ (dev
+  (flags
+   (:standard -w -66-32-33-27-26-69-37-34-38))))
+
 (library
  (name Forester_lsp)
  (instrumentation
