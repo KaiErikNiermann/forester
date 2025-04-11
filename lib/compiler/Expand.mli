@@ -28,5 +28,11 @@ val suggestions : string list -> ('a, 'b) Trie.t -> (Trie.path * 'a * int) list
 val expand_tree : forest: State.t -> Tree.code -> Tree.syn * Reporter.Message.t Asai.Diagnostic.t list
 val expand : Code.t -> Syn.t
 
+type 'a Effect.t += Entered_range : Range.t option -> unit Effect.t
+val observe_expand : Code.t -> Syn.t
+
+(* type 'a search = unit -> 'a option *)
+(* val search : (Code.node Range.located -> bool) -> (unit -> 'a) -> Code.t -> 'a search *)
+
 module F : Algaeff.State.S with type state := State.t
 module Parent : Algaeff.Reader.S with type env := Tree.identity

@@ -124,7 +124,8 @@ let children (node : node Range.located) =
   | Dx_const_uri t
   | Dx_const_content t
   | Call (t, _)
-  | Subtree (_, t) -> t
+  | Subtree (_, t) ->
+    t
   | Dx_prop (_, t)
   | Dx_query (_, _, t)
   | Dx_sequent (_, t) ->

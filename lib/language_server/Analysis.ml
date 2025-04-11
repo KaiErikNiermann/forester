@@ -6,7 +6,7 @@
  *)
 
 open Forester_prelude
-(* open Forester_compiler *)
+open Forester_compiler
 open Forester_core
 
 open struct
@@ -214,29 +214,26 @@ let parent_or_prev_at_syn ~position = parent_or_prev_at ~position ~children: Syn
 let node_at_code ~position = node_at ~position ~children: Code.children
 let node_at_syn ~position = node_at ~position ~children: Syn.children
 
-let get_visible ~position:_ _code =
-  assert false
-  (* let@ () = Sc.easy_run in
+let get_visible ~position code =
+  let@ () = Sc.easy_run in
   Expand.Builtins.register_builtins Expand.builtins;
-  let rec go ~(position : L.Position.t) (code : Code.t) =
-    match code with
-    | [] ->
-      Sc.get_visible ()
-    | ({loc; _} as node) :: rest ->
-      let@ () = Expand.scope_effect node in
-      if contains ~position loc then
-        let children = Code.children node in
-        match node_at_code ~position children with
-        | None ->
-          (* This case means "parent node is at position, but no child node is. I don't think this can happen"*)
-          Resolver.Scope.get_visible ()
-        | Some node' ->
-          let@ () = Expand.scope_effect node' in
-          Resolver.Scope.get_visible ()
-      else
-          go ~position rest
-  in
-  go ~position code *)
+  let open Effect.Deep in
+  match_with
+    Expand.observe_expand
+    code
+    {
+      retc = (fun _ -> Sc.get_visible ());
+      exnc = raise;
+      effc = fun (type a) (eff : a Effect.t) ->
+        match eff with
+        | Expand.Entered_range range ->
+          Option.some @@ fun (k : (a, _) continuation) ->
+          if contains ~position range then
+            Sc.get_visible ()
+          else
+            continue k ()
+        | _ -> None
+    }
 
 let addr_at ~(position : Lsp.Types.Position.t) (code : _ list) : _ Range.located option =
   Option.bind (node_at ~position ~children: Code.children code) extract_addr
