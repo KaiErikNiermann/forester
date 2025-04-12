@@ -5,33 +5,23 @@
  *
  *)
 
+open Forester_prelude
 open Forester_core
 open Forester_compiler
 
 module L = Lsp.Types
 open State.Syntax
 
-let (let*) = Option.bind
-
 let compute (params : L.DefinitionParams.t) =
-  match params with
-  | {textDocument; position; _;} ->
-    let Lsp_state.{forest; _} = Lsp_state.get () in
-    let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url textDocument.uri in
-    match forest.={uri} with
-    | None -> None
-    | Some tree ->
-      match Tree.to_code tree with
-      | None -> None
-      | Some {nodes; _} ->
-        match Analysis.addr_at ~position nodes with
-        | None -> None
-        | Some {value = str; _} ->
-          let uri = URI_scheme.named_uri ~base: forest.config.url str in
-          match URI.Tbl.find_opt forest.resolver uri with
-          | None -> None
-          | Some path ->
-            let uri = Lsp.Uri.of_path path in
-            let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
-            Some
-              (`Location [L.Location.{uri; range}])
+  let Lsp_state.{forest; _} = Lsp_state.get () in
+  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url params.textDocument.uri in
+  match forest.={uri} with
+  | None -> None
+  | Some tree ->
+    let@ {nodes; _} = Option.bind @@ Tree.to_code tree in
+    let@ {value = str; _} = Option.bind @@ Analysis.addr_at ~position: params.position nodes in
+    let uri = URI_scheme.named_uri ~base: forest.config.url str in
+    let@ path = Option.map @~ URI.Tbl.find_opt forest.resolver uri in
+    let uri = Lsp.Uri.of_path path in
+    let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
+    `Location [L.Location.{uri; range}]

@@ -10,5 +10,4 @@ module L = Lsp.Types
 let compute (params : L.CodeLensParams.t) =
   let _server = Lsp_state.get () in
   match params with
-  | _ ->
-    []
+  | _ -> []

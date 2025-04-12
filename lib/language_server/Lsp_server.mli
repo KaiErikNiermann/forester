@@ -7,7 +7,6 @@
 
 module Semantic_tokens = Semantic_tokens
 
-
 val recv : unit -> Jsonrpc.Packet.t option
 val send : Jsonrpc.Packet.t -> unit
 

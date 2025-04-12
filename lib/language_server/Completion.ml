@@ -112,67 +112,53 @@ module New_uri_completion : CompletionKind = struct
 end
 
 let completion_types (t : Tree.t) ~position =
-  let completions
-    : (module CompletionKind)list
-  = [
+  let completions : (module CompletionKind)list = [
     (module URI_completion);
     (module Asset_completion);
     (module Subtree_completion);
   ]
   in
-  let code = Tree.to_code t in
-  let syn = Tree.to_syn t in
-  let doc = Tree.to_doc t in
-  let text_context = Option.bind doc (Analysis.word_before ~position) in
+  let code_opt = Tree.to_code t in
+  let syn_opt = Tree.to_syn t in
+  let doc_opt = Tree.to_doc t in
+  let text_context = Option.bind doc_opt @@ Analysis.word_before ~position in
   Logs.debug (fun m -> m "Text_context: %a" Format.(pp_print_option pp_print_string) text_context);
   let code_context =
     let enclosing_group = Analysis.get_enclosing_code_group in
-    Option.bind
-      (Analysis.enclosing_group_start ~enclosing_group ~position t)
-      (fun position ->
-        Option.bind
-          code
-          (fun (code : Tree.code) ->
-            Analysis.parent_or_prev_at_code ~position code.nodes
-          )
-      )
+    let@ position = Option.bind @@ Analysis.enclosing_group_start ~enclosing_group ~position t in
+    let@ code = Option.bind code_opt in
+    Analysis.parent_or_prev_at_code ~position code.nodes
   in
   let syn_context =
     let enclosing_group = Analysis.get_enclosing_syn_group in
-    Option.bind
-      (Analysis.enclosing_group_start ~enclosing_group ~position t)
-      (fun position ->
-        Option.bind
-          syn
-          (fun (syn : Tree.syn) ->
-            Analysis.parent_or_prev_at_syn ~position syn.nodes
-          )
-      )
+    let@ position = Option.bind @@ Analysis.enclosing_group_start ~enclosing_group ~position t in
+    let@ syn = Option.bind syn_opt in
+    Analysis.parent_or_prev_at_syn ~position syn.nodes
   in
   completions
   |> List.fold_left
-      (fun acc completion_kind ->
-        let module Kind = (val completion_kind : CompletionKind) in
-        let compl =
-          List.fold_left
-            (fun acc a ->
-              match a with
-              | None -> acc
-              | Some compl ->
-                S.add compl acc
-            )
-            S.empty
-            [
-              Option.bind text_context Kind.text;
-              Option.bind code_context Kind.code;
-              Option.bind syn_context Kind.syn;
-            ]
-        in
-        S.union compl acc
-      )
-      (S.empty)
-
-let (let*) = Option.bind
+      begin
+        fun acc completion_kind ->
+          let module Kind = (val completion_kind : CompletionKind) in
+          let compl =
+            List.fold_left
+              begin
+                fun acc a ->
+                  match a with
+                  | None -> acc
+                  | Some compl ->
+                    S.add compl acc
+              end
+              S.empty
+              [
+                Option.bind text_context Kind.text;
+                Option.bind code_context Kind.code;
+                Option.bind syn_context Kind.syn;
+              ]
+          in
+          S.union compl acc
+      end
+      S.empty
 
 let kind
   : Syn.node -> L.CompletionItemKind.t option
@@ -343,80 +329,58 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
     let completion_types = completion_types ~position tree in
     Logs.debug (fun m -> m "computed completion types: %a" (Format.pp_print_list pp_completion) (S.to_list completion_types));
     let items =
-      completion_types
-      |> S.to_list
-      |> List.concat_map
-          (function
-            | Addrs ->
-              forest.index
-              |> URI.Tbl.to_seq
-              |> Seq.filter_map (fun (uri, tree) ->
-                  let frontmatter = Tree.get_frontmatter tree in
-                  let documentation =
-                    let render = Plain_text_client.string_of_content ~forest in
-                    let title = Option.map (fun fm -> State.get_expanded_title fm forest) frontmatter in
-                    let taxon = Option.bind frontmatter (fun fm -> T.(fm.taxon)) in
-                    let content =
-                      Format.asprintf
-                        {|%s\n %s\n |}
-                        (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
-                        (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
-                    in
-                    Some (`String content)
-                  in
-                  let insertText =
-                    (* TODO if host = current_host insert shortform else insert fully qualified uri*)
-                    match triggerCharacter with
-                    | Some "{" -> URI_scheme.name uri ^ "}"
-                    | Some "(" -> URI_scheme.name uri ^ ")"
-                    | Some "[" -> URI_scheme.name uri ^ "]"
-                    | _ -> ""
-                  in
-                  Some (L.CompletionItem.create ?documentation ~label: (URI_scheme.name uri) ~insertText ())
-                )
-              |> List.of_seq
-            | New_addr ->
-              config.prefixes
-              |> List.concat_map (fun prefix ->
-                  let next_sequential, next_random = (
-                    fst @@ URI_util.next_uri ~prefix: (Some prefix) ~mode: `Sequential ~forest,
-                    fst @@ URI_util.next_uri ~prefix: (Some prefix) ~mode: `Random ~forest
-                  )
-                  in
-                  [
-                    L.CompletionItem.create ~label: "random" ~insertText: next_random ();
-                    L.CompletionItem.create ~label: "sequential" ~insertText: next_sequential ()
-                  ]
-                )
-            | Assets -> asset_completions ~config ()
-            | Visible ->
-              Option.fold
-                ~none: (
-                  List.append
-                    syntax_completions
-                    (
-                      Expand.builtins
-                      |> List.map (fun (path, _node) ->
-                          L.CompletionItem.create
-                            ~insertText: "todo"
-                            ~label: (String.concat "/" path)
-                            ()
-                        )
-                    )
-                )
-                ~some: (fun ({nodes; _}: Tree.code) ->
-                  Analysis.get_visible ~position ~forest nodes
-                  |> Trie.to_seq
-                  |> List.of_seq
-                  |> List.filter_map make
-                  |> List.append syntax_completions
-                )
-                code
-          )
+      let@ completion = List.concat_map @~ S.to_list completion_types in
+      match completion with
+      | Addrs ->
+        List.of_seq @@
+          let@ uri, tree = Seq.map @~ URI.Tbl.to_seq forest.index in
+          let frontmatter = Tree.get_frontmatter tree in
+          let documentation =
+            let render = Plain_text_client.string_of_content ~forest in
+            let title = Option.map (State.get_expanded_title @~ forest) frontmatter in
+            let taxon = Option.bind frontmatter (fun fm -> fm.taxon) in
+            let content =
+              Format.asprintf
+                {|%s\n %s\n |}
+                (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
+                (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
+            in
+            Some (`String content)
+          in
+          let insertText =
+            (* TODO if host = current_host insert shortform else insert fully qualified uri*)
+            match triggerCharacter with
+            | Some "{" -> URI_scheme.name uri ^ "}"
+            | Some "(" -> URI_scheme.name uri ^ ")"
+            | Some "[" -> URI_scheme.name uri ^ "]"
+            | _ -> ""
+          in
+          L.CompletionItem.create ?documentation ~label: (URI_scheme.name uri) ~insertText ()
+      | New_addr ->
+        let@ prefix = List.concat_map @~ config.prefixes in
+        let next mode = fst @@ URI_util.next_uri ~prefix: (Some prefix) ~mode ~forest in
+        [
+          L.CompletionItem.create ~label: "random" ~insertText: (next `Sequential) ();
+          L.CompletionItem.create ~label: "sequential" ~insertText: (next `Random) ()
+        ]
+      | Assets -> asset_completions ~config ()
+      | Visible ->
+        begin
+          match code with
+          | None ->
+            List.append syntax_completions @@
+              let@ path, _node = List.map @~ Expand.builtins in
+              L.CompletionItem.create
+                ~insertText: "todo"
+                ~label: (String.concat "/" path)
+                ()
+          | Some {nodes; _} ->
+            Analysis.get_visible ~position ~forest nodes
+            |> Trie.to_seq
+            |> List.of_seq
+            |> List.filter_map make
+            |> List.append syntax_completions
+        end
     in
     Logs.debug (fun m -> m "items: %d" (List.length items));
-    Some
-      (
-        `CompletionList
-          (L.CompletionList.create ~isIncomplete: false ~items ())
-      )
+    Option.some @@ `CompletionList (L.CompletionList.create ~isIncomplete: false ~items ())

@@ -12,34 +12,26 @@ module RPC = Jsonrpc
 
 (* TODO: set up json conversions for forester config*)
 let compute (params : L.DidChangeConfigurationParams.t) =
-  match params with
-  | {settings} ->
+  match params.settings with
+  | `Assoc xs ->
     begin
-      match settings with
-      | `Assoc xs ->
+      match List.assoc_opt "configuration_file" xs with
+      | Some (`String f) ->
         begin
-          match List.assoc_opt "configuration_file" xs with
-          | Some (`String f) ->
-            begin
-              try
-                let config = Config_parser.parse_forest_config_file f in
-                Lsp_state.modify (fun state ->
-                  {state with
-                    forest = {state.forest with config = config}
-                  }
-                )
-              with
-                | _ -> Eio.traceln "failed to parse configuration file"
-            end
-          | _ ->
-            Eio.traceln "invalid value for configuration_file"
-          (* RPC.Response.Error.raise *)
-          (*   ( *)
-          (*     RPC.Response.Error.make *)
-          (*       ~code: InvalidRequest *)
-          (*       ~message: "invalid value for configuration_file" *)
-          (*       () *)
-          (*   ) *)
+          try
+            let config = Config_parser.parse_forest_config_file f in
+            Lsp_state.modify @@ fun state ->
+            {state with forest = {state.forest with config = config}}
+          with
+            | _ -> Eio.traceln "failed to parse configuration file"
         end
-      | json -> Eio.traceln "unknown configuration value %a" Yojson.Safe.pp json
+      | _ -> Eio.traceln "invalid value for configuration_file"
+      (* RPC.Response.Error.raise *)
+      (*   ( *)
+      (*     RPC.Response.Error.make *)
+      (*       ~code: InvalidRequest *)
+      (*       ~message: "invalid value for configuration_file" *)
+      (*       () *)
+      (*   ) *)
     end
+  | json -> Eio.traceln "unknown configuration value %a" Yojson.Safe.pp json
