@@ -54,21 +54,38 @@ let compute (L.CodeActionParams.{range; textDocument = {uri}; _;}) : L.CodeActio
           match next_dir with
           | None -> []
           | Some dir ->
-            let sequential =
-              L.CodeAction.create
-                ~title: (Format.asprintf "create tree with prefix %s" prefix)
-                ~kind: (L.CodeActionKind.Other "new tree")
-                ~edit: (create_tree_edit ~range ~uri next_sequential dir)
-                ()
-            in
-            let random =
-              L.CodeAction.create
-                ~title: (Format.asprintf "create tree with prefix %s (random)" prefix)
-                ~kind: (L.CodeActionKind.Other "new tree")
-                ~edit: (create_tree_edit ~range ~uri next_random dir)
-                ()
-            in
-            [`CodeAction sequential; `CodeAction random]
+            if prefix = "" then
+              let sequential =
+                L.CodeAction.create
+                  ~title: (Format.asprintf "create new tree (no prefix)")
+                  ~kind: (L.CodeActionKind.Other "new tree")
+                  ~edit: (create_tree_edit ~range ~uri next_sequential dir)
+                  ()
+              in
+              let random =
+                L.CodeAction.create
+                  ~title: (Format.asprintf "create new tree (no prefix)")
+                  ~kind: (L.CodeActionKind.Other "new tree")
+                  ~edit: (create_tree_edit ~range ~uri next_random dir)
+                  ()
+              in
+              [`CodeAction sequential; `CodeAction random]
+            else
+              let sequential =
+                L.CodeAction.create
+                  ~title: (Format.asprintf "create tree with prefix %s" prefix)
+                  ~kind: (L.CodeActionKind.Other "new tree")
+                  ~edit: (create_tree_edit ~range ~uri next_sequential dir)
+                  ()
+              in
+              let random =
+                L.CodeAction.create
+                  ~title: (Format.asprintf "create tree with prefix %s (random)" prefix)
+                  ~kind: (L.CodeActionKind.Other "new tree")
+                  ~edit: (create_tree_edit ~range ~uri next_random dir)
+                  ()
+              in
+              [`CodeAction sequential; `CodeAction random]
         )
   in
   Some actions
