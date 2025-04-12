@@ -61,24 +61,19 @@ module Expansion = struct
   ]
 
   let test_case ~env ~config =
-    with_test_forest
-      ~raw_trees
-      ~env
-      ~config
-      (fun path ->
-        Sys.chdir (Eio.Path.native_exn path);
-        let@ () = Reporter.easy_run in
-        let forest =
-          State.make ~env ~config ~dev: false ()
-          |> Driver.run_until_done Load_all_configured_dirs
-        in
-        URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d) forest.diagnostics;
-        let@ article = Seq.iter @~ State.get_all_articles forest in
-        let@ s, json =
-          Option.iter @~ Json_manifest_client.render_tree ~forest ~dev: false article
-        in
-        Format.printf "%s: %s@." s (Yojson.Safe.to_string json)
-      )
+    let@ path = with_test_forest ~raw_trees ~env ~config in
+    Sys.chdir (Eio.Path.native_exn path);
+    let@ () = Reporter.easy_run in
+    let forest =
+      State.make ~env ~config ~dev: false ()
+      |> Driver.run_until_done Load_all_configured_dirs
+    in
+    URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d) forest.diagnostics;
+    let@ article = Seq.iter @~ State.get_all_articles forest in
+    let@ json =
+      Option.iter @~ Json_manifest_client.render_tree ~forest ~dev: false article
+    in
+    Format.printf "%s@." (Yojson.Safe.to_string json)
 end
 
 module Broken_link = struct

@@ -239,7 +239,8 @@ module Comparators (I : sig val string_of_content : content -> string end) = str
     in
     let by_date = Fun.flip @@ Compare.under latest_date @@ Compare.option Human_datetime.compare in
     let by_title = Compare.option compare_content |> Compare.under @@ fun fm -> fm.title in
-    Compare.cascade by_date by_title
+    let by_parent = compare |> Compare.under @@ fun fm -> Option.is_some fm.designated_parent in
+    Compare.cascade by_parent @@ Compare.cascade by_date by_title
 
   let compare_article = compare_frontmatter |> Compare.under @@ fun x -> x.frontmatter
 end

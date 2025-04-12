@@ -86,9 +86,10 @@ let json_manifest ~dev ~(forest : State.t) : string =
   let render = Json_manifest_client.render_tree ~forest in
   forest
   |> State.get_all_articles
-  |> Seq.filter_map (fun tree -> render ~dev tree)
   |> List.of_seq
-  |> (fun t -> `Assoc t)
+  |> List.sort (Forest_util.compare_article ~forest)
+  |> List.filter_map (fun tree -> render ~dev tree)
+  |> (fun t -> `List t)
   |> Yojson.Safe.to_string
 
 let html_redirect uri_string =

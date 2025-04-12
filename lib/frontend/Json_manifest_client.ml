@@ -12,7 +12,7 @@ module T = Types
 
 module PT = Plain_text_client
 
-let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string * Yojson.Safe.t) option =
+let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : Yojson.Safe.t option =
   let@ uri = Option.bind doc.frontmatter.uri in
   (* TODO : Check routing *)
   let route = Legacy_xml_client.route forest uri in
@@ -54,14 +54,11 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : (string *
       path @
         [
           ("title", title);
+          ("uri", `String (URI.display_path_string ~base: forest.config.url uri));
           ("taxon", taxon);
           ("tags", tags);
           ("route", route);
           ("metas", metas)
         ]
     in
-    (URI.display_path_string ~base: forest.config.url uri, `Assoc fm)
-
-let render_trees ~(dev : bool) ~(forest : State.t) : Yojson.Safe.t =
-  let trees = List.of_seq @@ State.get_all_articles forest in
-  `Assoc (List.filter_map (render_tree ~dev ~forest) trees)
+    `Assoc fm
