@@ -10,15 +10,10 @@ open Forester_compiler
 open State.Syntax
 module L = Lsp.Types
 
-let compute
-    ({textDocument = {uri = lsp_uri; _}} as params: L.DidOpenTextDocumentParams.t)
-  =
+let compute (params : L.DidOpenTextDocumentParams.t) =
+  let lsp_uri = params.textDocument.uri in
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let document =
-    Lsp.Text_document.make
-      ~position_encoding: `UTF16
-      params
-  in
+  let document = Lsp.Text_document.make ~position_encoding: `UTF16 params in
   let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
   forest.={uri} <- Document document;
   Lsp_state.modify (fun ({forest; _} as lsp_state) ->

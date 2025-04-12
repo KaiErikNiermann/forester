@@ -15,13 +15,11 @@ open State.Syntax
 let compute (params : L.DefinitionParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url params.textDocument.uri in
-  match forest.={uri} with
-  | None -> None
-  | Some tree ->
-    let@ {nodes; _} = Option.bind @@ Tree.to_code tree in
-    let@ {value = str; _} = Option.bind @@ Analysis.addr_at ~position: params.position nodes in
-    let uri = URI_scheme.named_uri ~base: forest.config.url str in
-    let@ path = Option.map @~ URI.Tbl.find_opt forest.resolver uri in
-    let uri = Lsp.Uri.of_path path in
-    let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
-    `Location [L.Location.{uri; range}]
+  let@ tree = Option.bind forest.={uri} in
+  let@ {nodes; _} = Option.bind @@ Tree.to_code tree in
+  let@ {value = str; _} = Option.bind @@ Analysis.addr_at ~position: params.position nodes in
+  let uri = URI_scheme.named_uri ~base: forest.config.url str in
+  let@ path = Option.map @~ URI.Tbl.find_opt forest.resolver uri in
+  let uri = Lsp.Uri.of_path path in
+  let range = L.Range.create ~start: {character = 1; line = 0} ~end_: {character = 1; line = 0} in
+  `Location [L.Location.{uri; range}]

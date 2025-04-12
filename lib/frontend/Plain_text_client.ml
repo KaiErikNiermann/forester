@@ -12,12 +12,7 @@ module T = Types
 let rec pp_content ~forest ~router fmt = function
   | T.Content c -> c |> List.iter @@ pp_content_node ~forest ~router fmt
 
-and pp_content_node
-  ~forest
-  ~(router : URI.t -> URI.t)
-  fmt
-  : 'a T.content_node -> unit
-= function
+and pp_content_node ~forest ~(router : URI.t -> URI.t) fmt : 'a T.content_node -> unit = function
   | Text txt | CDATA txt -> Format.pp_print_string fmt txt
   | Uri uri -> URI.pp fmt uri
   | Route_of_uri uri -> Format.fprintf fmt "%a" URI.pp (router uri)

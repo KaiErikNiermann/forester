@@ -10,19 +10,13 @@ open Forester_compiler
 
 module L = Lsp.Types
 
-let rec strip_syn : Syn.t -> Syn.t = fun syn ->
-  List.map
-    (fun Asai.Range.{value; _} ->
-      Asai.Range.{value = Syn.map strip_syn value; loc = None}
-    )
-    syn
+let rec strip_syn (syn : Syn.t) : Syn.t =
+  let@ Asai.Range.{value; _} = List.map @~ syn in
+  Asai.Range.{value = Syn.map strip_syn value; loc = None}
 
-let rec strip_code : Code.t -> Code.t = fun code ->
-  List.map
-    (fun Asai.Range.{value; _} ->
-      Asai.Range.{value = Code.map strip_code value; loc = None}
-    )
-    code
+let rec strip_code (code : Code.t) : Code.t =
+  let@ Asai.Range.{value; _} = List.map @~ code in
+  Asai.Range.{value = Code.map strip_code value; loc = None}
 
 type raw_tree = {path: string; content: string}
 
@@ -108,10 +102,10 @@ let find_tree addr =
   Dir_scanner.find_tree dirs @@
   URI_scheme.named_uri ~base: env.config.url addr
 
-let find_doc (env : test_env) addr =
+let find_doc (env : test_env) addr : L.TextDocumentIdentifier.t =
   let path =
     Eio.Path.native_exn @@
     Option.get @@
     Dir_scanner.find_tree env.dirs (URI_scheme.named_uri ~base: env.config.url addr)
   in
-  ({uri = Lsp.Uri.of_path path}: L.TextDocumentIdentifier.t)
+  {uri = Lsp.Uri.of_path path}

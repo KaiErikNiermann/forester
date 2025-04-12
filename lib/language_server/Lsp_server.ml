@@ -46,8 +46,7 @@ let initiate_shutdown () =
 (* I don't understand this request...*)
 let document_link_resolve (params : L.DocumentLink.t) =
   match params with
-  | link ->
-    link
+  | link -> link
 
 module Request = struct
   type 'resp t = 'resp Lsp.Client_request.t

@@ -5,6 +5,7 @@
  *
  *)
 
+open Forester_prelude
 open Forester_core
 open Forester_compiler
 
@@ -112,15 +113,13 @@ type delta_token = {
 }
 [@@deriving show]
 
-let encode : token -> int list = fun
-    {line; start_char; length; token_type; token_modifiers; _}
-  ->
-  [line; start_char; length; token_type; token_modifiers]
+let encode : token -> int list = function
+  | {line; start_char; length; token_type; token_modifiers; _} ->
+    [line; start_char; length; token_type; token_modifiers]
 
-let encode_deltas : delta_token -> int list = fun
-    {delta_line; delta_start_char; length; token_type; token_modifiers}
-  ->
-  [delta_line; delta_start_char; length; token_type; token_modifiers]
+let encode_deltas : delta_token -> int list = function
+  | {delta_line; delta_start_char; length; token_type; token_modifiers} ->
+    [delta_line; delta_start_char; length; token_type; token_modifiers]
 
 let group f l =
   let rec grouping acc = function
@@ -131,39 +130,31 @@ let group f l =
   in
   grouping [] l
 
-let node_to_tokens : Code.node Range.located -> _ list = fun _ -> []
+let node_to_tokens (_ : Code.node Range.located) _ list = []
 
-let tokenize_path ~(start : L.Position.t) path =
+let tokenize_path ~(start : L.Position.t) (path : string list) : token list =
   let offset = ref (start.character) in
   Eio.traceln "path has %i segments" (List.length path);
-  path
-  |> List.map
-      (fun segment ->
-        let length = String.length segment in
-        let start_char = !offset in
-        offset := !offset + length + 1;
-        let token_type = 1 in
-        let line = start.line in
-        [
-          {
-            line;
-            start_char;
-            length;
-            token_type;
-            token_modifiers = 0;
-            (* node = segment *)
-          }
-        ]
-      )
-  |> List.concat
+  let@ segment = List.concat_map @~ path in
+  let length = String.length segment in
+  let start_char = !offset in
+  offset := !offset + length + 1;
+  let token_type = 1 in
+  let line = start.line in
+  [
+    {
+      line;
+      start_char;
+      length;
+      token_type;
+      token_modifiers = 0;
+      (* node = segment *)
+    }
+  ]
 
 let shift offset =
-  List.map
-    (fun token ->
-      {token with
-        start_char = token.start_char + offset
-      }
-    )
+  List.map @@ fun token ->
+  {token with start_char = token.start_char + offset}
 
 let builtin ~(start : L.Position.t) str tks =
   let offset = String.length str in
@@ -176,68 +167,54 @@ let builtin ~(start : L.Position.t) str tks =
     token_modifiers = 0
   } :: shift offset tks
 
-let tokens
-  : Code.t -> token list
-= fun nodes ->
-  nodes
-  |> List.concat_map
-      (fun
-          Range.{loc; value}
-        ->
-        let (L.Range.{start; end_}) = Lsp_shims.Loc.lsp_range_of_range loc in
-        (* Multiline tokens not supported*)
-        if start.line <> end_.line then
-          []
-        else
-          match value with
-          | Code.Ident path ->
-            tokenize_path ~start path
-          | Code.Text _ -> []
-          | Code.Put (_path, _t) -> []
-          (* -> *)
-          (*     builtin *)
-          (*       ~start *)
-          (*       "put" @@ *)
-          (*     tokenize_path ~start path @ tokens t *)
-          | Code.Math (_, _)
-          | Code.Verbatim _
-          | Code.Import (_, _)
-          | Code.Let (_, _, _)
-          | Code.Def (_, _, _)
-          | Code.Group (_, _)
-          | Code.Hash_ident _
-          | Code.Xml_ident (_, _)
-          | Code.Subtree (_, _)
-          | Code.Open _
-          | Code.Scope _
-          | Code.Default (_, _)
-          | Code.Get _
-          | Code.Fun (_, _)
-          | Code.Object _
-          | Code.Patch _
-          | Code.Call (_, _)
-          | Code.Decl_xmlns (_, _)
-          | Code.Alloc _
-          | Code.Dx_sequent (_, _)
-          | Code.Dx_query (_, _, _)
-          | Code.Dx_prop (_, _)
-          | Code.Dx_var _
-          | Code.Dx_const_content _
-          | Code.Dx_const_uri _
-          | Code.Error _
-          | Code.Comment _
-          | Code.Namespace (_, _) ->
-            []
-      )
+let tokens (nodes : Code.t) : token list =
+  let@ Range.{loc; value} = List.concat_map @~ nodes in
+  let L.Range.{start; end_} = Lsp_shims.Loc.lsp_range_of_range loc in
+  (* Multiline tokens not supported*)
+  if start.line <> end_.line then
+    []
+  else
+    match value with
+    | Code.Ident path ->
+      tokenize_path ~start path
+    | Code.Text _ -> []
+    | Code.Put (_path, _t) -> []
+    (* -> *)
+    (*     builtin *)
+    (*       ~start *)
+    (*       "put" @@ *)
+    (*     tokenize_path ~start path @ tokens t *)
+    | Code.Math (_, _)
+    | Code.Verbatim _
+    | Code.Import (_, _)
+    | Code.Let (_, _, _)
+    | Code.Def (_, _, _)
+    | Code.Group (_, _)
+    | Code.Hash_ident _
+    | Code.Xml_ident (_, _)
+    | Code.Subtree (_, _)
+    | Code.Open _
+    | Code.Scope _
+    | Code.Default (_, _)
+    | Code.Get _
+    | Code.Fun (_, _)
+    | Code.Object _
+    | Code.Patch _
+    | Code.Call (_, _)
+    | Code.Decl_xmlns (_, _)
+    | Code.Alloc _
+    | Code.Dx_sequent (_, _)
+    | Code.Dx_query (_, _, _)
+    | Code.Dx_prop (_, _)
+    | Code.Dx_var _
+    | Code.Dx_const_content _
+    | Code.Dx_const_uri _
+    | Code.Error _
+    | Code.Comment _
+    | Code.Namespace (_, _) ->
+      []
 
-let process_line_delta
-  : int option ->
-  token list ->
-  int * delta_token list
-= fun
-    index_of_last_line
-    tokens
-  ->
+let process_line_delta (index_of_last_line : int option) (tokens : token list) : int * delta_token list =
   let line = (List.hd tokens).line in
   let deltas =
     List.fold_left
@@ -267,13 +244,9 @@ let process_line_delta
       (None, [])
       tokens
   in
-  (line, (snd deltas |> List.rev))
+  line, snd deltas |> List.rev
 
-let delta_tokens
-  : token list list -> int array
-= fun
-    tokens
-  ->
+let delta_tokens (tokens : token list list) : int array =
   tokens
   |> List.fold_left
       (fun (last_line, acc) tokens_on_line ->
@@ -288,70 +261,39 @@ let delta_tokens
   |> List.rev
   |> Array.of_list
 
-let semantic_tokens_delta
-  : Code.node Range.located list -> L.SemanticTokensDelta.t
-= fun _code ->
-  {
-    L.SemanticTokensDelta.resultId = None;
-    edits = [];
-  }
+let semantic_tokens_delta (_code : Code.node Range.located list) : L.SemanticTokensDelta.t = {
+  L.SemanticTokensDelta.resultId = None;
+  edits = [];
+}
 
-let tokenize_document
-  : L.TextDocumentIdentifier.t ->
-  L.SemanticTokens.t option
-= fun {uri} ->
+let tokenize_document (identifier : L.TextDocumentIdentifier.t) : L.SemanticTokens.t option =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url uri in
-  match Imports.resolve_uri_to_code forest uri with
-  | Some Tree.{nodes; _} ->
-    let tokens = tokens nodes in
-    Format.(
-      Eio.traceln
-        "%a"
-        (
-          pp_print_list
-            ~pp_sep: (fun out () -> fprintf out "; ")
-            pp_token
-        )
-        tokens
-    );
-    let encoded = List.concat_map encode tokens in
-    let data = Array.of_list @@ encoded in
-    Some {data; resultId = None}
-  | _ ->
-    None
+  let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url identifier.uri in
+  let@ {nodes; _} = Option.map @~ Imports.resolve_uri_to_code forest uri in
+  let tokens = tokens nodes in
+  Format.(
+    Eio.traceln
+      "%a"
+      (
+        pp_print_list
+          ~pp_sep: (fun out () -> fprintf out "; ")
+          pp_token
+      )
+      tokens
+  );
+  let encoded = List.concat_map encode tokens in
+  let data = Array.of_list @@ encoded in
+  L.SemanticTokens.{data; resultId = None}
 
-let tokenize_document_delta
-  : L.TextDocumentIdentifier.t -> L.SemanticTokensDelta.t option
-= fun
-    textDocument
-  ->
+let tokenize_document_delta (textDocument : L.TextDocumentIdentifier.t) : L.SemanticTokensDelta.t option =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url textDocument.uri in
-  match Imports.resolve_uri_to_code forest uri with
-  | None -> None
-  | Some tree ->
-    Some (semantic_tokens_delta tree.nodes)
+  let@ tree = Option.map @~ Imports.resolve_uri_to_code forest uri in
+  semantic_tokens_delta tree.nodes
 
-let on_full_request
-  : L.SemanticTokensParams.t ->
-  L.SemanticTokens.t option
-= fun
-    {textDocument; _}
-  ->
-  (tokenize_document textDocument)
+let on_full_request (params : L.SemanticTokensParams.t) : L.SemanticTokens.t option =
+  tokenize_document params.textDocument
 
-let on_delta_request
-  : L.SemanticTokensDeltaParams.t ->
-  [
-    | `SemanticTokens of L.SemanticTokens.t
-    | `SemanticTokensDelta of L.SemanticTokensDelta.t
-  ] option
-= fun
-    {textDocument;
-      _;
-    }
-  ->
-  Option.map
-    (fun tokens -> (`SemanticTokensDelta tokens))
-    (tokenize_document_delta textDocument)
+let on_delta_request (params : L.SemanticTokensDeltaParams.t) : [`SemanticTokens of L.SemanticTokens.t | `SemanticTokensDelta of L.SemanticTokensDelta.t] option =
+  let@ tokens = Option.map @~ tokenize_document_delta params.textDocument in
+  `SemanticTokensDelta tokens

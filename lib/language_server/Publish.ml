@@ -35,27 +35,18 @@ let render_lsp_diagnostic (uri : L.DocumentUri.t) (diag : diagnostic) : Lsp_Diag
   let source =
     let Lsp_state.{forest; _} = Lsp_state.get () in
     let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url uri in
-    match Option.bind (State.find_opt forest uri) Tree.to_doc with
-    | None -> None
-    | Some doc ->
-      Some (Lsp.Text_document.text doc)
+    let@ doc = Option.map @~ Option.bind (State.find_opt forest uri) Tree.to_doc in
+    Lsp.Text_document.text doc
   in
   let message = Asai.Diagnostic.string_of_text diag.explanation.value in
   let relatedInformation = Bwd.to_list @@ Bwd.map (render_lsp_related_info uri) diag.extra_remarks in
-  Lsp_Diagnostic.create
-    ~range
-    ~severity
-    ~code
-    ?source
-    ~message: (`String message)
-    ~relatedInformation
-    ()
+  Lsp_Diagnostic.create ~range ~severity ~code ?source ~message: (`String message) ~relatedInformation ()
 
 let broadcast notif =
   let msg = Broadcast.to_jsonrpc notif in
-  send (RPC.Packet.Notification msg)
+  send @@ RPC.Packet.Notification msg
 
 let publish (uri : Lsp.Uri.t) (diagnostics : diagnostic list) =
   let diagnostics = List.map (render_lsp_diagnostic uri) diagnostics in
   let params = L.PublishDiagnosticsParams.create ~uri ~diagnostics () in
-  broadcast (PublishDiagnostics params)
+  broadcast @@ PublishDiagnostics params

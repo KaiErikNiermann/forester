@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_prelude
 open Forester_core
 
 module T = Types
@@ -15,13 +16,9 @@ let parse_flag field header =
   | Some _ -> None
   | None -> None
 
-let parse_title_flags
-    (header : Http.Header.t)
-    : T.title_flags option
-  =
-  match parse_flag "Empty-When-Untitled" header with
-  | Some b -> Some T.{empty_when_untitled = b;}
-  | None -> None
+let parse_title_flags (header : Http.Header.t) : T.title_flags option =
+  let@ b = Option.map @~ parse_flag "Empty-When-Untitled" header in
+  T.{empty_when_untitled = b}
 
 let parse_section_flags (header : Http.Header.t) : T.section_flags option =
   let hidden_when_empty = parse_flag "Hidden-When-Empty" header in
@@ -50,15 +47,9 @@ let parse_content_target (header : Http.Header.t) : T.content_target option =
     | None ->
       match Header.get header "Full" with
       | Some _ ->
-        begin
-          match parse_section_flags header with
-          | Some flags -> Some (T.Full flags)
-          | None -> None
-        end
+        let@ flags = Option.map @~ parse_section_flags header in
+        T.Full flags
       | None ->
-        match Header.get header "Title" with
-        | None -> None
-        | Some _ ->
-          match parse_title_flags header with
-          | Some flags -> Some (T.Title flags)
-          | None -> None
+        let@ _ = Option.bind @@ Header.get header "Title" in
+        let@ flags = Option.map @~ parse_title_flags header in
+        T.Title flags
