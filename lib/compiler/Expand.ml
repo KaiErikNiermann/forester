@@ -368,7 +368,8 @@ and expand_xml_ident loc (prefix, uname) : Types.xml_qname =
         ~extra_remarks: [
           Asai.Diagnostic.loctextf
             "expected path `%s` to resolve to xmlns"
-            prefix
+            prefix;
+          Asai.Diagnostic.loctextf "You may fix this by defining an XML namespace:@.   \\xmlns:%s{...}" prefix;
         ]
 
 and expand_method ~forest (key, body) =
