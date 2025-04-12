@@ -85,10 +85,10 @@ let index_tree_str =
   {|\title{Hello, World!}
 \p{Welcome to your first tree! This tree is the root of your forest.}
 \ul{
-  \li{[Build and view your forest for the first time](https://www.jonmsterling.com/jms-007D)}
-  \li{[Overview of the Forester markup language](https://www.jonmsterling.com/jms-007N)}
-  \li{[Creating new trees](https://www.jonmsterling.com/jms-007H)}
-  \li{[Creating your personal biographical tree](https://www.jonmsterling.com/jms-007K)}
+  \li{[Build and view your forest for the first time](https://www.forester-notes.org/jms-007D/)}
+  \li{[Overview of the Forester markup language](https://www.forester-notes.org/jms-007N/)}
+  \li{[Creating new trees](https://www.forester-notes.org/jms-007H/)}
+  \li{[Creating your personal biographical tree](https://www.forester-notes.org/jms-007K/)}
 }
 |}
 
