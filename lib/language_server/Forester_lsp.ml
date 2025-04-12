@@ -214,7 +214,7 @@ let start ~env ~(config : Config.t) =
   let lsp_io = LspEio.init env in
   (* FIXME: A "batch run" should fail early. The lsp should start even when
      there are errors *)
-  let forest = Driver.batch_run ~env ~config ~dev: true in
+  let forest = Driver.language_server ~env ~config in
   Server.run
     ~init: {forest; lsp_io; should_shutdown = false;}
     @@ fun () ->
