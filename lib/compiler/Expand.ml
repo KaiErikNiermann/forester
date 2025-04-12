@@ -224,7 +224,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       let x = expand_eff ~forest x in
       {node with value = Dx_const (`Uri, x)} :: expand_eff ~forest rest
     | Dx_prop (rel, args) ->
-      let rel = expand_eff ~forest  rel in
+      let rel = expand_eff ~forest rel in
       let args = List.map (expand_eff ~forest) args in
       {node with value = Dx_prop (rel, args)} :: expand_eff ~forest rest
     | Dx_query (var, pos, neg) ->
@@ -232,7 +232,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       let neg = List.map (expand_eff ~forest) neg in
       {node with value = Dx_query (var, pos, neg)} :: expand_eff ~forest rest
     | Dx_sequent (concl, prems) ->
-      let concl = expand_eff ~forest  concl in
+      let concl = expand_eff ~forest concl in
       let prems = List.map (expand_eff ~forest) prems in
       {node with value = Dx_sequent (concl, prems)} :: expand_eff ~forest rest
     | Fun (xs, body) ->
@@ -264,7 +264,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       in
       {node with value = Object {self; methods}} :: expand_eff ~forest rest
     | Patch {obj; self; methods} ->
-      let obj = expand_eff ~forest  obj in
+      let obj = expand_eff ~forest obj in
       let self, super, methods =
         let@ () = Sc.section [] in
         let self_sym = Symbol.fresh () in
@@ -282,7 +282,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       let patched = Syn.Patch {obj; self; super; methods} in
       {node with value = patched} :: expand_eff ~forest rest
     | Call (obj, meth) ->
-      let obj = expand_eff ~forest  obj in
+      let obj = expand_eff ~forest obj in
       {node with value = Call (obj, meth)} :: expand_eff ~forest rest
     | Import (vis, dep) ->
       let dep_uri = URI_scheme.named_uri ~base: forest.config.url dep in
@@ -307,7 +307,7 @@ and get_xml_attrs ~forest acc = function
     entered_range loc1;
     entered_range loc2;
     let qname = expand_xml_ident loc1 @@ Forester_xml_names.split_xml_qname key in
-    let value = expand_eff ~forest  value in
+    let value = expand_eff ~forest value in
     get_xml_attrs ~forest (acc @ [qname, value]) rest
   | rest -> acc, rest
 
@@ -449,7 +449,6 @@ let builtins = [
 ]
 
 let expand_tree_inner ~forest (code : Tree.code) : Tree.syn =
-  (* I think that we need to handle Parent.run somewhere in here, or else subtrees of subtrees will be wrong? Unless I a misunderstanding what this is for. --- JMS *)
   let trace k =
     match Tree.identity_to_uri code.identity with
     | None -> k ()
