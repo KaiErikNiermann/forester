@@ -128,7 +128,14 @@ module Message = struct
 
   let default_text : t -> Asai.Diagnostic.text = function
     | Import_not_found uri -> Asai.Diagnostic.textf "%a not found" URI.pp uri
-    | Expansion_error _
+    | Expansion_error err ->
+      begin
+        match err with
+        | `Xmlns_error ->
+          Asai.Diagnostic.textf ""
+        | `Resolution_error (_, p) ->
+          Asai.Diagnostic.textf "Unknown binding %a" Trie.pp_path p
+      end
     | Invalid_URI
     | Unbound_method _
     | Asset_has_no_content_address _
