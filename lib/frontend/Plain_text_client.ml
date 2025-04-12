@@ -7,7 +7,7 @@
 open Forester_core
 open Forester_compiler
 
-module T = Types
+open struct module T = Types end
 
 let rec pp_content ~forest ~router fmt = function
   | T.Content c -> c |> List.iter @@ pp_content_node ~forest ~router fmt

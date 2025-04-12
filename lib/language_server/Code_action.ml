@@ -8,7 +8,7 @@
 open Forester_prelude
 open Forester_compiler
 
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 
 let resolve (params : L.CodeAction.t) = params
 

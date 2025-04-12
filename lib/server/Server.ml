@@ -9,9 +9,10 @@ open Forester_core
 open Forester_compiler
 open Forester_frontend
 
-module T = Types
-
-module EP = Eio.Path
+open struct
+  module T = Types
+  module EP = Eio.Path
+end
 
 type theme = {
   stylesheet: string;

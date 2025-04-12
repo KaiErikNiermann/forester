@@ -7,10 +7,12 @@
 
 open Lsp_error
 
-module L = Lsp.Types
-module RPC = Jsonrpc
-module Lsp_Request = Lsp.Client_request
-module Lsp_Notification = Lsp.Client_notification
+open struct
+  module L = Lsp.Types
+  module RPC = Jsonrpc
+  module Lsp_Request = Lsp.Client_request
+  module Lsp_Notification = Lsp.Client_notification
+end
 
 module Semantic_tokens = Semantic_tokens
 

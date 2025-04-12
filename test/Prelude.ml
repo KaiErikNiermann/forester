@@ -8,7 +8,7 @@ open Forester_prelude
 open Forester_core
 open Forester_compiler
 
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 
 let rec strip_syn (syn : Syn.t) : Syn.t =
   let@ Asai.Range.{value; _} = List.map @~ syn in

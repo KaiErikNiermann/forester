@@ -12,7 +12,7 @@
 open Forester_core
 open Forester_compiler
 
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 open State.Syntax
 
 let compute (document : Lsp.Text_document.t) =

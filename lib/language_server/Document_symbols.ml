@@ -9,11 +9,11 @@ open Forester_prelude
 open Forester_core
 open Forester_compiler
 
-module L = Lsp.Types
-
-let (let*) = Option.bind
-
-let pp_path = Resolver.Scope.pp_path
+open struct
+  module L = Lsp.Types
+  let (let*) = Option.bind
+  let pp_path = Resolver.Scope.pp_path
+end
 
 let compute (params : L.DocumentSymbolParams.t) =
   let uri = params.textDocument.uri in

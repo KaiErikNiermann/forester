@@ -6,8 +6,10 @@
 
 open Forester_prelude
 
-module T = Types
-module Dl = Datalog_engine
+open struct
+  module T = Types
+  module Dl = Datalog_engine
+end
 
 module type S = sig
   val dl_db : Dl.db

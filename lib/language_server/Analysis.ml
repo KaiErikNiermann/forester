@@ -9,13 +9,6 @@ open Forester_prelude
 open Forester_compiler
 open Forester_core
 
-open struct
-  module R = Resolver
-  module Sc = R.Scope
-end
-
-module L = Lsp.Types
-
 module Item = struct
   type t =
     | Path of Trie.path
@@ -24,9 +17,14 @@ module Item = struct
   let path p = Path p
 end
 
-module S = Algaeff.Sequencer.Make(struct
-  type t = Item.t Range.located
-end)
+open struct
+  module R = Resolver
+  module Sc = R.Scope
+  module L = Lsp.Types
+  module S = Algaeff.Sequencer.Make(struct
+    type t = Item.t Range.located
+  end)
+end
 
 let flatten (tree : Code.t) : Code.t =
   List.concat_map Code.children tree

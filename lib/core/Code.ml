@@ -6,7 +6,7 @@
 
 open Base
 
-module T = Types
+open struct module T = Types end
 
 type 'a _object = {
   self: Trie.path option;

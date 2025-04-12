@@ -10,10 +10,11 @@ open Forester_core
 open Forester_frontend
 open Forester_compiler
 
-module L = Lsp.Types
+open struct
+  module L = Lsp.Types
+  let (let*) = Option.bind
+end
 open State.Syntax
-
-let (let*) = Option.bind
 
 (* TODO: handle external links as well? *)
 let compute (params : L.DocumentLinkParams.t) =

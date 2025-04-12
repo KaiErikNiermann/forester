@@ -9,10 +9,12 @@ open Forester_prelude
 open Forester_core
 open Forester_compiler
 
-module L = Lsp.Types
-module Lsp_Diagnostic = Lsp.Types.Diagnostic
-module Broadcast = Lsp.Server_notification
-module RPC = Jsonrpc
+open struct
+  module L = Lsp.Types
+  module Lsp_Diagnostic = Lsp.Types.Diagnostic
+  module Broadcast = Lsp.Server_notification
+  module RPC = Jsonrpc
+end
 
 type diagnostic = Reporter.Message.t Asai.Diagnostic.t
 

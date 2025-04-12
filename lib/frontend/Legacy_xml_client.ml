@@ -10,9 +10,11 @@ open Forester_core
 open Forester_compiler
 open State.Syntax
 
-module T = Types
-module P = Pure_html
-module X = Xml_forester
+open struct
+  module T = Types
+  module P = Pure_html
+  module X = Xml_forester
+end
 
 module Xmlns = struct
   include Xmlns_effect.Make ()

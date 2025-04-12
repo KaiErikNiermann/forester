@@ -7,16 +7,15 @@
 open Forester_prelude
 open Forester_core
 
-module T = Types
+open struct
+  module T = Types
+  module Dx = Datalog_expr
+end
 
 include URI.Tbl
 
 type resource = T.content T.resource
-
 type article = T.content T.article
-
-module Dx = Datalog_expr
-
 type env = (module Forest_graphs.S)
 
 let execute_datalog_script graphs script =

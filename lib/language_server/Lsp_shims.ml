@@ -5,7 +5,7 @@
  *
  *)
 
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 
 module Loc = struct
   let lsp_pos_of_pos (pos : Asai.Range.position) =

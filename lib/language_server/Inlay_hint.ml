@@ -11,9 +11,10 @@ open Forester_frontend
 open Forester_compiler
 open State.Syntax
 
-module L = Lsp.Types
-
-let (let*) = Option.bind
+open struct
+  module L = Lsp.Types
+  let (let*) = Option.bind
+end
 
 let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
   let Lsp_state.{forest; _} = Lsp_state.get () in

@@ -7,10 +7,11 @@
 open Forester_prelude
 open Forester_core
 
-module T = Types
-module Env = Value.Env
-
-type located = Value.t Range.located
+open struct
+  module T = Types
+  module Env = Value.Env
+  type located = Value.t Range.located
+end
 
 let extract_content (node : located) =
   match node.value with

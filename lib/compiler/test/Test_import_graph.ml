@@ -10,7 +10,7 @@ open Forester_prelude
 open Forester_test
 open Testables
 
-module T = Types
+open struct module T = Types end
 
 let config = {Config.default with trees = ["imports"]}
 

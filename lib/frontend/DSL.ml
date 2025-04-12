@@ -8,7 +8,7 @@
 
 open Forester_core
 
-module T = Types
+open struct module T = Types end
 
 let txt str = T.Text str
 

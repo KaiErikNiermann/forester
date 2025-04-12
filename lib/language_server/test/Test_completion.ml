@@ -12,7 +12,7 @@ open Forester_lsp
 open Forester_test
 open Testables
 
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 
 let test_find_with_prev () =
   let code =

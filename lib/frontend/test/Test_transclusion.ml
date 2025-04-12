@@ -11,11 +11,12 @@ open Forester_prelude
 open Forester_compiler
 open Forester_frontend
 
-module T = Types
-module HTML = Pure_html.HTML
+open struct
+  module T = Types
+  module HTML = Pure_html.HTML
+end
 
 let config = {Config.default with trees = ["transclude"]}
-
 let href = URI_scheme.named_uri ~base:config.url "transcludee"
 
 module Transclusions = struct

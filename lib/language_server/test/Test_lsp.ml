@@ -11,7 +11,7 @@ open Forester_frontend
 open Forester_lsp
 open Forester_test
 
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 
 let test_code_actions () =
   let@ () = Reporter.easy_run in

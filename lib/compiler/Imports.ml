@@ -6,7 +6,7 @@
 
 open Forester_core
 open Forester_prelude
-module T = Types
+open struct module T = Types end
 
 type analysis_env = {
   follow: bool;

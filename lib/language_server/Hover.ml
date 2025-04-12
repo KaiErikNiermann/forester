@@ -12,10 +12,11 @@ open Forester_frontend
 open Forester_search
 open State.Syntax
 
-module L = Lsp.Types
-module T = Types
-
-let (let*) = Option.bind
+open struct
+  module L = Lsp.Types
+  module T = Types
+  let (let*) = Option.bind
+end
 
 let compute ({position; textDocument; _}: L.HoverParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in

@@ -8,9 +8,10 @@ open Forester_prelude
 open Forester_compiler
 open Forester_core
 
-module T = Types
-
-module PT = Plain_text_client
+open struct
+  module T = Types
+  module PT = Plain_text_client
+end
 
 let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : Yojson.Safe.t option =
   let@ uri = Option.bind doc.frontmatter.uri in

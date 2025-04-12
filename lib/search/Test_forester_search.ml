@@ -6,8 +6,10 @@
 
 open Forester_core
 open Forester_search
-module T = Forester_core.Types
-module Trie = Yuujinchou.Trie
+open struct
+  module T = Forester_core.Types
+  module Trie = Yuujinchou.Trie
+end
 
 let doc1 =
   T.{

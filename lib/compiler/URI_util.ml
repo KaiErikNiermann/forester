@@ -6,7 +6,9 @@
 
 open Forester_prelude
 open Forester_core
-module L = Lsp.Types
+open struct
+  module L = Lsp.Types
+end
 
 let rec random_not_in keys =
   let attempt = Random.int (36 * 36 * 36 * 36 - 1) in

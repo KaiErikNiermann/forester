@@ -4,14 +4,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-module T = Types
 module V = struct
   include Vertex
   let to_string = show
 end
 
 module S = Datalog.BottomUp.Hashcons(V)
-module D = Datalog.BottomUp.Make(S)
+
+open struct
+  module T = Types
+  module D = Datalog.BottomUp.Make(S)
+end
 
 type relation = string
 type vertex = Vertex.t

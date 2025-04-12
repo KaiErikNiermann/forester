@@ -8,7 +8,7 @@
 open Forester_prelude
 open Forester_core
 
-module T = Types
+open struct module T = Types end
 
 open State.Syntax
 

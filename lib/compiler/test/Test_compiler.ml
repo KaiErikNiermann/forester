@@ -11,7 +11,7 @@ open Forester_test
 open Testables
 open State.Syntax
 
-module T = Types
+open struct module T = Types end
 
 let config = Config.default
 

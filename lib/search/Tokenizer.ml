@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-module T = Forester_core.Types
+open struct module T = Forester_core.Types end
 
 module Set = Set.Make(String)
 

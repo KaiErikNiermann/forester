@@ -12,7 +12,7 @@ open Forester_lsp
 open Forester_frontend
 open Testables
 
-module T = Types
+open struct module T = Types end
 
 open struct
   module S = Resolver.Scope

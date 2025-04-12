@@ -7,8 +7,10 @@
 
 open Forester_frontend
 
-module L = Lsp.Types
-module RPC = Jsonrpc
+open struct
+  module L = Lsp.Types
+  module RPC = Jsonrpc
+end
 
 (* TODO: set up json conversions for forester config*)
 let compute (params : L.DidChangeConfigurationParams.t) =

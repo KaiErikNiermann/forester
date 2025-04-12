@@ -9,8 +9,10 @@ open Forester_prelude
 open Forester_core
 open Forester_compiler
 
-module L = Lsp.Types
-module T = Types
+open struct
+  module L = Lsp.Types
+  module T = Types
+end
 
 let compute (params : L.DocumentHighlightParams.t) =
   let Lsp_state.{forest; _} = Lsp_state.get () in

@@ -7,7 +7,7 @@
 open Forester_prelude
 open Base
 
-module T = Types
+open struct module T = Types end
 
 module Env = struct
   include Map.Make(Symbol)

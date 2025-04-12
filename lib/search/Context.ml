@@ -5,7 +5,7 @@
  *)
 
 open Forester_core
-module T = Types
+open struct module T = Types end
 
 (* The idea is to render a search result with surrounding context, say 5 words
    on each side. *)

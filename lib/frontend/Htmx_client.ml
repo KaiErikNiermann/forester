@@ -9,7 +9,7 @@ open Forester_xml_names
 open Forester_core
 open Forester_compiler
 
-module T = Types
+open struct module T = Types end
 open Pure_html
 open HTML
 

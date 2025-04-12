@@ -10,10 +10,12 @@ open Forester_core
 open Forester_compiler
 open Forester_frontend
 
-module L = Lsp.Types
-module Unit_map = Forester_compiler.Expand.Unit_map
+open struct
+  module L = Lsp.Types
+  module Unit_map = Forester_compiler.Expand.Unit_map
+  let (let*) = Option.bind
+end
 
-let (let*) = Option.bind
 let location_of_range loc =
   let* view = Option.map Range.view loc in
   match view with

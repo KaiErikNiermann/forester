@@ -12,7 +12,7 @@ open Forester_frontend
 open Cmdliner
 open Cmdliner.Term.Syntax
 
-module T = Types
+open struct module T = Types end
 
 let ranked_search
   : ?fuzz: int -> State.t -> string -> (URI.t * float) list

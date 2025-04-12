@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-module T = Types
-module R = Resolver
+open struct
+  module T = Types
+  module R = Resolver
+end
 
 type exports = (R.P.data, Asai.Range.t option) Trie.t
 

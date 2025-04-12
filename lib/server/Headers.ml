@@ -7,7 +7,7 @@
 open Forester_prelude
 open Forester_core
 
-module T = Types
+open struct module T = Types end
 
 let parse_flag field header =
   match Http.Header.get header field with

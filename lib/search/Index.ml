@@ -8,7 +8,7 @@ open Forester_core
 open Forester_prelude
 open Spelll
 
-module T = Forester_core.Types
+open struct module T = Forester_core.Types end
 
 module Ocurrences = Set.Make(struct
   type t = int list list * URI.t

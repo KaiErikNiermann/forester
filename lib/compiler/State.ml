@@ -9,7 +9,7 @@ open Forester_core
 
 open Tree
 open Forester_core
-
+open struct module T = Types end
 type resource = T.content T.resource
 
 type t = {

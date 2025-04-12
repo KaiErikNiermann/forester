@@ -8,8 +8,10 @@
 open Forester_core
 open Forester_compiler
 
-module T = Types
-module L = Lsp.Types
+open struct
+  module T = Types
+  module L = Lsp.Types
+end
 
 (* The plan is to use this for transclusion/context *)
 

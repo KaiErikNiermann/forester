@@ -8,7 +8,7 @@
 open Forester_core
 open Forester_compiler
 open State.Syntax
-module L = Lsp.Types
+open struct module L = Lsp.Types end
 
 let compute (params : L.DidOpenTextDocumentParams.t) =
   let lsp_uri = params.textDocument.uri in

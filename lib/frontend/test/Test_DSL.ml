@@ -6,7 +6,7 @@
 
 open Forester_frontend.DSL
 open Forester_core
-module T = Types
+open struct module T = Types end
 
 let content_node =
 (module struct

@@ -8,9 +8,8 @@ open Forester_core
 open Forester_compiler
 open Forester_prelude
 open Forester_frontend
-open Current_incr
 
-module T = Types
+open struct module T = Types end
 
 let () =
   let@ env = Eio_main.run in
