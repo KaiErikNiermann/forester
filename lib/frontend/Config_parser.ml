@@ -8,6 +8,7 @@ open Forester_prelude
 open Forester_core
 
 let parse lexbuf filename =
+  let@ () = Reporter.easy_run in
   match Toml.Parser.parse lexbuf filename with
   | `Error (desc, {source; _}) ->
     let@ () = Reporter.tracef "when parsing configuration file" in
