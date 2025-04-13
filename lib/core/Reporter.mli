@@ -6,6 +6,21 @@
 
 module Message :
 sig
+  type expected_value =
+    | Content
+    | Text
+    | Obj
+    | Bool
+    | Sym
+    | Dx_query
+    | Dx_sequent
+    | Dx_prop
+    | Datalog_term
+    | Node
+    | URI
+    | Argument
+  [@@deriving show]
+
   type t =
     | Import_not_found of URI.t
     | Invalid_URI
@@ -19,21 +34,7 @@ sig
     | Type_error of
       {
         got: Value.t option;
-        expected:
-        [
-          | `Content
-          | `Text
-          | `Obj
-          | `Bool
-          | `Sym
-          | `Dx_sequent
-          | `Dx_query
-          | `Dx_prop
-          | `Datalog_term
-          | `Node
-          | `URI
-          | `Argument
-        ] list
+        expected: expected_value list
       }
     | Resolution_error of (Symbol.t * Value.t Value.Env.t)
     | Expansion_error of

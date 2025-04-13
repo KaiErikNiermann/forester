@@ -16,7 +16,7 @@ end
 let extract_content (node : located) =
   match node.value with
   | Content content -> content
-  | v -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Content]; got = Some v})
+  | v -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Content]; got = Some v})
 
 let extract_text (node : located) =
   let content = extract_content node in
@@ -28,24 +28,24 @@ let extract_text (node : located) =
   in
   match loop Emp (T.extract_content content) with
   | Some txt -> String.trim txt
-  | None -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Text]; got = None})
+  | None -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Text]; got = None})
 
 let extract_obj_ptr (x : located) =
   match x.value with
   | Obj sym -> sym
   (* TODO: Rephrase, should be something like "this is a thing of type foo, cannot access method bar"*)
-  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [`Obj]; got = Some other})
+  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [Obj]; got = Some other})
 
 let extract_sym (x : located) =
   match x.value with
   | Sym sym -> sym
-  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [`Sym]; got = Some other})
+  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [Sym]; got = Some other})
 
 let extract_bool (x : located) =
   match x.value with
   | Content (T.Content [Text "true"]) -> true
   | Content (T.Content [Text "false"]) -> false
-  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [`Bool]; got = Some other})
+  | other -> Reporter.fatal ?loc: x.loc (Type_error {expected = [Bool]; got = Some other})
 
 let default_backmatter ~(uri : URI.t) : T.content =
   let vtx = T.Uri_vertex uri in
@@ -121,18 +121,18 @@ let extract_dx_term (node : located) =
   | Dx_var name -> Datalog_expr.Var name
   | Dx_const vtx -> Datalog_expr.Const vtx
   (* | other -> Reporter.fatalf Type_error "Expected datalog term" *)
-  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Datalog_term]; got = Some other})
+  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Datalog_term]; got = Some other})
 
 let extract_dx_prop (node : located) =
   match node.value with
   | Dx_prop prop -> prop
   (* | _ -> Reporter.fatalf Type_error "Expected datalog proposition" *)
-  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Dx_prop]; got = Some other})
+  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Dx_prop]; got = Some other})
 
 let extract_dx_sequent (node : located) =
   match node.value with
   | Dx_sequent sequent -> sequent
-  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [`Dx_sequent]; got = Some other})
+  | other -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Dx_sequent]; got = Some other})
 
 let extract_vertex ~type_ (node : located) =
   match type_ with
@@ -195,7 +195,7 @@ and eval_node node : Value.t =
       | Error _ ->
         Reporter.fatal
           ?loc
-          (Type_error {got = None; expected = [`URI]})
+          (Type_error {got = None; expected = [URI]})
           ~extra_remarks: [Asai.Diagnostic.loctextf "Expected valid URI in ref"]
     end
   | Link {title; dest} ->
@@ -206,7 +206,7 @@ and eval_node node : Value.t =
       | Error error ->
         Reporter.fatal
           ?loc
-          (Type_error {expected = [`URI]; got = None})
+          (Type_error {expected = [URI]; got = None})
           ~extra_remarks: [Asai.Diagnostic.loctext error]
     (* "Expected valid URI in link") *)
     in
@@ -239,7 +239,7 @@ and eval_node node : Value.t =
       match extract_uri href_arg with
       | Ok uri -> uri
       | Error _ ->
-        Reporter.fatal ?loc (Type_error {got = None; expected = [`URI]}) ~extra_remarks: [Asai.Diagnostic.loctext "Expected valid URI in transclusion"]
+        Reporter.fatal ?loc (Type_error {got = None; expected = [URI]}) ~extra_remarks: [Asai.Diagnostic.loctext "Expected valid URI in transclusion"]
     in
     emit_content_node ~loc @@ T.Transclude {href; target = Full flags}
   | Subtree (addr_opt, nodes) ->
@@ -268,7 +268,7 @@ and eval_node node : Value.t =
       match arg.value with
       | Value.Dx_query query ->
         emit_content_node ~loc @@ Results_of_datalog_query query
-      | other -> Reporter.fatal ?loc: arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
+      | other -> Reporter.fatal ?loc: arg.loc (Type_error {expected = [Dx_query]; got = Some other})
     end
   | Syndicate_query_as_json_blob ->
     let name = pop_text_arg ~loc in
@@ -281,7 +281,7 @@ and eval_node node : Value.t =
         let job = Job.Syndicate (Json_blob {blob_uri; query}) in
         Jobs.modify @@ List.cons @@ Range.locate_opt loc job;
         process_tape ()
-      | other -> Reporter.fatal ?loc: query_arg.loc (Type_error {expected = [`Dx_query]; got = Some other})
+      | other -> Reporter.fatal ?loc: query_arg.loc (Type_error {expected = [Dx_query]; got = Some other})
     end
   | Syndicate_current_tree_as_atom_feed ->
     let source_uri = get_current_uri ~loc: node.loc in

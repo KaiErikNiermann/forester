@@ -11,6 +11,21 @@ module R = Resolver
 module Sc = R.Scope
 
 module Message = struct
+  type expected_value =
+    | Content
+    | Text
+    | Obj
+    | Bool
+    | Sym
+    | Dx_query
+    | Dx_sequent
+    | Dx_prop
+    | Datalog_term
+    | Node
+    | URI
+    | Argument
+  [@@deriving show]
+
   type t =
     | Import_not_found of URI.t
     | Invalid_URI
@@ -24,21 +39,7 @@ module Message = struct
     | Type_error of
       {
         got: Value.t option;
-        expected:
-        [
-          | `Content
-          | `Text
-          | `Obj
-          | `Bool
-          | `Sym
-          | `Dx_query
-          | `Dx_sequent
-          | `Dx_prop
-          | `Datalog_term
-          | `Node
-          | `URI
-          | `Argument
-        ] list
+        expected: expected_value list
       }
     | Resolution_error of (Symbol.t * Value.t Value.Env.t)
     | Expansion_error of
@@ -126,6 +127,31 @@ module Message = struct
     | Log -> "log"
     | Missing_argument -> "missing_argument"
 
+  let show_value : Value.t -> string = function
+    | Value.Content _ -> "content"
+    | Value.Clo (_, _, _) -> "closure"
+    | Value.Dx_prop _ -> "datalog proposition"
+    | Value.Dx_sequent _ -> "datalog sequent"
+    | Value.Dx_query _ -> "datalog query"
+    | Value.Dx_var _ -> "datalog variable"
+    | Value.Dx_const _ -> "datalog constant"
+    | Value.Sym _ -> "symbol"
+    | Value.Obj _ -> "object"
+
+  let show_expected_value : expected_value -> string = function
+    | Content -> "content"
+    | Text -> "text"
+    | Obj -> "an object"
+    | Bool -> "a boolean"
+    | Sym -> "a symbol"
+    | Dx_query -> "a datalog query"
+    | Dx_sequent -> "a datalog sequent"
+    | Dx_prop -> "a datalog proposition"
+    | Datalog_term -> "a datalog term"
+    | Node -> "a node" (* This might be hard to understand*)
+    | URI -> "a URI"
+    | Argument -> "an argument"
+
   let default_text : t -> Asai.Diagnostic.text = function
     | Import_not_found uri -> Asai.Diagnostic.textf "%a not found" URI.pp uri
     | Expansion_error err ->
@@ -136,6 +162,24 @@ module Message = struct
         | `Resolution_error (_, p) ->
           Asai.Diagnostic.textf "Unknown binding %a" Trie.pp_path p
       end
+    | Type_error {got; expected} ->
+      begin
+        let expected_msg =
+          match expected with
+          | [] -> Asai.Diagnostic.textf "An unknown type error ocurred"
+          | expected :: [] ->
+            Asai.Diagnostic.textf "Expected %s" (show_expected_value expected)
+          | _ ->
+            Asai.Diagnostic.textf "Expected one of %a" (Format.pp_print_list ~pp_sep: (fun out () -> Format.fprintf out ", ") pp_expected_value) expected
+        in
+        let got_msg =
+          match got with
+          | None -> Asai.Diagnostic.textf ""
+          | Some v ->
+            Asai.Diagnostic.textf " but this is %s" (show_value v)
+        in
+        Asai.Diagnostic.textf "%t%t." expected_msg got_msg
+      end
     | Invalid_URI
     | Unbound_method _
     | Asset_has_no_content_address _
@@ -143,7 +187,6 @@ module Message = struct
     | Tree_not_found _
     | Duplicate_tree _
     | Parse_error
-    | Type_error _
     | Type_warning
     | Resolution_error _
     | Resolution_warning

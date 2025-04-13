@@ -40,7 +40,7 @@ module Make () = struct
   let pop_arg ~loc =
     match pop_arg_opt () with
     | Some arg -> arg
-    | None -> Reporter.fatal ?loc (Type_error {got = None; expected = [`Argument]})
+    | None -> Reporter.fatal ?loc (Type_error {got = None; expected = [Argument]})
 
   let pop_args () =
     let rec loop acc =
