@@ -55,7 +55,7 @@ let compute (L.CodeActionParams.{range; textDocument = {uri}; _;}) : L.CodeActio
         in
         let random =
           L.CodeAction.create
-            ~title: (Format.asprintf "create new tree (no prefix)")
+            ~title: (Format.asprintf "create new tree (no prefix, random)")
             ~kind: (L.CodeActionKind.Other "new tree")
             ~edit: (create_tree_edit ~range ~uri next_random dir)
             ()
