@@ -18,7 +18,7 @@ let extract_content (node : located) =
   | Content content -> content
   | v -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Content]; got = Some v})
 
-let extract_text (node : located) =
+let extract_text_loc (node : located) : string Range.located =
   let content = extract_content node in
   let rec loop acc = function
     | [] -> Option.some @@ String.concat "" @@ Bwd.prepend acc []
@@ -27,8 +27,10 @@ let extract_text (node : located) =
     | _ -> None
   in
   match loop Emp (T.extract_content content) with
-  | Some txt -> String.trim txt
+  | Some txt -> {value = String.trim txt; loc = node.loc}
   | None -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Text]; got = None})
+
+let extract_text (node : located) : string = (extract_text_loc node).value
 
 let extract_obj_ptr (x : located) =
   match x.value with
@@ -165,6 +167,10 @@ and pop_content_arg ~loc =
 and pop_text_arg ~loc =
   eval_pop_arg ~loc
   |> extract_text
+
+and pop_text_arg_loc ~loc =
+  eval_pop_arg ~loc
+  |> extract_text_loc
 
 and eval_node node : Value.t =
   let loc = node.loc in
@@ -325,8 +331,8 @@ and eval_node node : Value.t =
     Jobs.modify (List.cons (Range.locate_opt loc (Job.LaTeX_to_svg job)));
     emit_content_node ~loc @@ T.Artefact artefact
   | Route_asset ->
-    let source_path = pop_text_arg ~loc in
-    let uri = Asset_router.uri_of_asset ?loc ~source_path () in
+    let Range.{value = source_path; loc = path_loc} = pop_text_arg_loc ~loc in
+    let uri = Asset_router.uri_of_asset ?loc: path_loc ~source_path () in
     emit_content_nodes ~loc @@ [T.Route_of_uri uri]
   | Object {self; methods} ->
     let table =

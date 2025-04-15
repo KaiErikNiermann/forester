@@ -8,14 +8,14 @@ open Forester_core
 
 let router : (string, URI.t) Hashtbl.t = Hashtbl.create 100
 
-let normalize source_path =
+let normalize ?loc source_path =
   try
     Unix.realpath source_path
   with
     | Unix.Unix_error (e, _, m) ->
       Reporter.fatal
-        IO_error
-        ~extra_remarks: [Asai.Diagnostic.loctextf "%s: %s" (Unix.error_message e) m]
+        ?loc
+        (Asset_not_found (Format.asprintf "%s: %s" (Unix.error_message e) m))
 
 let install ~(config : Config.t) ~source_path ~content =
   let normalized = normalize source_path in
@@ -31,7 +31,7 @@ let install ~(config : Config.t) ~source_path ~content =
     uri
 
 let uri_of_asset ?loc ~source_path () =
-  let normalized = normalize source_path in
+  let normalized = normalize ?loc source_path in
   match Hashtbl.find_opt router normalized with
   | Some uri -> uri
   | None ->

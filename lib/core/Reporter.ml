@@ -31,6 +31,7 @@ module Message = struct
     | Invalid_URI
     | Tree_not_found of URI.t
     | Asset_has_no_content_address of string
+    | Asset_not_found of string
     | Current_tree_has_no_uri
     | Duplicate_tree of URI.t
     | Parse_error
@@ -73,6 +74,7 @@ module Message = struct
     | Invalid_URI -> Error
     | Unbound_method _ -> Error
     | Asset_has_no_content_address _ -> Error
+    | Asset_not_found _ -> Error
     | Current_tree_has_no_uri -> Error
     | Reference_error _ -> Error
     | Duplicate_tree _ -> Error
@@ -102,6 +104,7 @@ module Message = struct
     | Invalid_URI -> "invalid_uri"
     | Tree_not_found _ -> "tree_not_found"
     | Asset_has_no_content_address _ -> "asset_not_found" (* This is taken from the original wording of the message, but I think this is very confusing.*)
+    | Asset_not_found _ -> "asset_not_found"
     | Current_tree_has_no_uri -> "current_tree_has_no_uri"
     | Duplicate_tree _ -> "duplicate_tree"
     | Parse_error -> "parse_error"
@@ -180,6 +183,7 @@ module Message = struct
         in
         Asai.Diagnostic.textf "%t%t." expected_msg got_msg
       end
+    | Asset_not_found msg -> Asai.Diagnostic.text msg
     | Invalid_URI
     | Unbound_method _
     | Asset_has_no_content_address _
