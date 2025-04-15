@@ -228,7 +228,8 @@ let language_server ~env ~config =
     | _ ->
       go new_action new_state
   in
-  go Load_all_configured_dirs init
+  let _, state = update Plant_assets init in
+  go Load_all_configured_dirs state
 
 let run_with_history a s =
   let history = ref [] in
