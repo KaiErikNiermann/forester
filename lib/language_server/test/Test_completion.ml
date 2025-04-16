@@ -117,8 +117,8 @@ let test_word_before () =
   Alcotest.(check string) "" "\\route-asset{" result
 
 let test_uri_completion () =
-  let result_1 = Completion.URI_completion.text "complete](" in
-  let result_2 = Completion.URI_completion.text "\\transclude{" in
+  let result_1 = Completion.uri_completion.text "complete](" in
+  let result_2 = Completion.uri_completion.text "\\transclude{" in
   Alcotest.(check @@ option completion_type) "link" (Some Addrs) result_1;
   Alcotest.(check @@ option completion_type) "transclusion" (Some Addrs) result_2
 
@@ -372,7 +372,7 @@ let test_asset_completion_syn () =
   in
   Alcotest.(check @@ option string)
     ""
-    (Some {|{"insertText":"assets/sterling-2024-cl-forester.pdf","kind":17,"label":"assets/sterling-2024-cl-forester.pdf"}|})
+    (Some {|{\"insertText\":\"assets/autocomplete.png\",\"kind\":17,\"label\":\"assets/autocomplete.png\"}{\"insertText\":\"assets/asset-completions.png\",\"kind\":17,\"label\":\"assets/asset-completions.png\"}{\"insertText\":\"assets/sterling-2024-cl-forester.pdf\",\"kind\":17,\"label\":\"assets/sterling-2024-cl-forester.pdf\"}{\"insertText\":\"assets/workspace-symbols.png\",\"kind\":17,\"label\":\"assets/workspace-symbols.png\"}{\"insertText\":\"assets/diagnostics.png\",\"kind\":17,\"label\":\"assets/diagnostics.png\"}{\"insertText\":\"assets/virtual-text.png\",\"kind\":17,\"label\":\"assets/virtual-text.png\"}{\"insertText\":\"assets/code-action.png\",\"kind\":17,\"label\":\"assets/code-action.png\"}{\"insertText\":\"assets/document-symbols.png\",\"kind\":17,\"label\":\"assets/document-symbols.png\"}{\"insertText\":\"assets/inlay-hints.png\",\"kind\":17,\"label\":\"assets/inlay-hints.png\"}|})
     completions
 
 (* let test_uri () = *)

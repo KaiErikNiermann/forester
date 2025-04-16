@@ -28,18 +28,18 @@ module S = Set.Make(struct
   let compare = compare
 end)
 
-module type CompletionKind = sig
-  val text : string -> completion option
-  val code : Code.node Asai.Range.located Analysis.Context.t -> completion option
-  val syn : Syn.node Asai.Range.located Analysis.Context.t -> completion option
-end
+type completion_kind = {
+  text: string -> completion option;
+  code: Code.node Asai.Range.located Analysis.Context.t -> completion option;
+  syn: Syn.node Asai.Range.located Analysis.Context.t -> completion option;
+}
 
-module Subtree_completion : CompletionKind = struct
+let subtree_completion : completion_kind =
   let text word_before =
     if Str.(string_match (regexp {|.*subtree.*|}) word_before 0) then
       Some New_addr
     else None
-
+  in
   let code (context : _ Analysis.Context.t) =
     match context with
     | Prev (Asai.Range.{value = Code.Subtree (_, _); _}, _)
@@ -50,20 +50,21 @@ module Subtree_completion : CompletionKind = struct
     | Prev (_, _)
     | Top _ ->
       None
-
+  in
   let syn (context : Syn.node Range.located Analysis.Context.t) =
     match context with
     | (Top {value = Subtree _; _}) -> Some New_addr
     | (Prev (_, {value = Subtree _; _;})) -> Some New_addr
     | _ -> None
-end
+  in
+  {text; code; syn}
 
-module Asset_completion : CompletionKind = struct
+let asset_completion : completion_kind =
   let text word_before =
     if Str.(string_match (regexp {|.*route-asset.*|}) word_before 0) then
       Some Assets
     else None
-
+  in
   let code (context : _ Analysis.Context.t) =
     match context with
     | Prev (Asai.Range.{value = Code.Ident ["route-asset"]; _}, _)
@@ -73,21 +74,22 @@ module Asset_completion : CompletionKind = struct
     | Parent _
     | Top _ ->
       None
-
+  in
   let syn (context : Syn.node Range.located Analysis.Context.t) =
     match context with
     | (Top {value = Route_asset; _}) -> Some Assets
     | (Prev (_, {value = Route_asset; _;})) -> Some Assets
     | _ -> None
-end
+  in
+  {text; code; syn}
 
-module URI_completion : CompletionKind = struct
+let uri_completion : completion_kind =
   let text word_before =
     if Str.(string_match (regexp {|.*]($|}) word_before 0)
       || Str.(string_match (regexp {|.*transclude.*|}) word_before 0) then
       Some Addrs
     else None
-
+  in
   let code (context : _ Analysis.Context.t) =
     match context with
     (* | Prev (Asai.Range.{value = Code.Ident ["route-asset"]; _}, _) *)
@@ -97,25 +99,25 @@ module URI_completion : CompletionKind = struct
     | Parent _
     | Top _ ->
       None
-
+  in
   let syn (context : Syn.node Range.located Analysis.Context.t) =
     match context with
     | _ -> None
-  (* | (Top {value = Route_asset; _}) -> S.singleton Assets *)
-  (* | (Prev (_, {value = Route_asset; _;})) -> S.singleton Assets *)
-end
+  in
+  {text; code; syn}
 
-module New_uri_completion : CompletionKind = struct
-  let text context = Option.map (Fun.const New_addr) (URI_completion.text context)
-  let code context = Option.map (Fun.const New_addr) (URI_completion.code context)
-  let syn context = Option.map (Fun.const New_addr) (URI_completion.syn context)
-end
+let new_uri_completion : completion_kind =
+  let text context = Option.map (Fun.const New_addr) (uri_completion.text context) in
+  let code context = Option.map (Fun.const New_addr) (uri_completion.code context) in
+  let syn context = Option.map (Fun.const New_addr) (uri_completion.syn context) in
+  {text; code; syn}
 
 let completion_types (t : Tree.t) ~position =
-  let completions : (module CompletionKind)list = [
-    (module URI_completion);
-    (module Asset_completion);
-    (module Subtree_completion);
+  let completions : completion_kind list = [
+    uri_completion;
+    asset_completion;
+    subtree_completion;
+    new_uri_completion;
   ]
   in
   let code_opt = Tree.to_code t in
@@ -139,7 +141,7 @@ let completion_types (t : Tree.t) ~position =
   |> List.fold_left
       begin
         fun acc completion_kind ->
-          let module Kind = (val completion_kind : CompletionKind) in
+          (* let module Kind = (val completion_kind : CompletionKind) in *)
           let compl =
             List.fold_left
               begin
@@ -151,9 +153,9 @@ let completion_types (t : Tree.t) ~position =
               end
               S.empty
               [
-                Option.bind text_context Kind.text;
-                Option.bind code_context Kind.code;
-                Option.bind syn_context Kind.syn;
+                Option.bind text_context completion_kind.text;
+                Option.bind code_context completion_kind.code;
+                Option.bind syn_context completion_kind.syn;
               ]
           in
           S.union compl acc

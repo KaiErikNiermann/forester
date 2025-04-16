@@ -15,6 +15,7 @@
    (chdir
     forester-notes.org
     (progn
+     (run git checkout c03da625fe3a58b6b43f43fe7a72271c67e327e7)
      (run %{bin:test-completion})
      (run %{bin:test-lsp}))))))
 
