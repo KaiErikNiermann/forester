@@ -30,7 +30,7 @@ let create_tree_edit ~range ~uri addr dir =
         (
           L.TextDocumentEdit.create
             ~textDocument: {uri; version = None}
-            ~edits: [`TextEdit {newText = addr; range}]
+            ~edits: [`TextEdit {newText = Format.asprintf "\\transclude{%s}" addr; range}]
         )
     ]
     ()
