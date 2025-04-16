@@ -20,7 +20,6 @@ let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let config = forest.config in
   let uri = URI_scheme.lsp_uri_to_uri ~base: config.url params.textDocument.uri in
-  (* match Forest.find_opt forest.parsed  with *)
   let@ {nodes; _} = Option.map @~ Option.bind forest.={uri} Tree.to_code in
   let@ (Range.{loc; _} as node) = List.filter_map @~ Analysis.flatten nodes in
   match Option.map Range.view loc with

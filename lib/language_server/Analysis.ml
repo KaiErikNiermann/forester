@@ -76,7 +76,6 @@ let extract_addr (node : Code.node Range.located) =
   match node.value with
   | Group (Braces, [{value = Text addr; _}])
   | Group (Parens, [{value = Text addr; _}])
-  | Group (Squares, [{value = Group (Squares, [{value = Text addr; _}]); _}])
   | Text addr
   | Import (_, addr) ->
     Some (Range.{value = addr; loc = node.loc})
