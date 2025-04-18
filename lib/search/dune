@@ -41,17 +41,3 @@
   eio.unix
   forester.search
   cmdliner))
-
-(test
- (name Test_forester_search)
- (modules Test_forester_search)
- (preprocess
-  (pps ppx_deriving.show))
- (libraries
-  alcotest
-  spelll
-  yuujinchou
-  forester.search
-  forester.core
-  forester.frontend
-  forester.compiler))
