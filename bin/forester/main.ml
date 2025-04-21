@@ -145,7 +145,7 @@ git -C theme checkout %s
   Eio_util.try_create_file ~cwd ~content: "output/" ".gitignore";
   Eio_util.try_create_file ~cwd ~content: "" "assets/.gitkeep";
   Eio_util.try_create_file ~cwd ~content: index_tree_str "trees/index.tree";
-  Reporter.emit Log ~extra_remarks: [Asai.Diagnostic.loctextf "%s" "Initialized forest, try editing `trees/index.tree` and running `forester build`. Afterwards, you can open `output/index.xml` in your browser to view your forest."]
+  Reporter.emit Log ~extra_remarks: [Asai.Diagnostic.loctextf "%s" "Initialized forest, try editing `trees/index.tree` and running `forester build`. Afterwards, you can open `output/indexin your browser to view your forest."]
 
 let arg_config =
   let doc = "A TOML file like $(i,forest.toml)" in
