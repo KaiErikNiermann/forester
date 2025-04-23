@@ -116,8 +116,8 @@ module Notification = struct
       (* | DidCreateFiles params -> Did_create_files.compute params *)
       | DidSaveTextDocument _ -> ()
       | TextDocumentDidClose _ -> ()
-      | _ ->
-        raise @@ Lsp_error (Unknown_notification mthd)
+      | CancelRequest _ -> ()
+      | _ -> raise @@ Lsp_error (Unknown_notification mthd)
 
   let handle (msg : RPC.Notification.t) =
     Eio.traceln "Request: %s@." msg.method_;
