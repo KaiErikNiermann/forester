@@ -92,9 +92,6 @@ let uri_completion : completion_kind =
   in
   let code (context : _ Analysis.Context.t) =
     match context with
-    (* | Prev (Asai.Range.{value = Code.Ident ["route-asset"]; _}, _) *)
-    (* | Prev (_, Asai.Range.{value = Code.Ident ["route-asset"]; _}) -> *)
-    (* S.singleton Assets *)
     | Prev (_, _)
     | Parent _
     | Top _ ->
@@ -107,7 +104,10 @@ let uri_completion : completion_kind =
   {text; code; syn}
 
 let new_uri_completion : completion_kind =
-  let text context = Option.map (Fun.const New_addr) (uri_completion.text context) in
+  let text context =
+    if Str.(string_match (regexp {|.*subtree\[.*|}) context 0) then Some New_addr
+    else None
+  in
   let code context = Option.map (Fun.const New_addr) (uri_completion.code context) in
   let syn context = Option.map (Fun.const New_addr) (uri_completion.syn context) in
   {text; code; syn}
@@ -276,6 +276,7 @@ module Syntax = struct
       ()
 end
 
+(* Incomplete. The idea here is to create clever snippets for specific syntax items. *)
 let syntax_completions =
   [
     ("startverb", "startverb");
@@ -337,9 +338,9 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
         List.of_seq @@
           let@ uri, tree = Seq.map @~ URI.Tbl.to_seq forest.index in
           let frontmatter = Tree.get_frontmatter tree in
+          let title = Option.map (State.get_expanded_title @~ forest) frontmatter in
+          let render = Plain_text_client.string_of_content ~forest in
           let documentation =
-            let render = Plain_text_client.string_of_content ~forest in
-            let title = Option.map (State.get_expanded_title @~ forest) frontmatter in
             let taxon = Option.bind frontmatter (fun fm -> fm.taxon) in
             let content =
               Format.asprintf
@@ -357,7 +358,14 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
             | Some "[" -> URI_scheme.name uri ^ "]"
             | _ -> ""
           in
-          L.CompletionItem.create ?documentation ~label: (URI_scheme.name uri) ~insertText ()
+          let title_text = Option.map render title in
+          let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
+          L.CompletionItem.create
+            ?documentation
+            ~label: (URI_scheme.name uri)
+            ~insertText
+            ~filterText
+            ()
       | New_addr ->
         let@ prefix = List.concat_map @~ config.prefixes in
         let next mode = fst @@ URI_util.next_uri ~prefix: (Some prefix) ~mode ~forest in
