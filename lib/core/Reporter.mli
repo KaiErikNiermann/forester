@@ -46,7 +46,6 @@ sig
       ]
     | Resolution_warning
     | Reference_error of URI.t
-    | Duplicate_attribute
     | Unhandled_case
     | Transclusion_loop
     | Internal_error

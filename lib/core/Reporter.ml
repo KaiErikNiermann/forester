@@ -52,7 +52,6 @@ module Message = struct
       ]
     | Resolution_warning
     | Reference_error of URI.t
-    | Duplicate_attribute
     | Unhandled_case
     | Transclusion_loop
     | Internal_error
@@ -84,7 +83,6 @@ module Message = struct
     | Type_warning -> Warning
     | Resolution_error _ -> Error
     | Resolution_warning -> Warning
-    | Duplicate_attribute -> Error
     | Unhandled_case -> Bug
     | Transclusion_loop -> Error
     | Internal_error -> Bug
@@ -115,7 +113,6 @@ module Message = struct
     | Expansion_error _ -> "expansion_error"
     | Resolution_warning -> "resolution_warning"
     | Reference_error _ -> "reference_error"
-    | Duplicate_attribute -> "duplicate_attribute"
     | Unhandled_case -> "unhandled_case"
     | Transclusion_loop -> "transclusion_loop"
     | Internal_error -> "internal_error"
@@ -130,16 +127,16 @@ module Message = struct
     | Log -> "log"
     | Missing_argument -> "missing_argument"
 
-  let show_value : Value.t -> string = function
+  let this_is : Value.t -> string = function
     | Value.Content _ -> "content"
-    | Value.Clo (_, _, _) -> "closure"
-    | Value.Dx_prop _ -> "datalog proposition"
-    | Value.Dx_sequent _ -> "datalog sequent"
-    | Value.Dx_query _ -> "datalog query"
-    | Value.Dx_var _ -> "datalog variable"
-    | Value.Dx_const _ -> "datalog constant"
-    | Value.Sym _ -> "symbol"
-    | Value.Obj _ -> "object"
+    | Value.Clo (_, _, _) -> "a closure"
+    | Value.Dx_prop _ -> "a datalog proposition"
+    | Value.Dx_sequent _ -> "a datalog sequent"
+    | Value.Dx_query _ -> "a datalog query"
+    | Value.Dx_var _ -> "a datalog variable"
+    | Value.Dx_const _ -> "a datalog constant"
+    | Value.Sym _ -> "a symbol"
+    | Value.Obj _ -> "an object"
 
   let show_expected_value : expected_value -> string = function
     | Content -> "content"
@@ -151,7 +148,7 @@ module Message = struct
     | Dx_sequent -> "a datalog sequent"
     | Dx_prop -> "a datalog proposition"
     | Datalog_term -> "a datalog term"
-    | Node -> "a node" (* This might be hard to understand*)
+    | Node -> "a node" (* This might be hard to understand for the end user*)
     | URI -> "a URI"
     | Argument -> "an argument"
 
@@ -179,13 +176,33 @@ module Message = struct
           match got with
           | None -> Asai.Diagnostic.textf ""
           | Some v ->
-            Asai.Diagnostic.textf " but this is %s" (show_value v)
+            Asai.Diagnostic.textf " but this is %s" (this_is v)
         in
-        Asai.Diagnostic.textf "%t%t." expected_msg got_msg
+        let hint =
+          match got with
+          | Some Value.Clo (_, _, _) -> Asai.Diagnostic.textf "Did you forget to supply an argument?"
+          | Some Value.Content _
+          | Some Value.Dx_prop _
+          | Some Value.Dx_sequent _
+          | Some Value.Dx_query _
+          | Some Value.Dx_var _
+          | Some Value.Dx_const _
+          | Some Value.Sym _
+          | Some Value.Obj _
+          | None ->
+            Asai.Diagnostic.textf ""
+        in
+        Asai.Diagnostic.textf "%t%t.\n%t" expected_msg got_msg hint
       end
     | Asset_not_found msg -> Asai.Diagnostic.text msg
+    | Unbound_method (mthd, {prototype; methods}) ->
+      let method_names = List.map fst @@ Value.Method_table.to_list methods in
+      Asai.Diagnostic.textf
+        "Unbound method %s. Available methods are:@.%a"
+        mthd
+        Format.(pp_print_list (fun ppf s -> fprintf ppf "   %s" s))
+        method_names
     | Invalid_URI
-    | Unbound_method _
     | Asset_has_no_content_address _
     | Reference_error _
     | Tree_not_found _
@@ -194,7 +211,6 @@ module Message = struct
     | Type_warning
     | Resolution_error _
     | Resolution_warning
-    | Duplicate_attribute
     | Unhandled_case
     | Transclusion_loop
     | Internal_error
