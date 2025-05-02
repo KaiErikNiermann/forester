@@ -32,10 +32,13 @@ let renderer =
 let arg_logs = Term.(const setup_logs $ renderer $ verbosity)
 
 let version =
-  Format.asprintf "%s" @@
+  let major =
     match Build_info.V1.version () with
     | None -> "n/a"
     | Some v -> Build_info.V1.Version.to_string v
+  in
+  let commit = String.trim [%blob "version.txt"] in
+  Format.asprintf "%s %s" major commit
 
 let build ~env _ config_filename dev no_theme =
   Reporter.easy_run @@ fun () ->

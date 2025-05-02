@@ -17,6 +17,18 @@
   min.js
   (glob_files_rec theme/*)))
 
+(rule
+ (deps (universe))
+ (action
+  (with-stdout-to
+   version.txt
+   (progn
+    (echo "Forester development version -- built from commit ")
+    (system
+     "(git show -s --format=%h 2>/dev/null || echo '(unknown)') | tr -d '\n'")
+    (echo " on ")
+    (system "date +'%Y-%m-%d'")))))
+
 (executable
  (public_name forester)
  (name main)
@@ -25,7 +37,9 @@
  (link_flags
   (:standard -g))
  (preprocess
-  (pps ppx_deriving.show))
+  (pps ppx_deriving.show ppx_blob))
+ (preprocessor_deps
+  (file version.txt))
  (modules main theme_site)
  (libraries
   forester.prelude
