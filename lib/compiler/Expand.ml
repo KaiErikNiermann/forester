@@ -171,11 +171,6 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       let x = expand_eff ~forest x in
       {node with value = Group (d, x)} :: expand_eff ~forest rest
     | Subtree (addr, nodes) ->
-      let identity =
-        match addr with
-        | Some addr -> Tree.URI (URI_scheme.named_uri ~base: forest.config.url addr)
-        | None -> Tree.Anonymous
-      in
       let nodes =
         let@ () = Sc.section [] in
         expand_eff ~forest nodes
