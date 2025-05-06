@@ -362,7 +362,7 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
           let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
           L.CompletionItem.create
             ?documentation
-            ~label: (URI_scheme.name uri)
+            ~label: (Format.(asprintf "%a (%s)" (pp_print_option pp_print_string) title_text (URI_scheme.name uri)))
             ~insertText
             ~filterText
             ()
