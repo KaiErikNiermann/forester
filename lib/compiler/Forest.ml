@@ -151,19 +151,6 @@ let get_article
     None
   | Some (T.Article article) -> Some article
 
-let plant_resource (resource : resource) (graphs : (module Forest_graphs.S)) (resources : resource t) : unit =
-  let module Graphs = (val graphs) in
-  analyse_resource graphs resource;
-  let@ uri = Option.iter @~ T.uri_for_resource resource in
-  let uri = URI.canonicalise uri in
-  Graphs.register_uri uri;
-  match URI.Tbl.mem resources uri with
-  | false ->
-    (* Graphs.register_uri uri; *)
-    add resources uri resource
-  | true ->
-    ()
-
 let rec get_expanded_title ?scope ?(flags = T.{empty_when_untitled = false}) (frontmatter : _ T.frontmatter) forest =
   let short_title =
     match frontmatter.title with

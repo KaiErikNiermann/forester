@@ -35,12 +35,6 @@ val run_datalog_query :
   (string, Forester_core.Vertex.t) Dx.query ->
   Forester_core.Vertex_set.t
 
-val plant_resource :
-  T.content T.resource ->
-  (module Forest_graphs.S) ->
-  T.content T.resource t ->
-  unit
-
 val get_expanded_title :
   ?scope: key ->
   ?flags: T.title_flags ->
