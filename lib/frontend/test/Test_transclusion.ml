@@ -42,7 +42,7 @@ let () =
   URI.Tbl.add index uri @@
     Tree.Resource
       {
-        tree =
+        resource =
         T.Article
           {
             frontmatter =
@@ -53,7 +53,8 @@ let () =
             mainmatter = Content [Text "Hello"];
             backmatter = Content []
           };
-        expanded = None
+        expanded = None;
+        route_locally = true
       };
   let forest = {(State.make ~env ~config ~dev: false ()) with index} in
   let print_transclusion : T.transclusion -> unit = fun t ->

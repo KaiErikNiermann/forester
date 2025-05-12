@@ -159,18 +159,17 @@ let check_status _uri (forest : State.t) =
 
 let implant_foreign (state : State.t) : State.t * _ =
   begin
-    let foreign_paths = Eio_util.paths_of_files ~env: state.env state.config.foreign in
-    Logs.debug (fun m -> m "implanting %i foreign paths" (List.length foreign_paths));
+    Logs.debug (fun m -> m "implanting %i foreign forests" (List.length state.config.foreign));
     let module EP = Eio.Path in
-    let@ path = List.iter @~ foreign_paths in
+    let@ foreign = List.iter @~ state.config.foreign in
+    let path = Eio_util.path_of_file ~env: state.env foreign.path in
     let path_str = EP.native_exn path in
     Reporter.log Format.pp_print_string (Format.sprintf "Implant foreign forest from `%s'" path_str);
     let blob = try EP.load path with _ -> Reporter.fatal IO_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not read foreign forest blob at `%s`" path_str] in
     match Repr.of_json_string (T.forest_t T.content_t) blob with
     | Ok foreign_forest ->
-      List.iter
-        (fun r -> State.plant_resource r state)
-        foreign_forest
+      let@ r = List.iter @~ foreign_forest in
+      State.plant_resource ~route_locally: foreign.route_locally r state
     | Error (`Msg err) ->
       Reporter.fatal Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not parse foreign forest blob: %s" err]
     | exception exn ->

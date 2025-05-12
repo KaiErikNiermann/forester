@@ -82,10 +82,23 @@ let parse lexbuf filename =
       with_default ~value: default.trees k (forest |-- key "trees" |-- array |-- strings)
     in
     let foreign =
-      with_default
-        ~value: default.foreign
-        ["forest"; "foreign"]
-        (forest |-- key "foreign" |-- array |-- strings)
+      let k = ["forest"; "foreign"] in
+      match get tbl (forest |-- key "foreign" |-- array |-- tables) with
+      | None -> default.foreign
+      | Some foreign_tbls ->
+        keys := Key_set.remove k !keys;
+        let@ foreign_tbl = List.map @~ foreign_tbls in
+        let path =
+          match get foreign_tbl (key "path" |-- string) with
+          | None -> Reporter.fatal (Required_config_option "path")
+          | Some path -> path
+        in
+        let route_locally =
+          match get foreign_tbl @@ (key "route_locally" |-- bool) with
+          | None -> true
+          | Some b -> b
+        in
+        Config.{path; route_locally}
     in
     let assets =
       with_default
@@ -100,9 +113,9 @@ let parse lexbuf filename =
         (renderer |-- key "theme" |-- string)
     in
     let home =
-      let k = ["renderer"; "home"] in
+      let k = ["forest"; "home"] in
       URI_scheme.named_uri ~base: url @@
-        with_default ~value: "index" k (renderer |-- key "home" |-- string)
+        with_default ~value: "index" k (forest |-- key "home" |-- string)
     in
     let prefixes =
       with_default
@@ -117,7 +130,7 @@ let parse lexbuf filename =
           |> Key_set.to_list
           |> List.map (List.map (Toml.Types.Table.Key.to_string))
         in
-        Reporter.emit (Unknown_config_options keys);
+        Reporter.emit (Uninterpreted_config_options keys);
     end;
     Config.{url; assets; trees; foreign; theme; home; prefixes}
 

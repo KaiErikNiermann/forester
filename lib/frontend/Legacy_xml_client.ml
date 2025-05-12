@@ -39,9 +39,12 @@ let local_base_url_string (config : Config.t) =
 let route (forest : State.t) uri : URI.t =
   match forest.={uri} with
   | None -> uri
-  | Some _ ->
-    let path = "" :: local_path_components forest.config uri in
-    URI.make ~path ()
+  | Some tree ->
+    match Tree.to_evaluated tree with
+    | Some evaluated when evaluated.route_locally ->
+      let path = "" :: local_path_components forest.config uri in
+      URI.make ~path ()
+    | _ -> uri
 
 module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
 module Loop_detection = Loop_detection_effect.Make ()

@@ -28,7 +28,7 @@ let ranked_search
         List.filter_map
           (fun (_, uri) ->
             match URI.Tbl.find_opt forest.index uri with
-            | Some (Resource ({tree = T.Article a; _})) ->
+            | Some (Resource ({resource = T.Article a; _})) ->
               Some (uri, Index.BM_25.score a terms forest.search_index)
             | None -> assert false
             | _ -> None

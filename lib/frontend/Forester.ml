@@ -149,17 +149,20 @@ let outputs_for_syndication ~(forest : State.t) = function
   | T.Json_blob syndication -> outputs_for_json_blob_syndication ~forest syndication
   | T.Atom_feed syndication -> outputs_for_atom_feed_syndication ~forest syndication
 
-let outputs_for_resource ~(forest : State.t) = function
-  | T.Article article -> outputs_for_article ~forest article
-  | T.Asset asset -> outputs_for_asset asset
-  | T.Syndication syndication -> outputs_for_syndication ~forest syndication
+let outputs_for_resource ~(forest : State.t) (evaluated : Tree.evaluated) =
+  if not evaluated.route_locally then []
+  else
+    match evaluated.resource with
+    | T.Article article -> outputs_for_article ~forest article
+    | T.Asset asset -> outputs_for_asset asset
+    | T.Syndication syndication -> outputs_for_syndication ~forest syndication
 
 let uri_to_local_path ~(forest : State.t) uri =
   String.concat "/" @@ Legacy_xml_client.local_path_components forest.config uri
 
 let render_forest ~dev ~(forest : State.t) : unit =
   let cwd = Eio.Stdenv.cwd forest.env in
-  let all_resources = forest |> State.get_all_resources in
+  let all_resources = forest |> State.get_all_evaluated in
   Logs.debug (fun m -> m "Rendering %i resources" (Seq.length all_resources));
   begin
     let json_string = json_manifest ~dev ~forest in

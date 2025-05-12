@@ -59,9 +59,9 @@ sig
     | IO_error
     | Log
     | Missing_argument
-    | Unknown_config_options of string list list
+    | Uninterpreted_config_options of string list list
     | Using_default_option of string list
-    | Optional_config_omitted of string list
+    | Required_config_option of string
 
   val pp :
     Ppx_deriving_runtime.Format.formatter ->

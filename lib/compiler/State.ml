@@ -84,7 +84,7 @@ module Syntax = struct
     | Some (Expanded (_))
     | None ->
       None
-    | Some (Resource res) -> Some res.tree
+    | Some (Resource res) -> Some res.resource
 end
 
 open Syntax
@@ -124,6 +124,11 @@ let get_all_articles : t -> T.content T.article Seq.t = fun state ->
   |> URI.Tbl.to_seq_values
   |> Seq.filter_map to_article
 
+let get_all_evaluated : t -> evaluated Seq.t = fun state ->
+  state.index
+  |> URI.Tbl.to_seq_values
+  |> Seq.filter_map to_evaluated
+
 let get_all_resources : t -> T.content T.resource Seq.t = fun state ->
   state.index
   |> URI.Tbl.to_seq_values
@@ -146,8 +151,8 @@ let get_article : URI.t -> t -> T.content T.article option = fun uri forest ->
   | Some (Parsed _)
   | Some (Expanded _) ->
     None
-  | Some (Resource {tree; _}) ->
-    match tree with
+  | Some (Resource {resource; _}) ->
+    match resource with
     | T.Article a -> Some a
     | _ -> None
 
@@ -205,7 +210,7 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
       | None -> not_found uri
     end
 
-let plant_resource resource forest =
+let plant_resource ?(route_locally = true) resource forest =
   let module Graphs = (val forest.graphs) in
   Forest.analyse_resource forest.graphs resource;
   let@ uri = Option.iter @~ T.uri_for_resource resource in
@@ -213,11 +218,11 @@ let plant_resource resource forest =
   Graphs.register_uri uri;
   match forest.={uri} with
   | None ->
-    forest.={uri} <- Resource {tree = resource; expanded = None}
+    forest.={uri} <- Resource {resource; expanded = None; route_locally}
   | Some (Tree.Expanded syn) ->
-    forest.={uri} <- Resource {tree = resource; expanded = Some syn}
+    forest.={uri} <- Resource {resource; expanded = Some syn; route_locally}
   | _ ->
-    forest.={uri} <- Resource {tree = resource; expanded = None}
+    forest.={uri} <- Resource {resource; expanded = None; route_locally}
 
 let serialize_graphs
   : (module Forest_graphs.S) -> 'a

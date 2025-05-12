@@ -44,7 +44,8 @@ type syn = {
 [@@deriving show]
 
 type evaluated = {
-  tree: T.content T.resource;
+  resource: T.content T.resource;
+  route_locally: bool;
   expanded: syn option;
 }
 [@@deriving show]
@@ -65,7 +66,7 @@ let show_phase = function
 let get_source_path ~base tree =
   match tree with
   | Document doc -> Some (Lsp.Uri.to_path (Lsp.Text_document.documentUri doc))
-  | Resource {tree = resource; _} ->
+  | Resource {resource; _} ->
     begin
       match resource with
       | T.Article article -> article.frontmatter.source_path
@@ -112,20 +113,27 @@ let to_resource : t -> T.content T.resource option = function
   | Parsed _
   | Expanded _ ->
     None
-  | Resource {tree; _;} -> Some tree
+  | Resource {resource; _;} -> Some resource
+
+let to_evaluated : t -> evaluated option = function
+  | Document _
+  | Parsed _
+  | Expanded _ ->
+    None
+  | Resource evaluated -> Some evaluated
 
 let to_article : t -> T.content T.article option = function
   | Document _
   | Parsed _
   | Expanded _ ->
     None
-  | Resource {tree; _;} ->
-    match tree with
+  | Resource {resource; _;} ->
+    match resource with
     | T.Article a -> Some a
     | _ -> None
 
 let get_frontmatter : t -> T.content T.frontmatter option = function
-  | Resource {tree = Types.Article {frontmatter; _}; _} -> Some frontmatter
+  | Resource {resource = Types.Article {frontmatter; _}; _} -> Some frontmatter
   | _ -> None
 
 let to_code : t -> code option = function
@@ -180,8 +188,8 @@ let is_unevaluated = function
 
 let is_asset = function
   | Document _ | Parsed _ | Expanded _ -> false
-  | Resource {tree; _} ->
-    match tree with
+  | Resource {resource; _} ->
+    match resource with
     | T.Asset _ -> true
     | _ -> false
 

@@ -18,7 +18,7 @@ let test_parsing () =
       assets = [];
       url = URI.of_string_exn "https://www.forester-notes.org/";
       home = URI.of_string_exn "https://www.forester-notes.org/index/";
-      foreign = ["foreign/forest.json"];
+      foreign = [{path = "foreign/forest.json"; route_locally = true}];
       theme = "theme";
     }
     begin

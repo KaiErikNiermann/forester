@@ -65,9 +65,9 @@ module Message = struct
     | IO_error
     | Log
     | Missing_argument
-    | Unknown_config_options of string list list
+    | Uninterpreted_config_options of string list list
     | Using_default_option of string list
-    | Optional_config_omitted of string list
+    | Required_config_option of string
   [@@deriving show]
 
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -99,8 +99,9 @@ module Message = struct
     | Broken_link _ -> Warning
     | IO_error -> Error
     | Missing_argument -> Error
-    | Unknown_config_options _ -> Warning
-    | Using_default_option _ | Optional_config_omitted _ -> Info
+    | Uninterpreted_config_options _ -> Warning
+    | Using_default_option _ -> Info
+    | Required_config_option string -> Error
 
   let short_code : t -> string = function
     | Import_not_found _ -> "import_not_found"
@@ -131,9 +132,9 @@ module Message = struct
     | IO_error -> "io_error"
     | Log -> "log"
     | Missing_argument -> "missing_argument"
-    | Unknown_config_options _ -> "unknown_config_option"
+    | Uninterpreted_config_options _ -> "unknown_config_option"
     | Using_default_option _ -> "using_default_option"
-    | Optional_config_omitted _ -> "optional_config_omitted"
+    | Required_config_option _ -> "required_config_option"
 
   let this_is : Value.t -> string = function
     | Value.Content _ -> "content"
@@ -210,9 +211,9 @@ module Message = struct
         mthd
         Format.(pp_print_list (fun ppf s -> fprintf ppf "   %s" s))
         method_names
-    | Unknown_config_options keys ->
+    | Uninterpreted_config_options keys ->
       Asai.Diagnostic.textf
-        "Unknown configuration option%s:@.%a@."
+        "Uninterpreted config option%s: %a"
         (
           if List.length keys = 1 then ""
           else if List.length keys > 1 then "s"
@@ -220,7 +221,7 @@ module Message = struct
         )
         Format.(
           pp_print_list
-            ~pp_sep: (fun out () -> fprintf out "@.")
+            ~pp_sep: (fun out () -> fprintf out ", ")
             (fun ppf k ->
               fprintf ppf "%a" (pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string) k
             )
@@ -231,11 +232,8 @@ module Message = struct
         "Configuration option %a is not set. Using default value."
         Format.(pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string)
         k
-    | Optional_config_omitted k ->
-      Asai.Diagnostic.textf
-        "Optional configuration option %a is not set. No action is required."
-        Format.(pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string)
-        k
+    | Required_config_option k ->
+      Asai.Diagnostic.textf "Required option %s is not set." k
     | Invalid_URI
     | Asset_has_no_content_address _
     | Reference_error _

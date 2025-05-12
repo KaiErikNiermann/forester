@@ -4,10 +4,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+type foreign = {
+  path: string;
+  route_locally: bool
+}
+[@@deriving show]
+
 type t = {
   trees: string list;
   assets: string list;
-  foreign: string list;
+  foreign: foreign list;
   theme: string;
   url: URI.t;
   home: URI.t;
