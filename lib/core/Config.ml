@@ -14,7 +14,6 @@ type t = {
   trees: string list;
   assets: string list;
   foreign: foreign list;
-  theme: string;
   url: URI.t;
   home: URI.t;
   prefixes: string list;
@@ -25,7 +24,6 @@ let default ?(url = URI.of_string_exn "http://localhost/") () : t = {
   trees = ["trees"];
   assets = [];
   foreign = [];
-  theme = "theme";
   url;
   home = URI_scheme.named_uri ~base: url "index";
   prefixes = [];

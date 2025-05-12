@@ -63,7 +63,6 @@ let parse lexbuf filename =
     in
     (* Format.printf "%a" pp_keys keys; *)
     let forest = key "forest" |-- table in
-    let renderer = key "renderer" |-- table in
     let url =
       match get tbl (forest |-- key "url" |-- string) with
       | Some url ->
@@ -106,12 +105,6 @@ let parse lexbuf filename =
         ["forest"; "assets"]
         (forest |-- key "assets" |-- array |-- strings)
     in
-    let theme =
-      with_default
-        ~value: default.theme
-        ["renderer"; "theme"]
-        (renderer |-- key "theme" |-- string)
-    in
     let home =
       let k = ["forest"; "home"] in
       URI_scheme.named_uri ~base: url @@
@@ -132,7 +125,7 @@ let parse lexbuf filename =
         in
         Reporter.emit (Uninterpreted_config_options keys);
     end;
-    Config.{url; assets; trees; foreign; theme; home; prefixes}
+    Config.{url; assets; trees; foreign; home; prefixes}
 
 let parse_forest_config_string str =
   let lexbuf = Lexing.from_string str in

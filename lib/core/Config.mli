@@ -14,7 +14,6 @@ type t = {
   trees: string list;
   assets: string list;
   foreign: foreign list;
-  theme: string;
   url: URI.t;
   home: URI.t;
   prefixes: string list; (* TODO: remove this as we no longer advocate using prefixes at all *)

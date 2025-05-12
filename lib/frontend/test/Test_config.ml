@@ -19,7 +19,6 @@ let test_parsing () =
       url = URI.of_string_exn "https://www.forester-notes.org/";
       home = URI.of_string_exn "https://www.forester-notes.org/index/";
       foreign = [{path = "foreign/forest.json"; route_locally = true}];
-      theme = "theme";
     }
     begin
       Forester_core.Reporter.easy_run @@ fun () ->
@@ -39,7 +38,6 @@ let test_missing_fields () =
     "is the same"
     Config.{
       trees = ["trees"];
-      theme = "theme";
       assets = [];
       foreign = [];
       url = URI.of_string_exn "/";

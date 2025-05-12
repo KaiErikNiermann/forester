@@ -50,7 +50,7 @@ let build ~env _ config_filename dev no_theme =
   begin
     if not no_theme then
       let@ () = Reporter.trace "when copying theme directory" in
-      Forester.copy_contents_of_dir ~env ~forest @@ Eio_util.path_of_dir ~env config.theme
+      Forester.copy_contents_of_dir ~env ~forest @@ Eio_util.path_of_dir ~env "theme"
   end;
   Forester.render_forest ~dev ~forest;
   Logs.app (fun m -> m "Success!")
@@ -80,7 +80,6 @@ let default_config_str =
   {|[forest]
 trees = ["trees" ]  # The directories in which your trees are stored
 assets = ["assets"] # The directories in which your assets are stored
-theme = "theme"     # The directory in which your theme is stored
 url = "https://www.my-great-forest.net/" # Replace this with your own domain or web storage. If you don't have one, you can use "http://localhost/"; the URL given here does not matter unless you plan to publish your forest.
 |}
 
