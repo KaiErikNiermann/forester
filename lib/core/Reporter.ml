@@ -99,7 +99,7 @@ module Message = struct
     | IO_error -> Error
     | Missing_argument -> Error
     | Unknown_config_options _ -> Warning
-    | Using_default_option _ -> Warning
+    | Using_default_option _ -> Info
 
   let short_code : t -> string = function
     | Import_not_found _ -> "import_not_found"
