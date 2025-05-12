@@ -18,7 +18,6 @@ module Key_set = struct
   let remove : string list -> t -> t = fun strs set ->
     let key = List.map Toml.Types.Table.Key.of_string strs in
     remove key set
-  (* let remove  *)
 end
 
 let keys (tbl : Toml.Types.value Toml.Types.Table.t) =
