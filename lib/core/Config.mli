@@ -20,5 +20,6 @@ type t = {
 }
 [@@deriving show]
 
+val default_url: URI.t
 val default : ?url: URI.t -> unit -> t
 val home_uri : t -> URI.t

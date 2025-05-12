@@ -20,7 +20,9 @@ type t = {
 }
 [@@deriving show, repr]
 
-let default ?(url = URI.of_string_exn "http://localhost/") () : t = {
+let default_url = URI.of_string_exn "http://forest.local/"
+
+let default ?(url = default_url) () : t = {
   trees = ["trees"];
   assets = [];
   foreign = [];

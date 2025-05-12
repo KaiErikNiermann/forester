@@ -61,19 +61,21 @@ let parse lexbuf filename =
         keys := Key_set.remove k !keys;
         v
     in
-    (* Format.printf "%a" pp_keys keys; *)
     let forest = key "forest" |-- table in
     let url =
+      let k = ["forest"; "url"] in
       match get tbl (forest |-- key "url" |-- string) with
       | Some url ->
-        keys := Key_set.remove ["forest"; "url"] !keys;
+        keys := Key_set.remove k !keys;
         begin
           try
             URI.of_string_exn url
           with
             | _ -> Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "Invalid URL specified in `url` key."]
         end
-      | None -> Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "You need to set the `url' key in your configuration file; this should be a URL like `https://www.my-great-forest.org/` or `http://localhost/`. Even if you do not plan to publish your forest, please choose a URL."]
+      | None ->
+        Reporter.emit (Using_default_option k);
+        Config.default_url
     in
     let default = Config.default ~url () in
     let trees =
