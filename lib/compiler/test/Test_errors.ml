@@ -48,7 +48,7 @@ let check_diagnostic expect kont =
 
 let () =
   let@ env = Eio_main.run in
-  let config = Config.default in
+  let config = Config.default () in
   let _test () =
     let@ tmp_dir = with_test_forest ~env ~raw_trees ~config in
     Sys.chdir (Eio.Path.native_exn tmp_dir);

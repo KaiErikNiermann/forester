@@ -17,7 +17,7 @@ open struct module T = Types end
 open struct
   module S = Resolver.Scope
   module P = Resolver.P
-  let config = Config.default
+  let config = Config.default ()
   let _data = Alcotest.testable P.pp_data (=)
 end
 
@@ -33,7 +33,7 @@ let render ~forest expanded =
     (fun expanded ->
       let Eval.{articles; _}, _ =
         Eval.eval_tree
-          ~config: Config.default
+          ~config: (Config.default ())
           ~uri: (URI.of_string_exn "http://localhost/test")
           ~source_path: None
           expanded

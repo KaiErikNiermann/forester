@@ -87,7 +87,7 @@ module Broken_link = struct
   let test_case ~env ~config = error_run ~env ~config ~raw_trees
 end
 
-let config = Config.default
+let config = Config.default ()
 
 let () =
   let@ env = Eio_main.run in

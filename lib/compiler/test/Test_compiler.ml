@@ -13,7 +13,7 @@ open State.Syntax
 
 open struct module T = Types end
 
-let config = Config.default
+let config = Config.default ()
 
 let raw_trees =
   let t1 = {path = "t1.tree"; content = {||}} in
@@ -58,7 +58,7 @@ let test_batch_run ~env () =
 
 let test_includes_paths ~env () =
   let@ () = Reporter.easy_run in
-  let config = Config.default in
+  let config = Config.default () in
   with_test_forest ~raw_trees ~env ~config (fun path ->
     Sys.chdir (Eio.Path.native_exn path);
     let@ () = Reporter.easy_run in
@@ -95,7 +95,7 @@ let test_includes_paths ~env () =
   )
 
 let test_reparsing ~env () =
-  let config = Config.default in
+  let config = Config.default () in
   let@ tmp_path = with_test_forest ~raw_trees ~env ~config in
   Logs.app (fun m -> m "In temp dir %s" (Unix.realpath @@ Eio.Path.native_exn tmp_path));
   let@ () = Reporter.easy_run in

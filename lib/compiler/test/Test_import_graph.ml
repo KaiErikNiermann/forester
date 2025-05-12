@@ -12,7 +12,7 @@ open Testables
 
 open struct module T = Types end
 
-let config = {Config.default with trees = ["imports"]}
+let config = {(Config.default ()) with trees = ["imports"]}
 
 let mk_vertex v = T.Uri_vertex (URI_scheme.named_uri ~base:config.url v)
 

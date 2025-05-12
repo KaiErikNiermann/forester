@@ -61,6 +61,7 @@ sig
     | Missing_argument
     | Unknown_config_options of string list list
     | Using_default_option of string list
+    | Optional_config_omitted of string list
 
   val pp :
     Ppx_deriving_runtime.Format.formatter ->

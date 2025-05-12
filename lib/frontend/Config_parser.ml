@@ -51,7 +51,7 @@ let parse lexbuf filename =
   | `Ok tbl ->
     let open Toml.Lenses in
     let keys = ref (keys tbl) in
-    let optional ~value k lens =
+    let with_default ~value k lens =
       let open Toml.Lenses in
       match get tbl lens with
       | None ->
@@ -76,37 +76,37 @@ let parse lexbuf filename =
         end
       | None -> Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "You need to set the `url' key in your configuration file; this should be a URL like `https://www.my-great-forest.org/` or `http://localhost/`. Even if you do not plan to publish your forest, please choose a URL."]
     in
+    let default = Config.default ~url () in
     let trees =
       let k = ["forest"; "trees"] in
-      optional ~value: Config.default.trees k (forest |-- key "trees" |-- array |-- strings)
+      with_default ~value: default.trees k (forest |-- key "trees" |-- array |-- strings)
     in
     let foreign =
-      optional
-        ~value: Config.default.foreign
+      with_default
+        ~value: default.foreign
         ["forest"; "foreign"]
         (forest |-- key "foreign" |-- array |-- strings)
     in
     let assets =
-      optional
-        ~value: Config.default.assets
+      with_default
+        ~value: default.assets
         ["forest"; "assets"]
         (forest |-- key "assets" |-- array |-- strings)
     in
     let theme =
-      optional
-        ~value: Config.default.theme
+      with_default
+        ~value: default.theme
         ["renderer"; "theme"]
         (renderer |-- key "theme" |-- string)
     in
     let home =
       let k = ["renderer"; "home"] in
-      keys := Key_set.remove k !keys;
-      Option.map (URI_scheme.named_uri ~base: url) @@
-        get tbl (renderer |-- key "home" |-- string)
+      URI_scheme.named_uri ~base: url @@
+        with_default ~value: "index" k (renderer |-- key "home" |-- string)
     in
     let prefixes =
-      optional
-        ~value: Config.default.prefixes
+      with_default
+        ~value: default.prefixes
         ["forest"; "prefixes"]
         (forest |-- key "prefixes" |-- array |-- strings)
     in

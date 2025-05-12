@@ -17,7 +17,7 @@ let test_parsing () =
       prefixes = ["foo"; "bar"; "baz"];
       assets = [];
       url = URI.of_string_exn "https://www.forester-notes.org/";
-      home = None;
+      home = URI.of_string_exn "https://www.forester-notes.org/index/";
       foreign = ["foreign/forest.json"];
       theme = "theme";
     }
@@ -43,7 +43,7 @@ let test_missing_fields () =
       assets = [];
       foreign = [];
       url = URI.of_string_exn "/";
-      home = None;
+      home = URI.of_string_exn "/index/";
       prefixes = [];
     }
     (

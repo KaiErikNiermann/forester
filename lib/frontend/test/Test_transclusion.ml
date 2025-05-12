@@ -16,7 +16,7 @@ open struct
   module HTML = Pure_html.HTML
 end
 
-let config = {Config.default with trees = ["transclude"]}
+let config = {(Config.default ()) with trees = ["transclude"]}
 let href = URI_scheme.named_uri ~base:config.url "transcludee"
 
 module Transclusions = struct

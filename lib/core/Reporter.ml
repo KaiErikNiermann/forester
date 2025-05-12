@@ -67,6 +67,7 @@ module Message = struct
     | Missing_argument
     | Unknown_config_options of string list list
     | Using_default_option of string list
+    | Optional_config_omitted of string list
   [@@deriving show]
 
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -99,7 +100,7 @@ module Message = struct
     | IO_error -> Error
     | Missing_argument -> Error
     | Unknown_config_options _ -> Warning
-    | Using_default_option _ -> Info
+    | Using_default_option _ | Optional_config_omitted _ -> Info
 
   let short_code : t -> string = function
     | Import_not_found _ -> "import_not_found"
@@ -132,6 +133,7 @@ module Message = struct
     | Missing_argument -> "missing_argument"
     | Unknown_config_options _ -> "unknown_config_option"
     | Using_default_option _ -> "using_default_option"
+    | Optional_config_omitted _ -> "optional_config_omitted"
 
   let this_is : Value.t -> string = function
     | Value.Content _ -> "content"
@@ -227,6 +229,11 @@ module Message = struct
     | Using_default_option k ->
       Asai.Diagnostic.textf
         "Configuration option %a is not set. Using default value."
+        Format.(pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string)
+        k
+    | Optional_config_omitted k ->
+      Asai.Diagnostic.textf
+        "Optional configuration option %a is not set. No action is required."
         Format.(pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string)
         k
     | Invalid_URI

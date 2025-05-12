@@ -124,7 +124,7 @@ let test_uri_completion () =
 
 let test_completion_types ~env () =
   let@ () = Reporter.easy_run in
-  let forest = State.make ~env ~config: Config.default ~dev: false () in
+  let forest = State.make ~env ~config: (Config.default ()) ~dev: false () in
   let result_1 =
     (*                                         0123456789012*)
     let code = Result.get_ok @@ parse_string {|\route-asset{}|} in
@@ -270,7 +270,7 @@ non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
   Alcotest.(check string) "" "irure" irure
 
 let test_enclosing_group ~env () =
-  let forest = State.make ~env ~config: Config.default ~dev: false () in
+  let forest = State.make ~env ~config: (Config.default ()) ~dev: false () in
   (*                                         012345678901234*)
   let code = Result.get_ok @@ parse_string {|\foo{\bar{baz}}|} in
   let expanded =

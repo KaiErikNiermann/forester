@@ -10,25 +10,22 @@ type t = {
   foreign: string list;
   theme: string;
   url: URI.t;
-  home: URI.t option;
+  home: URI.t;
   prefixes: string list;
 }
 [@@deriving show, repr]
 
-let default : t = {
+let default ?(url = URI.of_string_exn "http://localhost/") () : t = {
   trees = ["trees"];
   assets = [];
   foreign = [];
   theme = "theme";
-  url = URI.of_string_exn "http://localhost/";
-  home = None;
+  url;
+  home = URI_scheme.named_uri ~base: url "index";
   prefixes = [];
 }
 
 (* TODO: validate beforehand *)
 let base_uri {url; _} = url
 
-let home_uri config =
-  match config.home with
-  | Some uri -> uri
-  | None -> URI_scheme.named_uri ~base: config.url "index"
+let home_uri config = config.home
