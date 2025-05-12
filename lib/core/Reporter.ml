@@ -65,6 +65,8 @@ module Message = struct
     | IO_error
     | Log
     | Missing_argument
+    | Unknown_config_options of string list list
+    | Using_default_option of string list
   [@@deriving show]
 
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -96,6 +98,8 @@ module Message = struct
     | Broken_link _ -> Warning
     | IO_error -> Error
     | Missing_argument -> Error
+    | Unknown_config_options _ -> Warning
+    | Using_default_option _ -> Warning
 
   let short_code : t -> string = function
     | Import_not_found _ -> "import_not_found"
@@ -126,6 +130,8 @@ module Message = struct
     | IO_error -> "io_error"
     | Log -> "log"
     | Missing_argument -> "missing_argument"
+    | Unknown_config_options _ -> "unknown_config_option"
+    | Using_default_option _ -> "using_default_option"
 
   let this_is : Value.t -> string = function
     | Value.Content _ -> "content"
@@ -202,6 +208,27 @@ module Message = struct
         mthd
         Format.(pp_print_list (fun ppf s -> fprintf ppf "   %s" s))
         method_names
+    | Unknown_config_options keys ->
+      Asai.Diagnostic.textf
+        "Unknown configuration option%s:@.%a@."
+        (
+          if List.length keys = 1 then ""
+          else if List.length keys > 1 then "s"
+          else assert false
+        )
+        Format.(
+          pp_print_list
+            ~pp_sep: (fun out () -> fprintf out "@.")
+            (fun ppf k ->
+              fprintf ppf "%a" (pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string) k
+            )
+        )
+        keys
+    | Using_default_option k ->
+      Asai.Diagnostic.textf
+        "Configuration option %a is not set. Using default value."
+        Format.(pp_print_list ~pp_sep: (fun out () -> fprintf out ".") pp_print_string)
+        k
     | Invalid_URI
     | Asset_has_no_content_address _
     | Reference_error _

@@ -7,6 +7,40 @@
 open Forester_prelude
 open Forester_core
 
+(* type keys = (Toml.Types.Table.key [@printer fun fmt key -> fprintf fmt "%s" (Toml.Types.Table.Key.to_string key)]) list list [@@deriving show] *)
+
+module Key_set = struct
+  include Set.Make(struct
+    type t = Toml.Types.Table.key list
+    let compare = compare
+  end)
+
+  let remove : string list -> t -> t = fun strs set ->
+    let key = List.map Toml.Types.Table.Key.of_string strs in
+    remove key set
+  (* let remove  *)
+end
+
+let keys (tbl : Toml.Types.value Toml.Types.Table.t) =
+  let rec go current keys tbl =
+    List.fold_left
+      (fun acc (key, value) ->
+        match value with
+        | Toml.Types.TBool _
+        | TInt _
+        | TFloat _
+        | TString _
+        | TDate _
+        | TArray _ ->
+          (key :: current) :: acc
+        | TTable tbl ->
+          go (key :: current) acc tbl
+      )
+      keys
+      (Toml.Types.Table.to_list tbl)
+  in
+  Key_set.of_list @@ List.map List.rev @@ go [] [] tbl
+
 let parse lexbuf filename =
   let@ () = Reporter.easy_run in
   match Toml.Parser.parse lexbuf filename with
@@ -16,11 +50,24 @@ let parse lexbuf filename =
     Reporter.fatal ~loc Configuration_error ~extra_remarks: [Asai.Diagnostic.loctextf "%s" desc]
   | `Ok tbl ->
     let open Toml.Lenses in
+    let keys = ref (keys tbl) in
+    let optional ~value k lens =
+      let open Toml.Lenses in
+      match get tbl lens with
+      | None ->
+        Reporter.emit (Using_default_option k);
+        value
+      | Some v ->
+        keys := Key_set.remove k !keys;
+        v
+    in
+    (* Format.printf "%a" pp_keys keys; *)
     let forest = key "forest" |-- table in
     let renderer = key "renderer" |-- table in
     let url =
       match get tbl (forest |-- key "url" |-- string) with
       | Some url ->
+        keys := Key_set.remove ["forest"; "url"] !keys;
         begin
           try
             URI.of_string_exn url
@@ -30,29 +77,48 @@ let parse lexbuf filename =
       | None -> Reporter.fatal Configuration_error ~extra_remarks: [Asai.Diagnostic.loctext "You need to set the `url' key in your configuration file; this should be a URL like `https://www.my-great-forest.org/` or `http://localhost/`. Even if you do not plan to publish your forest, please choose a URL."]
     in
     let trees =
-      Option.value ~default: Config.default.trees @@
-        get tbl (forest |-- key "trees" |-- array |-- strings)
+      let k = ["forest"; "trees"] in
+      optional ~value: Config.default.trees k (forest |-- key "trees" |-- array |-- strings)
     in
     let foreign =
-      Option.value ~default: Config.default.foreign @@
-        get tbl (forest |-- key "foreign" |-- array |-- strings)
+      optional
+        ~value: Config.default.foreign
+        ["forest"; "foreign"]
+        (forest |-- key "foreign" |-- array |-- strings)
     in
     let assets =
-      Option.value ~default: Config.default.assets @@
-        get tbl (forest |-- key "assets" |-- array |-- strings)
+      optional
+        ~value: Config.default.assets
+        ["forest"; "assets"]
+        (forest |-- key "assets" |-- array |-- strings)
     in
     let theme =
-      Option.value ~default: Config.default.theme @@
-        get tbl (renderer |-- key "theme" |-- string)
+      optional
+        ~value: Config.default.theme
+        ["renderer"; "theme"]
+        (renderer |-- key "theme" |-- string)
     in
     let home =
+      let k = ["renderer"; "home"] in
+      keys := Key_set.remove k !keys;
       Option.map (URI_scheme.named_uri ~base: url) @@
         get tbl (renderer |-- key "home" |-- string)
     in
     let prefixes =
-      Option.value ~default: Config.default.prefixes @@
-        get tbl (forest |-- key "prefixes" |-- array |-- strings)
+      optional
+        ~value: Config.default.prefixes
+        ["forest"; "prefixes"]
+        (forest |-- key "prefixes" |-- array |-- strings)
     in
+    begin
+      if not (Key_set.is_empty !keys) then
+        let keys =
+          !keys
+          |> Key_set.to_list
+          |> List.map (List.map (Toml.Types.Table.Key.to_string))
+        in
+        Reporter.emit (Unknown_config_options keys);
+    end;
     Config.{url; assets; trees; foreign; theme; home; prefixes}
 
 let parse_forest_config_string str =
