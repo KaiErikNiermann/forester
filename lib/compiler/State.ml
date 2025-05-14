@@ -25,6 +25,8 @@ type t = {
   search_index: Forester_search.Index.t;
   usages: (Tree.exports, URI.t Asai.Range.located) Hashtbl.t;
   history: Action.t list;
+  hosts: (string, unit) Hashtbl.t;
+  suggestions: URI.t URI.Tbl.t
 }
 
 let make
@@ -39,8 +41,10 @@ let make
   ?(usages = Hashtbl.create 1000)
   ?(search_index = Forester_search.Index.create [])
   ?(dependency_cache = Cache.empty)
+  ?(hosts = Hashtbl.create 10)
+  ?(suggestions = URI.Tbl.create 1000)
   ()
-= {env; dev; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; history = []}
+= {env; dev; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; hosts; suggestions; history = []}
 
 module Syntax = struct
   let (.={}) state uri =
@@ -210,12 +214,43 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
       | None -> not_found uri
     end
 
+(* A list of mistakes that a user might make when typing a given URI.
+   For example, they might type "https://www.forester-notes.com/jms-005P" instead of "https://www.forester-notes.com/jms-005P/".
+ *)
+let wrong_variants_for_uri uri =
+  match List.rev @@ URI.path_components uri with
+  | "" :: rest -> [URI.with_path_components (List.rev rest) uri]
+  | _ -> []
+
+type uri_suggestion =
+  | Ok
+  | Not_found of {suggestion: URI.t option}
+
+let suggestion_for_uri uri forest =
+  match URI.host uri with
+  | None -> Ok
+  | Some host ->
+    match Hashtbl.find_opt forest.hosts host with
+    | None -> Ok
+    | Some() ->
+      match URI.Tbl.find_opt forest.index uri with
+      | Some _ -> Ok
+      | None -> Not_found {suggestion = URI.Tbl.find_opt forest.suggestions uri}
+
 let plant_resource ?(route_locally = true) resource forest =
   let module Graphs = (val forest.graphs) in
   Forest.analyse_resource forest.graphs resource;
   let@ uri = Option.iter @~ T.uri_for_resource resource in
   let uri = URI.canonicalise uri in
   Graphs.register_uri uri;
+  begin
+    let@ host = Option.iter @~ URI.host uri in
+    Hashtbl.add forest.hosts host ()
+  end;
+  begin
+    let@ wrong_variant = List.iter @~ wrong_variants_for_uri uri in
+    URI.Tbl.add forest.suggestions wrong_variant uri
+  end;
   match forest.={uri} with
   | None ->
     forest.={uri} <- Resource {resource; expanded = None; route_locally}
@@ -231,17 +266,15 @@ let serialize_graphs
   Graphs.dl_db
 
 let batch_write : t -> _ = function
-  | {import_graph;
-    _
-  } ->
+  | {import_graph; _} ->
     (* let dl_db = serialize_graphs graphs in *)
     let open Cache in
     let module Gmap = Forest_graph.Map(Cache.Dependecy_graph) in
     let tbl = Dependency_tbl.create 100 in
     let now = Unix.time () in
     let g =
-      Gmap.map
-        (function
+      import_graph
+      |> Gmap.map @@ function
           | T.Content_vertex _ ->
             (*Import graph has no content vertices*)
             assert false
@@ -249,8 +282,6 @@ let batch_write : t -> _ = function
             let item = Item.Tree uri in
             Dependency_tbl.add tbl item Item.{timestamp = Some now; color = Green};
             item
-        )
-        import_graph
     in
     {Cache.empty with graph = g; tbl;}
 

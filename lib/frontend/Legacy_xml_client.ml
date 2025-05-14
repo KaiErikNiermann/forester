@@ -237,6 +237,11 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
   let attrs =
     match article_opt with
     | None ->
+      begin
+        match State.suggestion_for_uri link.href forest with
+        | Ok -> ()
+        | Not_found {suggestion} -> Reporter.emit @@ Broken_link {uri = link.href; suggestion}
+      end;
       [
         X.href "%s" @@ URI.to_string @@ route forest link.href;
         X.type_ "external"

@@ -24,7 +24,6 @@ sig
   type t =
     | Import_not_found of URI.t
     | Invalid_URI
-    | Tree_not_found of URI.t
     | Asset_has_no_content_address of string
     | Asset_not_found of string
     | Current_tree_has_no_uri
@@ -55,7 +54,7 @@ sig
     | Profiling of float * float
     | External_error
     | Resource_not_found of URI.t
-    | Broken_link of URI.t
+    | Broken_link of {uri: URI.t; suggestion: URI.t option}
     | IO_error
     | Log
     | Missing_argument

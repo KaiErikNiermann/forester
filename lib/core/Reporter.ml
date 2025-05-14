@@ -29,7 +29,6 @@ module Message = struct
   type t =
     | Import_not_found of URI.t
     | Invalid_URI
-    | Tree_not_found of URI.t
     | Asset_has_no_content_address of string
     | Asset_not_found of string
     | Current_tree_has_no_uri
@@ -61,7 +60,7 @@ module Message = struct
     | Profiling of float * float
     | External_error
     | Resource_not_found of URI.t
-    | Broken_link of URI.t
+    | Broken_link of {uri: URI.t; suggestion: URI.t option}
     | IO_error
     | Log
     | Missing_argument
@@ -80,7 +79,6 @@ module Message = struct
     | Current_tree_has_no_uri -> Error
     | Reference_error _ -> Error
     | Duplicate_tree _ -> Error
-    | Tree_not_found _ -> Error
     | Parse_error -> Error
     | Type_error _ -> Error
     | Type_warning -> Warning
@@ -106,7 +104,6 @@ module Message = struct
   let short_code : t -> string = function
     | Import_not_found _ -> "import_not_found"
     | Invalid_URI -> "invalid_uri"
-    | Tree_not_found _ -> "tree_not_found"
     | Asset_has_no_content_address _ -> "asset_not_found" (* This is taken from the original wording of the message, but I think this is very confusing.*)
     | Asset_not_found _ -> "asset_not_found"
     | Current_tree_has_no_uri -> "current_tree_has_no_uri"
@@ -234,10 +231,17 @@ module Message = struct
         k
     | Required_config_option k ->
       Asai.Diagnostic.textf "Required option %s is not set." k
+    | Broken_link {uri; suggestion} ->
+      begin
+        match suggestion with
+        | None ->
+          Asai.Diagnostic.textf "Potentially broken link to `%a`" URI.pp uri
+        | Some suggestion ->
+          Asai.Diagnostic.textf "Potentially broken link to `%a`; did you mean `%a`?" URI.pp uri URI.pp suggestion
+      end
     | Invalid_URI
     | Asset_has_no_content_address _
     | Reference_error _
-    | Tree_not_found _
     | Duplicate_tree _
     | Parse_error
     | Type_warning
@@ -252,7 +256,6 @@ module Message = struct
     | Profiling _
     | External_error
     | Resource_not_found _
-    | Broken_link _
     | Current_tree_has_no_uri
     | IO_error
     | Log
