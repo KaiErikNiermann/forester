@@ -24,6 +24,8 @@ module Xmlns = struct
     k X.reserved_xmlnss
 end
 
+module In_backmatter = Algaeff.Reader.Make(struct type t = bool end)
+
 let local_path_components (config : Config.t) (uri : URI.t) =
   let host = Option.get @@ URI.host uri in
   let base_host = Option.get @@ URI.host config.url in
@@ -238,9 +240,10 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
     match article_opt with
     | None ->
       begin
-        match State.suggestion_for_uri link.href forest with
-        | Ok -> ()
-        | Not_found {suggestion} -> Reporter.emit @@ Broken_link {uri = link.href; suggestion}
+        if not @@ In_backmatter.read () then
+          match State.suggestion_for_uri link.href forest with
+          | Ok -> ()
+          | Not_found {suggestion} -> Reporter.emit @@ Broken_link {uri = link.href; suggestion}
       end;
       [
         X.href "%s" @@ URI.to_string @@ route forest link.href;
@@ -315,6 +318,7 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
   let@ () = Loop_detection.run in
   let@ () = Scope.run ~env: article.frontmatter.uri in
   let@ xmlnss = Xmlns.run in
+  let@ () = In_backmatter.run ~env: false in
   X.tree
     begin
       List.map render_xmlns_prefix xmlnss @
@@ -334,7 +338,9 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
           let@ () = Loop_detection.add_seen_uri_opt article.frontmatter.uri in
           render_content forest article.mainmatter
         end;
-      X.backmatter [] @@ render_content forest article.backmatter
+      X.backmatter [] @@
+        let@ () = In_backmatter.run ~env: true in
+        render_content forest article.backmatter
     ]
 
 let pp_xml ~(forest : State.t) ?stylesheet fmt (article : _ T.article) =

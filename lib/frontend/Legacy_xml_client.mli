@@ -14,5 +14,4 @@ val local_path_components : Config.t -> URI.t -> string list
 val route : State.t -> URI.t -> URI.t
 
 val render_article : State.t -> T.content T.article -> P.node
-val render_content : State.t -> T.content -> P.node list
 val pp_xml : forest: State.t -> ?stylesheet: string -> Format.formatter -> T.content T.article -> unit
