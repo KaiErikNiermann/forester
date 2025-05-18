@@ -239,6 +239,8 @@ module Message = struct
         | Some suggestion ->
           Asai.Diagnostic.textf "Potentially broken link to `%a`; did you mean `%a`?" URI.pp uri URI.pp suggestion
       end
+    | Resource_not_found uri ->
+      Asai.Diagnostic.textf "Resource not found: %a" URI.pp uri
     | Invalid_URI
     | Asset_has_no_content_address _
     | Reference_error _
@@ -255,7 +257,6 @@ module Message = struct
     | Routing_error
     | Profiling _
     | External_error
-    | Resource_not_found _
     | Current_tree_has_no_uri
     | IO_error
     | Log
