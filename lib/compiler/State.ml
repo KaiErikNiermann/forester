@@ -218,8 +218,13 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
    For example, they might type "https://www.forester-notes.com/jms-005P" instead of "https://www.forester-notes.com/jms-005P/".
  *)
 let wrong_variants_for_uri uri =
-  match List.rev @@ URI.path_components uri with
-  | "" :: rest -> [URI.with_path_components (List.rev rest) uri]
+  let components = URI.path_components uri in
+  match List.rev components with
+  | "" :: rest -> [
+    URI.with_path_components (List.rev rest) uri;
+    URI.with_path_components (components @ ["index.html"]) uri;
+    URI.with_path_components (components @ ["index.xml"]) uri
+  ]
   | _ -> []
 
 type uri_suggestion =
