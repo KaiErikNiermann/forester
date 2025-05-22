@@ -115,7 +115,7 @@ let eval (forest : State.t) =
     |> Seq.filter Tree.is_expanded
     |> Seq.map (fun tree ->
         let tree = Option.get @@ Tree.to_syn tree in
-        match Tree.identity_to_uri tree.identity with
+        match identity_to_uri tree.identity with
         | None -> Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctext "can't evaluate a tree with no URI"]
         | Some uri ->
           let source_path =

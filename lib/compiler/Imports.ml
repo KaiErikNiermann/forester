@@ -68,7 +68,7 @@ let resolve_uri_to_code
 
 let rec analyse_tree (tree : Tree.code) =
   let env = Analysis_env.read () in
-  let@ root = Option.iter @~ Tree.identity_to_uri tree.identity in
+  let@ root = Option.iter @~ identity_to_uri tree.identity in
   let code = tree.nodes in
   Forest_graph.add_vertex env.graph (T.Uri_vertex root);
   analyse_code ~root code;
@@ -98,7 +98,7 @@ and analyse_node ~root (node : Code.node Asai.Range.located) =
   | Subtree (addr, nodes) ->
     let identity =
       match addr with
-      | None -> Tree.Anonymous
+      | None -> Anonymous
       | Some string ->
         URI (URI_scheme.named_uri ~base: config.url string)
     in
@@ -127,12 +127,12 @@ let dependencies tree forest =
   env.graph
 
 let fixup (tree : Tree.code) (forest : State.t) =
-  let@ () = Reporter.tracef "when updating imports for %a" Tree.pp_identity tree.identity in
-  Logs.debug (fun m -> m "updating imports for %a" Tree.pp_identity tree.identity);
+  let@ () = Reporter.tracef "when updating imports for %a" pp_identity tree.identity in
+  Logs.debug (fun m -> m "updating imports for %a" pp_identity tree.identity);
   let graph = forest.import_graph in
   match tree.identity with
-  | Tree.Anonymous -> assert false
-  | Tree.URI uri ->
+  | Anonymous -> assert false
+  | URI uri ->
     let this_vertex = T.Uri_vertex uri in
     let old_deps = Vertex_set.of_list @@ Forest_graph.immediate_dependencies graph this_vertex in
     let new_deps =

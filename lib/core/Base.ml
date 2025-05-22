@@ -27,3 +27,22 @@ type math_mode =
 type visibility =
   Private | Public
 [@@deriving show, repr]
+
+type identity =
+  | Anonymous
+  | URI of URI.t
+[@@deriving show]
+
+let identity_to_uri = function
+  | URI uri -> Some uri
+  | Anonymous -> None
+
+type origin =
+  | Physical of
+    (Lsp.Text_document.t [@printer fun ppf doc ->
+      Format.pp_print_string
+        ppf
+        (Lsp.(Uri.to_path @@ Text_document.documentUri doc))])
+  | Subtree of {parent: identity}
+  | Undefined
+[@@deriving show]

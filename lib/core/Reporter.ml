@@ -32,7 +32,7 @@ module Message = struct
     | Asset_has_no_content_address of string
     | Asset_not_found of string
     | Current_tree_has_no_uri
-    | Duplicate_tree of URI.t
+    | Duplicate_tree of origin * origin
     | Parse_error
     | Unbound_method of (string * Value.obj)
     | Type_warning
@@ -241,10 +241,19 @@ module Message = struct
       end
     | Resource_not_found uri ->
       Asai.Diagnostic.textf "Resource not found: %a" URI.pp uri
+    | Duplicate_tree (o1, o2) ->
+      let show_origin = function
+        | Physical doc -> Lsp.(Uri.to_path @@ Text_document.documentUri doc)
+        | Subtree {parent} -> Format.asprintf "%a" pp_identity parent
+        | Undefined -> "undefined"
+      in
+      Asai.Diagnostic.textf
+        "%s@ and@ %s@ use@ the@ same@ URI"
+        (show_origin o1)
+        (show_origin o2)
     | Invalid_URI
     | Asset_has_no_content_address _
     | Reference_error _
-    | Duplicate_tree _
     | Parse_error
     | Type_warning
     | Resolution_error _

@@ -26,6 +26,22 @@
   pure-html
   asai))
 
+(rule
+ (with-stdout-to
+  Test_errors.out
+  (progn
+   (chdir
+    forest
+    (progn
+     (run %{bin:test-errors}))))))
+
+(rule
+ (alias runtest)
+ (deps
+  (glob_files forest/**))
+ (action
+  (diff Test_errors.expected Test_errors.out)))
+
 (test
  (name Test_uri_util)
  (libraries

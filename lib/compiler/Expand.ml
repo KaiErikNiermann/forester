@@ -446,7 +446,7 @@ let builtins = [
 
 let expand_tree_inner ~forest (code : Tree.code) : Tree.syn =
   let trace k =
-    match Tree.identity_to_uri code.identity with
+    match identity_to_uri code.identity with
     | None -> k ()
     | Some uri ->
       let@ () = Reporter.tracef "when expanding tree %s" (URI.to_string uri) in

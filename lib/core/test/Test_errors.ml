@@ -29,6 +29,15 @@ module Import = struct
   let test_case ~env ~config = error_run ~env ~config ~raw_trees
 end
 
+module Duplicate = struct
+  let raw_trees = [
+    {path = "trees1/duplicate.tree"; content = {||}};
+    {path = "trees2/duplicate.tree"; content = {||}}
+  ]
+  let config = {Config.(default ?url: None ()) with trees = ["trees1"; "trees2"]}
+  let test_case ~env = error_run ~env ~config ~raw_trees
+end
+
 module Expansion = struct
   let raw_trees = [
     {
@@ -96,3 +105,4 @@ let () =
   Import.test_case ~env ~config;
   Expansion.test_case ~env ~config;
   Broken_link.test_case ~env ~config;
+  Duplicate.test_case ~env;

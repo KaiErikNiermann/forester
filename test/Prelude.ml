@@ -53,6 +53,7 @@ let with_test_forest ~env ~raw_trees ~(config : Config.t) kont =
     List.map
       (fun dir_name ->
         let dir = EP.(tmp / dir_name) in
+        Eio.traceln "mkdir: %s" dir_name;
         EP.(mkdir ~perm: 0o755 dir);
         dir
       )
@@ -62,12 +63,22 @@ let with_test_forest ~env ~raw_trees ~(config : Config.t) kont =
   let first_tree_dir = List.hd tree_dirs in
   List.iter
     (fun tree ->
-      EP.(
-        save
-          ~create
-          (first_tree_dir / tree.path)
-          tree.content
-      )
+      match Filename.dirname tree.path with
+      | "." ->
+        EP.(
+          save
+            ~create
+            (first_tree_dir / tree.path)
+            tree.content
+        )
+      | dir ->
+        Eio.traceln "%s" dir;
+        EP.(
+          save
+            ~create
+            (tmp / dir / Filename.basename tree.path)
+            tree.content
+        )
     )
     raw_trees;
   kont tmp

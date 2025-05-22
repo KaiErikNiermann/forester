@@ -58,4 +58,14 @@ val pp_visibility :
   visibility ->
   unit
 val show_visibility : visibility -> string
+type identity = Anonymous | URI of URI.t
+val pp_identity : Format.formatter -> identity -> unit
+val show_identity : identity -> string
+val identity_to_uri : identity -> URI.t option
+type origin =
+  | Physical of Lsp.Text_document.t
+  | Subtree of { parent : identity; }
+  | Undefined
+val pp_origin : Format.formatter -> origin -> unit
+val show_origin : origin -> string
 val visibility_t : visibility Repr.t

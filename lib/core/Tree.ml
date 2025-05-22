@@ -7,24 +7,10 @@
 open struct
   module T = Types
   module R = Resolver
+  include Base
 end
 
 type exports = (R.P.data, Asai.Range.t option) Trie.t
-
-type identity =
-  | Anonymous
-  | URI of URI.t
-[@@deriving show]
-
-let identity_to_uri = function
-    | URI uri -> Some uri
-    | Anonymous -> None
-  [@@deriving show]
-
-type origin =
-  | Physical of (Lsp.Text_document.t [@opaque])
-  | Subtree of {parent: identity}
-[@@deriving show]
 
 type code = {
   nodes: Code.t;
@@ -56,6 +42,15 @@ type t =
   | Expanded of syn
   | Resource of evaluated
 [@@deriving show]
+
+let origin = function
+  | Document doc -> Physical doc
+  | Parsed {nodes; identity; origin; timestamp} -> origin
+  | Expanded {nodes; code; identity; units} -> code.origin
+  | Resource {resource; route_locally; expanded} ->
+    match expanded with
+    | None -> Undefined
+    | Some {nodes; code; identity; units} -> code.origin
 
 let show_phase = function
   | Document _ -> "document"
@@ -100,6 +95,7 @@ let to_doc : t -> Lsp.Text_document.t option = function
         | Physical doc ->
           Some doc
         | Subtree _ -> None
+        | Undefined -> None
     end
   | Parsed {origin; _;}
   | Expanded {code = {origin; _}; _;} ->
@@ -107,6 +103,7 @@ let to_doc : t -> Lsp.Text_document.t option = function
     | Physical doc ->
       Some doc
     | Subtree _ -> None
+    | Undefined -> None
 
 let to_resource : t -> T.content T.resource option = function
   | Document _

@@ -27,7 +27,7 @@ sig
     | Asset_has_no_content_address of string
     | Asset_not_found of string
     | Current_tree_has_no_uri
-    | Duplicate_tree of URI.t
+    | Duplicate_tree of Base.origin * Base.origin
     | Parse_error
     | Unbound_method of (string * Value.obj)
     | Type_warning

@@ -50,8 +50,21 @@ module Syntax = struct
   let (.={}) state uri =
     URI.Tbl.find_opt state.index uri
 
-  let (.={} <-) state uri item =
-    URI.Tbl.replace state.index uri item
+  let (.={} <-) state uri tree =
+    match state.={uri} with
+    | None ->
+      URI.Tbl.replace state.index uri tree
+    | Some existing ->
+      let o1 = Tree.origin tree in
+      let o2 = Tree.origin existing in
+      if o1 <> o2 then
+        begin
+          Reporter.emit (Duplicate_tree (o1, o2));
+          URI.Tbl.replace state.index uri tree
+        end
+      else
+        URI.Tbl.replace state.index uri tree
+  (* URI.Tbl.replace state.index uri item *)
 
   (* / for units*)
   let (./{}) state uri =
@@ -220,11 +233,12 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
 let wrong_variants_for_uri uri =
   let components = URI.path_components uri in
   match List.rev components with
-  | "" :: rest -> [
-    URI.with_path_components (List.rev rest) uri;
-    URI.with_path_components (components @ ["index.html"]) uri;
-    URI.with_path_components (components @ ["index.xml"]) uri
-  ]
+  | "" :: rest ->
+    [
+      URI.with_path_components (List.rev rest) uri;
+      URI.with_path_components (components @ ["index.html"]) uri;
+      URI.with_path_components (components @ ["index.xml"]) uri
+    ]
   | _ -> []
 
 type uri_suggestion =
