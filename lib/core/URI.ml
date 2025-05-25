@@ -11,11 +11,12 @@ module Basics = struct
     host: string option;
     port: int option;
     path: string;
+    query: (string * string list) list;
     fragment: string option;
   }
 
-  let hydrate {scheme; userinfo; host; port; path; fragment} =
-    Uri.make ?scheme ?userinfo ?host ?port ~path ?fragment ()
+  let hydrate {scheme; userinfo; host; port; path; query; fragment} =
+    Uri.make ?scheme ?userinfo ?host ?port ~path ~query ?fragment ()
 
   let dehydrate x = {
     scheme = Uri.scheme x;
@@ -23,6 +24,7 @@ module Basics = struct
     host = Uri.host x;
     port = Uri.port x;
     path = Uri.path x;
+    query = Uri.query x;
     fragment = Uri.fragment x
   }
 
