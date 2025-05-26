@@ -42,6 +42,15 @@ let add_edge graphs rel ~source ~target =
   in
   execute_datalog_script graphs [{conclusion; premises}]
 
+let add_fact graphs rel node =
+  let module Graphs = (val graphs : Forest_graphs.S) in
+  let premises = [] in
+  let conclusion =
+    let args = [Dx.Const node] in
+    Dx.{rel; args}
+  in
+  execute_datalog_script graphs [{conclusion; premises}]
+
 let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) : unit =
   match node with
   | Text _ | CDATA _ | Route_of_uri _ | Uri _ | Results_of_datalog_query _ | Contextual_number _ -> ()
@@ -130,12 +139,17 @@ and analyse_section graphs (scope : URI.t) (section : T.content T.section) : uni
 
 let analyse_article graphs (article : article) : unit =
   let@ scope = Option.iter @~ article.frontmatter.uri in
+  add_fact graphs Builtin_relation.is_article (T.Uri_vertex scope);
   analyse_frontmatter graphs scope article.frontmatter;
   analyse_content graphs scope article.mainmatter;
   analyse_content graphs scope article.backmatter
 
+let analyse_asset graphs (asset : T.asset) : unit =
+  add_fact graphs Builtin_relation.is_asset (T.Uri_vertex asset.uri)
+
 let analyse_resource graphs = function
   | T.Article article -> analyse_article graphs article
+  | T.Asset asset -> analyse_asset graphs asset
   | _ -> ()
 
 let get_article

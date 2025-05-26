@@ -260,7 +260,7 @@ let plant_resource ?(route_locally = true) resource forest =
   let module Graphs = (val forest.graphs) in
   Forest.analyse_resource forest.graphs resource;
   let@ uri = Option.iter @~ T.uri_for_resource resource in
-  let uri = URI.canonicalise uri in
+  let uri = URI.canonicalise uri in (* Seems dodgy if this isn't already canonical! *)
   Graphs.register_uri uri;
   begin
     let@ host = Option.iter @~ URI.host uri in

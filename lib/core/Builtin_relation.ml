@@ -12,6 +12,8 @@ let has_author = make_builtin "authored-by"
 let has_taxon = make_builtin "has-taxon"
 let has_tag = make_builtin "has-tag"
 let is_node = make_builtin "is-node"
+let is_asset = make_builtin "is-asset"
+let is_article = make_builtin "is-article"
 let in_host = make_builtin "in-host"
 
 let transcludes_rtc = make_builtin "transcludes.reflexive-transitive-closure"
