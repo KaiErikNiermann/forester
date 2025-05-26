@@ -15,7 +15,7 @@ end
 
 let extract_content (node : located) =
   match node.value with
-  | Content content -> content
+  | Value.Content content -> content
   | v -> Reporter.fatal ?loc: node.loc (Type_error {expected = [Content]; got = Some v})
 
 let extract_text_loc (node : located) : string Range.located =
@@ -366,7 +366,7 @@ and eval_node node : Value.t =
       let body = extract_content {node with value = eval_tape body} in
       T.Content (T.Text l :: T.extract_content body @ [T.Text r])
     in
-    focus ?loc: node.loc @@ Value.Content content
+    focus ?loc: node.loc @@ Value.Content (T.compress_content content)
   | Call (obj, method_name) ->
     let sym = {node with value = obj} |> Range.map eval_tape |> extract_obj_ptr in
     let rec call_method (obj : Value.obj) =
@@ -549,10 +549,10 @@ and eval_var ~loc x =
 and focus ?loc = function
   | Clo (rho, xs, body) ->
     focus_clo ?loc rho xs body
-  | Content (T.Content content) ->
+  | Content content ->
     begin
       match process_tape () with
-      | Value.Content (T.Content content') -> Value.Content (T.Content (content @ content'))
+      | Content content' -> Value.Content (T.concat_compressed_content content content')
       | value -> value
     end
   | Sym _ | Obj _ | Dx_prop _ | Dx_sequent _ | Dx_query _ | Dx_var _ | Dx_const _ as v ->
@@ -590,7 +590,7 @@ and focus_clo ?loc rho xs body =
       end
 
 and emit_content_nodes ~loc content =
-  focus ?loc @@ Content (T.Content content)
+  focus ?loc @@ Content (T.Content (T.compress_nodes content))
 
 and emit_content_node ~loc content =
   emit_content_nodes ~loc [content]

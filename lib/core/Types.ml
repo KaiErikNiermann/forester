@@ -159,9 +159,29 @@ type 'content content_node =
   | Results_of_datalog_query of (string, 'content vertex) Datalog_expr.query
 [@@deriving show, repr]
 
-type content =
-  Content of content content_node list
+type content = Content of content content_node list
 [@@deriving show, repr]
+
+
+let rec compress_nodes =
+  function
+  | [] -> []
+  | Text x :: Text y :: ys -> compress_nodes (Text (x ^ y) :: ys)
+  | x :: xs -> x :: compress_nodes xs
+
+let compress_content =
+  function
+  | Content nodes -> Content (compress_nodes nodes)
+
+let concat_compressed_content (Content xs) (Content ys) =
+  let rec loop xs ys =
+    match xs, ys with
+    | Bwd.Emp, ys -> ys
+    | _, [] -> Bwd.prepend xs []
+    | Bwd.Snoc (xs, Text x), Text y :: ys -> loop xs (Text (x ^ y) :: ys)
+    | Bwd.Snoc (xs, x), ys -> loop xs (x :: ys)
+  in
+  Content (loop (Bwd.append Bwd.Emp xs) ys)
 
 let html_elt uname (content : 'content) : 'content content_node =
   let name = {prefix = "html"; uname; xmlns = Some "http://www.w3.org/1999/xhtml"} in
