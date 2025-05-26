@@ -22,7 +22,7 @@
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 
-let special_name = ['%' '\\' ',' '"' '`' '_' ';' '#' '{' '}' '[' ']' ' ' '|']
+let special_name = ['\\' ',' '"' '`' '_' ';' '#' '{' '}' '[' ']' ' ' '|']
 let simple_name = (alpha | digit | '-')*
 
 let xml_base_ident = (alpha) (alpha | digit | '-' | '_')*
@@ -79,6 +79,7 @@ and ident_init = parse
   | "<" (xml_base_ident as prefix) ':' (xml_base_ident as uname) ">" { drop_mode (); [XML_ELT_IDENT (Some prefix, uname)] }
   | "<" (xml_base_ident as uname) ">" { drop_mode (); [XML_ELT_IDENT (None, uname)] }
   | "xmlns:" (xml_base_ident as str) { drop_mode (); [DECL_XMLNS str] }
+  | "%" { drop_mode (); [Grammar.TEXT "%"] }
   | (simple_name as s) "/" { set_mode Ident_fragments; [Grammar.IDENT s; Grammar.SLASH] }
   | simple_name as s { drop_mode (); [Grammar.IDENT s] }
   | special_name as c { drop_mode (); [Grammar.IDENT (String.make 1 c)] }
