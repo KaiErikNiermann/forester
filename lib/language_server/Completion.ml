@@ -86,6 +86,7 @@ let asset_completion : completion_kind =
 let uri_completion : completion_kind =
   let text word_before =
     if Str.(string_match (regexp {|.*]($|}) word_before 0)
+      || Str.(string_match (regexp {|.*\[\[$|}) word_before 0)
       || Str.(string_match (regexp {|.*transclude.*|}) word_before 0) then
       Some Addrs
     else None
@@ -356,7 +357,7 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
             | Some "{" -> URI_scheme.name uri ^ "}"
             | Some "(" -> URI_scheme.name uri ^ ")"
             | Some "[" -> URI_scheme.name uri ^ "]"
-            | _ -> ""
+            | _ -> URI_scheme.name uri
           in
           let title_text = Option.map render title in
           let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
