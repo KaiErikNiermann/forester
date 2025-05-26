@@ -96,7 +96,7 @@ let index_tree_str =
 
 let init ~env dir =
   let default_theme_url = "https://git.sr.ht/~jonsterling/forester-base-theme" in
-  let theme_version = "4.3.0" in
+  let theme_version = "5.0" in
   let cwd =
     match dir with
     | None -> Eio.Stdenv.cwd env
