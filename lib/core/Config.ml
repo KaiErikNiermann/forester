@@ -16,7 +16,6 @@ type t = {
   foreign: foreign list;
   url: URI.t;
   home: URI.t;
-  prefixes: string list;
 }
 [@@deriving show, repr]
 
@@ -28,7 +27,6 @@ let default ?(url = default_url) () : t = {
   foreign = [];
   url;
   home = URI_scheme.named_uri ~base: url "index";
-  prefixes = [];
 }
 
 (* TODO: validate beforehand *)

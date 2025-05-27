@@ -38,40 +38,21 @@ let create_tree_edit ~range ~uri addr dir =
 let compute (L.CodeActionParams.{range; textDocument = {uri}; _;}) : L.CodeActionResult.t =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let config = forest.config in
-  let prefixes = config.prefixes in
   let actions =
-    let@ prefix = List.concat_map @~ prefixes in
-    let next_dir, next_sequential, next_random = next_addrs ~forest (Some prefix) in
+    let next_dir, next_sequential, next_random = next_addrs ~forest None in
     match next_dir with
     | None -> []
     | Some dir ->
-      if prefix = "" then
         let sequential =
           L.CodeAction.create
-            ~title: (Format.asprintf "create new tree (no prefix)")
+            ~title: (Format.asprintf "create new tree (sequential address)")
             ~kind: (L.CodeActionKind.Other "new tree")
             ~edit: (create_tree_edit ~range ~uri next_sequential dir)
             ()
         in
         let random =
           L.CodeAction.create
-            ~title: (Format.asprintf "create new tree (no prefix, random)")
-            ~kind: (L.CodeActionKind.Other "new tree")
-            ~edit: (create_tree_edit ~range ~uri next_random dir)
-            ()
-        in
-        [`CodeAction sequential; `CodeAction random]
-      else
-        let sequential =
-          L.CodeAction.create
-            ~title: (Format.asprintf "create tree with prefix %s" prefix)
-            ~kind: (L.CodeActionKind.Other "new tree")
-            ~edit: (create_tree_edit ~range ~uri next_sequential dir)
-            ()
-        in
-        let random =
-          L.CodeAction.create
-            ~title: (Format.asprintf "create tree with prefix %s (random)" prefix)
+            ~title: (Format.asprintf "create new tree (random address)")
             ~kind: (L.CodeActionKind.Other "new tree")
             ~edit: (create_tree_edit ~range ~uri next_random dir)
             ()

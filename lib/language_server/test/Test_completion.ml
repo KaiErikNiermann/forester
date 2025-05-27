@@ -388,7 +388,7 @@ let () =
   Logs.set_level (Some Debug);
   let@ env = Eio_main.run in
   let@ () = Reporter.easy_run in
-  let config = {(Config_parser.parse_forest_config_file "forest.toml") with prefixes = ["jms"]} in
+  let config = Config_parser.parse_forest_config_file "forest.toml" in
   let forest = Driver.batch_run ~env ~config ~dev: true in
   let lsp_io = LspEio.init env in
   let init = Lsp_state.{forest; lsp_io; should_shutdown = false;} in

@@ -16,7 +16,6 @@ type t = {
   foreign: foreign list;
   url: URI.t;
   home: URI.t;
-  prefixes: string list; (* TODO: remove this as we no longer advocate using prefixes at all *)
 }
 [@@deriving show]
 

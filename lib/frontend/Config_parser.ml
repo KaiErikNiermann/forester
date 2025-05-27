@@ -111,12 +111,6 @@ let parse lexbuf filename =
       URI_scheme.named_uri ~base: url @@
         with_default ~value: "index" k (forest |-- key "home" |-- string)
     in
-    let prefixes =
-      with_default
-        ~value: default.prefixes
-        ["forest"; "prefixes"]
-        (forest |-- key "prefixes" |-- array |-- strings)
-    in
     begin
       if not (Key_set.is_empty !keys) then
         let keys =
@@ -126,7 +120,7 @@ let parse lexbuf filename =
         in
         Reporter.emit (Uninterpreted_config_options keys);
     end;
-    Config.{url; assets; trees; foreign; home; prefixes}
+    Config.{url; assets; trees; foreign; home}
 
 let parse_forest_config_string str =
   let lexbuf = Lexing.from_string str in

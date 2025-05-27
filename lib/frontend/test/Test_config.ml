@@ -14,7 +14,6 @@ let test_parsing () =
     "is the same"
     Config.{
       trees = ["trees"];
-      prefixes = ["foo"; "bar"; "baz"];
       assets = [];
       url = URI.of_string_exn "https://www.forester-notes.org/";
       home = URI.of_string_exn "https://www.forester-notes.org/index/";
@@ -26,7 +25,6 @@ let test_parsing () =
         {|
         [forest]
         trees = ["trees"]
-        prefixes = ["foo", "bar", "baz"]
         foreign = ["foreign/forest.json"]
         url = "https://www.forester-notes.org/"
         home = "index"
@@ -42,7 +40,6 @@ let test_missing_fields () =
       foreign = [];
       url = URI.of_string_exn "/";
       home = URI.of_string_exn "/index/";
-      prefixes = [];
     }
     (
       Forester_core.Reporter.easy_run @@ fun () ->
