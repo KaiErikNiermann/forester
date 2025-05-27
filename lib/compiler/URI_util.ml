@@ -17,44 +17,32 @@ let rec random_not_in keys =
   else
     attempt
 
-let next_uri
-    ~(prefix : string option)
-    ~(mode : [< `Random | `Sequential])
-    ~(forest : State.t)
-    : string * string option
-  =
+let next_uri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(forest : State.t) : string =
   let addrs =
     forest.index
     |> URI.Tbl.to_seq
-    |> Seq.filter_map
-        (fun (uri, tree) ->
-          let@ path = Option.map @~ Tree.get_source_path ~base: forest.config.url tree in
-          uri, path
-        )
+    |> Seq.map fst
     |> List.of_seq
   in
-  let default_dir = Option.map Unix.realpath @@ List.nth_opt forest.config.trees 0 in
   let keys =
-    let@ (uri, path) = List.filter_map @~ addrs in
+    let@ uri = List.filter_map @~ addrs in
     let@ prefix', key = Option.bind @@ URI_scheme.split_addr uri in
-    if prefix = prefix' then
-      Some (key, Filename.dirname path)
-    else None
+    if prefix = prefix' then Some key else None
   in
-  let last_sequential, dir =
+  let last_sequential =
     List.fold_left
-      (fun (acc_i, acc_dir) (i, dir) ->
-        if i > acc_i then (i, Some dir) else (acc_i, acc_dir)
+      (fun acc_i i ->
+        if i > acc_i then i else acc_i
       )
-      (0, default_dir)
+      0
       keys
   in
   let next =
     match mode with
     | `Sequential -> last_sequential + 1
-    | `Random -> random_not_in @@ List.map fst keys
+    | `Random -> random_not_in keys
   in
-  (match prefix with (None | Some "") -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next, dir
+  (match prefix with (None | Some "") -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next
 
 let start_of_file =
   let beginning = L.Position.create ~character: 0 ~line: 0 in

@@ -22,7 +22,7 @@ type target = HTML | JSON | XML | STRING
 let output_dir_name = "output"
 
 let create_tree ~env ~dest_dir ~prefix ~template ~mode ~(forest : State.t) =
-  let next, next_dir = URI_util.next_uri ~prefix ~mode ~forest in
+  let next = URI_util.next_uri ~prefix ~mode ~forest in
   let fname = next ^ ".tree" in
   let now = Human_datetime.now () in
   let template_content =
@@ -34,14 +34,14 @@ let create_tree ~env ~dest_dir ~prefix ~template ~mode ~(forest : State.t) =
   in
   let body = Format.asprintf "\\date{%a}\n" Human_datetime.pp now in
   let create = `Exclusive 0o644 in
-  (* If no dest_dir is passed, use the directory of the previous tree *)
+  (* If no dest_dir is passed, use the config *)
   let dir =
     match dest_dir with
     | Some dir -> dir
     | None ->
-      match next_dir with
-      | Some next_dir -> next_dir
-      | None -> Reporter.fatal Missing_argument ~extra_remarks: [Asai.Diagnostic.loctext "Unable to guess destination director for new tree; please supply one."]
+      match forest.config.trees with
+      | dir :: _ -> dir
+      | [] -> Reporter.fatal Missing_argument ~extra_remarks: [Asai.Diagnostic.loctext "Unable to guess destination director for new tree; please supply one."]
   in
   let path =
     EP.(env#fs / dir / fname)

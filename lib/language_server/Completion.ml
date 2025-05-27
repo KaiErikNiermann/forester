@@ -368,7 +368,7 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
             ~filterText
             ()
       | New_addr ->
-        let next mode = fst @@ URI_util.next_uri ~prefix: None ~mode ~forest in
+        let next mode = URI_util.next_uri ~prefix: None ~mode ~forest in
         [
           L.CompletionItem.create ~label: "random" ~insertText: (next `Sequential) ();
           L.CompletionItem.create ~label: "sequential" ~insertText: (next `Random) ()
