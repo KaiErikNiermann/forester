@@ -35,13 +35,9 @@ let split_addr (uri : URI.t) : (string option * int) option =
     match String.rindex_opt name '-' with
     | Some i ->
       let prefix = String.sub name 0 i
-      and suffix = String.sub name (i + 1) (String.length name - i - 1)
-      in
-      begin
-        match BaseN.Base36.int_of_string suffix with
-        | Some key -> Some (Some prefix, key)
-        | None -> None
-      end
+      and suffix = String.sub name (i + 1) (String.length name - i - 1) in
+      let@ key = Option.map @~ BaseN.Base36.int_of_string suffix in
+      Some prefix, key
     | _ ->
       let@ key = Option.map @~ BaseN.Base36.int_of_string name in
       None, key

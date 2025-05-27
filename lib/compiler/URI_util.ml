@@ -29,17 +29,11 @@ let next_uri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(for
     let@ prefix', key = Option.bind @@ URI_scheme.split_addr uri in
     if prefix = prefix' then Some key else None
   in
-  let last_sequential =
-    List.fold_left
-      (fun acc_i i ->
-        if i > acc_i then i else acc_i
-      )
-      0
-      keys
-  in
   let next =
     match mode with
-    | `Sequential -> last_sequential + 1
+    | `Sequential ->
+      let last_sequential = List.fold_left (fun acc_i i -> if i > acc_i then i else acc_i ) 0 keys in
+      last_sequential + 1
     | `Random -> random_not_in keys
   in
   (match prefix with (None | Some "") -> "" | Some prefix -> prefix ^ "-") ^ BaseN.Base36.string_of_int next
