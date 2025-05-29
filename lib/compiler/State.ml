@@ -319,3 +319,19 @@ let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
         (*   | _ -> () *)
         ()
       )
+
+
+let rec source_path_of_uri (uri : URI.t) (forest : t) : string option =
+  let@ tree = Option.bind @@ find_opt forest uri in
+  source_path_of_origin (Tree.origin tree) forest
+
+and source_path_of_origin (origin : origin) (forest : t) : string option =
+  match origin with
+  | Physical document ->
+    Option.some @@ Lsp.Uri.to_path @@ Lsp.Text_document.documentUri document
+  | Subtree {parent} -> source_path_of_identity parent forest
+  | Undefined -> None
+
+and source_path_of_identity (identity : identity) (forest : t) : string option =
+  let@ uri = Option.bind @@ identity_to_uri identity in
+  source_path_of_uri uri forest
