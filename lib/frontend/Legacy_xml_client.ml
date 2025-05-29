@@ -48,7 +48,22 @@ let route (forest : State.t) uri : URI.t =
       URI.make ~path ()
     | _ -> uri
 
-module Scope = Algaeff.Reader.Make(struct type t = URI.t option end)
+module Scope = struct
+  open struct module E = Algaeff.Reader.Make(struct type t = URI.t option end) end
+  let read = E.read
+
+  let run ~(forest : State.t) ~env kont =
+    let@ () = E.run ~env in
+    let loc_opt =
+      let@ uri = Option.bind env in
+      let@ path = Option.map @~ State.source_path_of_uri uri forest in
+      let position = Range.{source = `File path; offset = 0; start_of_line = 0; line_num = 0} in
+      Range.make (position,position)
+    in
+    let@ () = Reporter.with_loc loc_opt in
+    kont ()
+end
+
 module Loop_detection = Loop_detection_effect.Make ()
 
 (* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
@@ -82,7 +97,7 @@ let rec render_section forest (section : T.content T.section) : P.node =
     (render_section_flags section.flags)
     [
       render_frontmatter forest section.frontmatter;
-      let@ () = Scope.run ~env: section.frontmatter.uri in
+      let@ () = Scope.run ~forest ~env: section.frontmatter.uri in
       X.mainmatter [] @@
         if Loop_detection.have_seen_uri_opt section.frontmatter.uri then
           [X.info [] [P.txt "Transclusion loop detected, rendering stopped."]]
@@ -313,10 +328,9 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
       Logs.debug (fun m -> m "[Performance] rendering %a took %f seconds" Format.(pp_print_option URI.pp) article.frontmatter.uri elapsed);
     result
   in
-  let@ () = Reporter.tracef "when rendering article %a" Format.(pp_print_option URI.pp) article.frontmatter.uri in
   let config = forest.config in
   let@ () = Loop_detection.run in
-  let@ () = Scope.run ~env: article.frontmatter.uri in
+  let@ () = Scope.run ~forest ~env: article.frontmatter.uri in
   let@ xmlnss = Xmlns.run in
   let@ () = In_backmatter.run ~env: false in
   X.tree
