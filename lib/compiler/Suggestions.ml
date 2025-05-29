@@ -1,4 +1,10 @@
-open Forester_core
+(*
+ * SPDX-FileCopyrightText: 2024 The Forester Project Contributors AND The RedPRL Development Team
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 WITH LLVM-exception
+ *
+ *)
+ open Forester_core
 open Bwd
 
 (* TODO: remove this in favor of https://github.com/ocaml/ocaml/pull/13760 *)
