@@ -195,6 +195,16 @@ let run_until_done a s : State.t =
 let implant_foreign = run_until_done Plant_foreign
 let plant_assets = run_until_done Plant_assets
 
+let any_fatal =
+  List.fold_left
+    Asai.Diagnostic.(
+      fun acc x ->
+        acc
+        || x.severity = Error
+        || x.severity = Bug
+    )
+    false
+
 let batch_run ~env ~(config : Config.t) ~dev =
   let init =
     State.make ~env ~config ~dev ()
@@ -211,7 +221,9 @@ let batch_run ~env ~(config : Config.t) ~dev =
       assert (List.length errors > 0);
       Logs.debug (fun m -> m "got %d errors" (List.length errors));
       List.iter Reporter.Tty.display errors;
-      go (Quit Fail) new_state
+      if any_fatal errors then
+        go (Quit Fail) new_state
+      else go new_action new_state
     | _ ->
       go new_action new_state
   in
