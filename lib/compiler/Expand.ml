@@ -317,10 +317,20 @@ let tex_builtin_symbols =
     let node = Syn.TeX_cs (TeX_cs.Symbol c) in
     path, (Syn.Term [Range.locate_opt None node], None)
 
+let builtin_xml_namespaces =
+  List.to_seq
+    [
+      "html", "http://www.w3.org/1999/xhtml";
+      "mml", "http://www.w3.org/1998/Math/MathML"
+    ]
+  |> Seq.map @@ fun (prefix, xmlns) ->
+    ["xmlns"; prefix], (Syn.Xmlns {prefix; xmlns}, None)
+
 let builtins =
   Seq.concat @@
     List.to_seq
       [
+        builtin_xml_namespaces;
         tex_builtin_words;
         tex_builtin_symbols;
         begin
