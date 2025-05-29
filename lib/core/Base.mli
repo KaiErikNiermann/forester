@@ -64,7 +64,7 @@ val show_identity : identity -> string
 val identity_to_uri : identity -> URI.t option
 type origin =
   | Physical of Lsp.Text_document.t
-  | Subtree of { parent : identity; }
+  | Subtree of {parent: identity;}
   | Undefined
 val pp_origin : Format.formatter -> origin -> unit
 val show_origin : origin -> string

@@ -41,20 +41,20 @@ let compute (L.CodeActionParams.{range; textDocument = {uri}; _;}) : L.CodeActio
     match forest.config.trees with
     | [] -> []
     | dir :: _ ->
-        let sequential =
-          L.CodeAction.create
-            ~title: (Format.asprintf "create new tree (sequential address)")
-            ~kind: (L.CodeActionKind.Other "new tree")
-            ~edit: (create_tree_edit ~range ~uri next_sequential dir)
-            ()
-        in
-        let random =
-          L.CodeAction.create
-            ~title: (Format.asprintf "create new tree (random address)")
-            ~kind: (L.CodeActionKind.Other "new tree")
-            ~edit: (create_tree_edit ~range ~uri next_random dir)
-            ()
-        in
-        [`CodeAction sequential; `CodeAction random]
+      let sequential =
+        L.CodeAction.create
+          ~title: (Format.asprintf "create new tree (sequential address)")
+          ~kind: (L.CodeActionKind.Other "new tree")
+          ~edit: (create_tree_edit ~range ~uri next_sequential dir)
+          ()
+      in
+      let random =
+        L.CodeAction.create
+          ~title: (Format.asprintf "create new tree (random address)")
+          ~kind: (L.CodeActionKind.Other "new tree")
+          ~edit: (create_tree_edit ~range ~uri next_random dir)
+          ()
+      in
+      [`CodeAction sequential; `CodeAction random]
   in
   Some actions
