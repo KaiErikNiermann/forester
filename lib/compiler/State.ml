@@ -228,7 +228,7 @@ let get_title_or_content_of_vertex ?(not_found = fun _ -> None) vertex forest =
     end
 
 (* A list of mistakes that a user might make when typing a given URI.
-   For example, they might type "https://www.forester-notes.com/jms-005P" instead of "https://www.forester-notes.com/jms-005P/".
+   For example, they might type "https://www.forester-notes.com/005P" instead of "https://www.forester-notes.com/005P/".
  *)
 let wrong_variants_for_uri uri =
   let components = URI.path_components uri in
