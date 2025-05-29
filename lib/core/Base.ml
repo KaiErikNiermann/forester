@@ -4,15 +4,21 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+type eval_mode =
+  | Text_mode
+  | TeX_mode
+[@@deriving show, repr]
+
+type binding_info =
+  | Strict
+  | Lazy
+[@@deriving show, repr]
+
+type 'a binding = binding_info * 'a
+[@@deriving show, repr]
+
 type delim =
   Braces | Squares | Parens
-[@@deriving show, repr]
-
-type binding_strategy =
-  Lazy | Strict
-[@@deriving show, repr]
-
-type 'a binding = binding_strategy * 'a
 [@@deriving show, repr]
 
 let delim_to_strings = function
@@ -21,7 +27,8 @@ let delim_to_strings = function
   | Parens -> "(", ")"
 
 type math_mode =
-  Inline | Display
+  | Inline
+  | Display
 [@@deriving show, repr]
 
 type visibility =

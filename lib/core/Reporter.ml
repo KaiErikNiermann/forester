@@ -41,15 +41,10 @@ module Message = struct
         got: Value.t option;
         expected: expected_value list
       }
-    | Resolution_error of (Symbol.t * Value.t Value.Env.t)
-    | Expansion_error of
-      [
-        | `Resolution_error of
-        (((Sc.data, R.P.tag) Trie.t [@opaque])
-        * (Yuujinchou.Trie.Untagged.path [@printer Format.(pp_print_list pp_print_string)]))
-        | `Xmlns_error
-      ]
-    | Resolution_warning
+    | Unbound_fluid_symbol of (Symbol.t * Value.t Value.Env.t)
+    | Unbound_lexical_symbol of (Symbol.t * Value.t Value.Env.t)
+    | Unresolved_identifier of ((Sc.data, R.P.tag) Trie.t [@opaque]) * Trie.path
+    | Unresolved_xmlns of string
     | Reference_error of URI.t
     | Unhandled_case
     | Transclusion_loop
@@ -71,7 +66,8 @@ module Message = struct
 
   let default_severity : t -> Asai.Diagnostic.severity = function
     | Import_not_found _ -> Error
-    | Expansion_error _ -> Error
+    | Unresolved_identifier _ -> Warning
+    | Unresolved_xmlns _ -> Error
     | Invalid_URI -> Error
     | Unbound_method _ -> Error
     | Asset_has_no_content_address _ -> Error
@@ -82,8 +78,8 @@ module Message = struct
     | Parse_error -> Error
     | Type_error _ -> Error
     | Type_warning -> Warning
-    | Resolution_error _ -> Error
-    | Resolution_warning -> Warning
+    | Unbound_fluid_symbol _ -> Error
+    | Unbound_lexical_symbol _ -> Error
     | Unhandled_case -> Bug
     | Transclusion_loop -> Error
     | Internal_error -> Bug
@@ -112,9 +108,10 @@ module Message = struct
     | Unbound_method _ -> "unbound_method"
     | Type_warning -> "type_warning"
     | Type_error _ -> "type_error"
-    | Resolution_error _ -> "resolution_error"
-    | Expansion_error _ -> "expansion_error"
-    | Resolution_warning -> "resolution_warning"
+    | Unbound_fluid_symbol _ -> "unbound_fluid_symbol"
+    | Unbound_lexical_symbol _ -> "unbound_lexical_symbol"
+    | Unresolved_xmlns _ -> "unresolved_xmlns"
+    | Unresolved_identifier _ -> "unresolved_identifier"
     | Reference_error _ -> "reference_error"
     | Unhandled_case -> "unhandled_case"
     | Transclusion_loop -> "transclusion_loop"
@@ -160,14 +157,10 @@ module Message = struct
 
   let default_text : t -> Asai.Diagnostic.text = function
     | Import_not_found uri -> Asai.Diagnostic.textf "%a not found" URI.pp uri
-    | Expansion_error err ->
-      begin
-        match err with
-        | `Xmlns_error ->
-          Asai.Diagnostic.textf ""
-        | `Resolution_error (_, p) ->
-          Asai.Diagnostic.textf "Unknown binding %a" Trie.pp_path p
-      end
+    | Unresolved_xmlns prefix ->
+      Asai.Diagnostic.textf "Could not resolve prefix `%s` to XML namespace" prefix
+    | Unresolved_identifier (_, p) ->
+      Asai.Diagnostic.textf "Unknown binding \\%a. To interpret as a TeX control sequence, explicitly enter TeX mode using #{...}." Trie.pp_path p
     | Type_error {got; expected} ->
       begin
         let expected_msg =
@@ -256,8 +249,8 @@ module Message = struct
     | Reference_error _
     | Parse_error
     | Type_warning
-    | Resolution_error _
-    | Resolution_warning
+    | Unbound_fluid_symbol _
+    | Unbound_lexical_symbol _
     | Unhandled_case
     | Transclusion_loop
     | Internal_error

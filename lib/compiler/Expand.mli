@@ -23,8 +23,6 @@ sig
   end
 end
 
-val suggestions : string list -> ('a, 'b) Trie.t -> (Trie.path * 'a * int) list
-
 val expand : forest: State.t -> Code.t -> Syn.t
 val expand_tree : forest: State.t -> Tree.code -> Tree.syn * Reporter.Message.t Asai.Diagnostic.t list
 

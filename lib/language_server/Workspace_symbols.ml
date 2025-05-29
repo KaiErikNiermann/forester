@@ -31,13 +31,13 @@ let exports_to_symbols (exports : Tree.exports) =
   let@ path, (data, range) = List.filter_map @~ List.of_seq @@ Trie.to_seq exports in
   let@ location = Option.map @~ location_of_range range in
   match data with
-  | Resolver.P.Xmlns _ ->
+  | Xmlns _ ->
     L.SymbolInformation.create
       ~kind: Namespace
       ~location
       ~name: (Format.asprintf "%a" Resolver.Scope.pp_path path)
       ()
-  | Resolver.P.Term syn ->
+  | Term syn ->
     let kind =
       match (List.hd syn).value with
       | Syn.Text _ -> L.SymbolKind.String
@@ -55,6 +55,7 @@ let exports_to_symbols (exports : Tree.exports) =
       | Syn.Get _
       | Syn.Xml_tag (_, _, _)
       | Syn.TeX_cs _
+      | Syn.Unresolved_ident _
       | Syn.Prim _
       | Syn.Patch _
       | Syn.Call (_, _)

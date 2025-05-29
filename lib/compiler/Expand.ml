@@ -15,81 +15,6 @@ open struct
   module Sc = R.Scope
 end
 
-(* TODO: remove this in favor of https://github.com/ocaml/ocaml/pull/13760 *)
-let edit_distance ~cutoff x y =
-  let len_x, len_y = String.length x, String.length y in
-  let grid = Array.make_matrix (len_x + 1) (len_y + 1) 0 in
-  for i = 1 to len_x do
-    grid.(i).(0) <- i;
-  done;
-  for j = 1 to len_y do
-    grid.(0).(j) <- j;
-  done;
-  for j = 1 to len_y do
-    for i = 1 to len_x do
-      let cost = if x.[i - 1] = y.[j - 1] then 0 else 1 in
-      let k = Int.min (grid.(i - 1).(j) + 1) (grid.(i).(j - 1) + 1) in
-      grid.(i).(j) <- Int.min k (grid.(i - 1).(j - 1) + cost)
-    done;
-  done;
-  let result = grid.(len_x).(len_y) in
-  if result > cutoff then None
-  else
-    Some result
-
-let suggestions
-    ?prefix
-    ~(cutoff : int)
-    (p : Trie.bwd_path)
-    : ('data, 'tag) Trie.t -> ('data, int) Trie.t
-  =
-  let compare p d =
-    edit_distance ~cutoff (String.concat "" (Bwd.to_list p)) (String.concat "" (Bwd.to_list d))
-  in
-  Trie.filter_map
-    ?prefix
-    (fun q (data, _) ->
-      match compare p q with
-      | Some i ->
-        if i > cutoff then
-          None
-        else
-          (Some (data, i))
-      | None -> None
-    )
-
-let suggestions path visible =
-  suggestions ~cutoff: 2 (Bwd.of_list path) visible
-  |> Trie.to_seq
-  |> Seq.map (fun (path, (data, distance)) -> (path, data, distance))
-  |> List.of_seq
-  |> List.sort (fun (_, _, a) (_, _, b) -> Int.compare a b)
-
-let create_suggestions path =
-  let visible = Sc.get_visible () in
-  let suggestions = suggestions path visible in
-  let extra_remarks =
-    if List.length suggestions > 0 then
-      let (path, data, _) = List.hd suggestions in
-      let location_hint =
-        match data with
-        | R.P.Term ({loc = Some loc; _} :: _) ->
-          begin
-            match Range.view loc with
-            | `End_of_file {source; _}
-            | `Range ({source; _}, _) ->
-              match Range.title source with
-              | Some string ->
-                [Asai.Diagnostic.loctextf "defined in %s" string]
-              | _ -> []
-          end
-        | _ -> []
-      in
-      [Asai.Diagnostic.loctextf "Did you mean %a?" Sc.pp_path path] @ location_hint
-    else []
-  in
-  extra_remarks
-
 module Builtins = struct
 
   let create_sym path =
@@ -103,7 +28,7 @@ module Builtins = struct
     Sc.include_subtree [] @@
     Yuujinchou.Trie.of_seq @@
     let@ path, node = Seq.map @~ List.to_seq builtins in
-    path, (R.P.Term [Range.locate_opt None node], None)
+    path, (Syn.Term [Range.locate_opt None node], None)
 
   module Transclude = struct
     let expanded_sym, alloc_expanded = create_sym ["transclude"; "expanded"]
@@ -253,7 +178,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
         let var = Range.{value = Syn.Var sym; loc = node.loc} in (* TODO: correct the location *)
         begin
           let@ self = Option.iter @~ self in
-          Sc.import_singleton self @@ (R.P.Term [var], node.loc) (* TODO: correct the location*)
+          Sc.import_singleton self @@ (Term [var], node.loc) (* TODO: correct the location*)
         end;
         sym, List.map (expand_method ~forest) methods
       in
@@ -313,29 +238,14 @@ and get_arg_opt ~forest : Code.t -> _ = function
   | rest -> None, rest
 
 and expand_ident loc path =
-  match Sc.resolve path, path with
-  | None, [name] ->
-    begin
-      match TeX_cs.parse name with
-      | None ->
-        let extra_remarks = create_suggestions path in
-        let visible = Sc.get_visible () in
-        Reporter.fatal
-          ?loc
-          ~extra_remarks
-          (Expansion_error (`Resolution_error (visible, path)))
-      | Some (cs, rest) ->
-        let rest = match rest with "" -> [] | _ -> [Range.{value = Syn.Text rest; loc}] in
-        Range.{value = Syn.TeX_cs cs; loc} :: rest
-    end
-  | None, _ ->
-    let extra_remarks = create_suggestions path in
+  match Sc.resolve path with
+  | None ->
     let visible = Sc.get_visible () in
-    Reporter.fatal ?loc ~extra_remarks (Expansion_error (`Resolution_error (visible, path)))
-  | Some (Term x, _), _ ->
+    [Range.{value = Syn.Unresolved_ident (visible, path); loc}]
+  | Some (Term x, _) ->
     let relocate Range.{value; _} = Range.{value; loc} in
     List.map relocate x
-  | Some (Xmlns {xmlns; prefix}, _), _ ->
+  | Some (Xmlns {xmlns; prefix}, _) ->
     let visible = Sc.get_visible () in
     Reporter.fatal
       ?loc
@@ -347,7 +257,7 @@ and expand_ident loc path =
           xmlns
           prefix
       ]
-      (Expansion_error (`Resolution_error (visible, path)))
+      (Unresolved_identifier (visible, path)) (* TODO: This should be perhaps a different error *)
 
 and expand_xml_ident loc (prefix, uname) : Types.xml_qname =
   match prefix with
@@ -359,7 +269,7 @@ and expand_xml_ident loc (prefix, uname) : Types.xml_qname =
     | _ ->
       Reporter.fatal
         ?loc
-        (Expansion_error `Xmlns_error)
+        (Unresolved_xmlns prefix)
         ~extra_remarks: [
           Asai.Diagnostic.loctextf
             "expected path `%s` to resolve to xmlns"
@@ -398,53 +308,68 @@ let ignore_entered_range f x =
 let expand ~forest (xs : Code.t) : Syn.t =
   ignore_entered_range (expand_eff ~forest) xs
 
-let builtins = [
-  ["p"], Syn.Prim `P;
-  ["em"], Syn.Prim `Em;
-  ["strong"], Syn.Prim `Strong;
-  ["li"], Syn.Prim `Li;
-  ["ol"], Syn.Prim `Ol;
-  ["ul"], Syn.Prim `Ul;
-  ["code"], Syn.Prim `Code;
-  ["blockquote"], Syn.Prim `Blockquote;
-  ["pre"], Syn.Prim `Pre;
-  ["figure"], Syn.Prim `Figure;
-  ["figcaption"], Syn.Prim `Figcaption;
-  ["transclude"], Syn.Transclude;
-  ["tex"], Syn.Embed_tex;
-  ["ref"], Syn.Ref;
-  ["title"], Syn.Title;
-  ["taxon"], Syn.Taxon;
-  ["date"], Syn.Date;
-  ["meta"], Syn.Meta;
-  ["author"], Syn.Attribution (Author, `Uri);
-  ["author"; "literal"], Syn.Attribution (Author, `Content);
-  ["contributor"], Syn.Attribution (Contributor, `Uri);
-  ["contributor"; "literal"], Syn.Attribution (Contributor, `Content);
-  ["parent"], Syn.Parent;
-  ["number"], Syn.Number;
-  ["tag"], Syn.Tag `Content;
-  ["query"], Syn.Results_of_query;
-  ["rel"; "has-tag"], Syn.Text Builtin_relation.has_tag;
-  ["rel"; "has-taxon"], Syn.Text Builtin_relation.has_taxon;
-  ["rel"; "has-author"], Syn.Text Builtin_relation.has_author;
-  ["rel"; "has-direct-contributor"], Syn.Text Builtin_relation.has_direct_contributor;
-  ["rel"; "transcludes"], Syn.Text Builtin_relation.transcludes;
-  ["rel"; "transcludes"; "transitive-closure"], Syn.Text Builtin_relation.transcludes_tc;
-  ["rel"; "transcludes"; "reflexive-transitive-closure"], Syn.Text Builtin_relation.transcludes_rtc;
-  ["rel"; "links-to"], Syn.Text Builtin_relation.links_to;
-  ["rel"; "is-reference"], Syn.Text Builtin_relation.is_reference;
-  ["rel"; "is-person"], Syn.Text Builtin_relation.is_person;
-  ["rel"; "is-node"], Syn.Text Builtin_relation.is_node;
-  ["rel"; "is-article"], Syn.Text Builtin_relation.is_article;
-  ["rel"; "is-asset"], Syn.Text Builtin_relation.is_asset;
-  ["rel"; "in-host"], Syn.Text Builtin_relation.in_host;
-  ["execute"], Syn.Dx_execute;
-  ["route-asset"], Syn.Route_asset;
-  ["syndicate-query-as-json-blob"], Syn.Syndicate_query_as_json_blob;
-  ["syndicate-current-tree-as-atom-feed"], Syn.Syndicate_current_tree_as_atom_feed;
-  ["current-tree"], Syn.Current_tree;
-]
+(* Feel free to extend this *)
+let tex_builtin_words = ["left"; "right"; "big"; "bigr"; "Big"; "Bigr"; "bigg"; "biggr"; "Bigg"; "Biggr"; "bigl"; "Bigl"; "biggl"; "Biggl"; "mathrlap"; "mathllap"; "mathclap"; "rlap"; "llap"; "ulap"; "dlap"; "infty"; "infinity"; "lbrace"; "rbrace"; "llbracket"; "rrbracket"; "lvert"; "lVert"; "rvert"; "rVert"; "vert"; "Vert"; "setminus"; "backslash"; "smallsetminus"; "sslash"; "lfloor"; "lceil"; "lmoustache"; "lang"; "langle"; "llangle"; "rfloor"; "rceil"; "rmoustache"; "rang"; "rangle"; "rrangle"; "uparrow"; "downarrow"; "updownarrow"; "prime"; "alpha"; "beta"; "gamma"; "delta"; "zeta"; "eta"; "theta"; "iota"; "kappa"; "lambda"; "mu"; "nu"; "xi"; "pi"; "rho"; "sigma"; "tau"; "upsilon"; "chi"; "psi"; "omega"; "backepsilon"; "varkappa"; "varpi"; "varrho"; "varsigma"; "vartheta"; "varepsilon"; "phi"; "varphi"; "arccos"; "arcsin"; "arctan"; "arg"; "cos"; "cosh"; "cot"; "coth"; "csc"; "deg"; "dim"; "exp"; "hom"; "ker"; "lg"; "ln"; "log"; "sec"; "sin"; "sinh"; "tan"; "tanh"; "det"; "gcd"; "inf"; "lim"; "liminf"; "limsup"; "max"; "min"; "Pr"; "sup"; "omicron"; "epsilon"; "cdot"; "Alpha"; "Beta"; "Delta"; "Gamma"; "digamma"; "Lambda"; "Pi"; "Phi"; "Psi"; "Sigma"; "Theta"; "Xi"; "Zeta"; "Eta"; "Iota"; "Kappa"; "Mu"; "Nu"; "Rho"; "Tau"; "mho"; "Omega"; "Upsilon"; "Upsi"; "iff"; "Longleftrightarrow"; "Leftrightarrow"; "impliedby"; "Leftarrow"; "implies"; "Rightarrow"; "hookleftarrow"; "embedsin"; "hookrightarrow"; "longleftarrow"; "longrightarrow"; "leftarrow"; "to"; "rightarrow"; "leftrightarrow"; "mapsto"; "map"; "nearrow"; "nearr"; "nwarrow"; "nwarr"; "searrow"; "searr"; "swarrow"; "swarr"; "neArrow"; "neArr"; "nwArrow"; "nwArr"; "seArrow"; "seArr"; "swArrow"; "swArr"; "darr"; "Downarrow"; "uparr"; "Uparrow"; "downuparrow"; "duparr"; "updarr"; "Updownarrow"; "leftsquigarrow"; "rightsquigarrow"; "dashleftarrow"; "dashrightarrow"; "curvearrowbotright"; "righttoleftarrow"; "lefttorightarrow"; "leftrightsquigarrow"; "upuparrows"; "rightleftarrows"; "rightrightarrows"; "curvearrowleft"; "curvearrowright"; "downdownarrows"; "leftarrowtail"; "rightarrowtail"; "leftleftarrows"; "leftrightarrows"; "Lleftarrow"; "Rrightarrow"; "looparrowleft"; "looparrowright"; "Lsh"; "Rsh"; "circlearrowleft"; "circlearrowright"; "twoheadleftarrow"; "twoheadrightarrow"; "nLeftarrow"; "nleftarrow"; "nLeftrightarrow"; "nleftrightarrow"; "nRightarrow"; "nrightarrow"; "rightharpoonup"; "rightharpoondown"; "leftharpoonup"; "leftharpoondown"; "downharpoonleft"; "downharpoonright"; "leftrightharpoons"; "rightleftharpoons"; "upharpoonleft"; "upharpoonright"; "xrightarrow"; "xleftarrow"; "xleftrightarrow"; "xLeftarrow"; "xRightarrow"; "xLeftrightarrow"; "xleftrightharpoons"; "xrightleftharpoons"; "xhookleftarrow"; "xhookrightarrow"; "xmapsto"; "dots"; "ldots"; "cdots"; "ddots"; "udots"; "vdots"; "colon"; "cup"; "union"; "bigcup"; "Union"; "&Union;"; "cap"; "intersection"; "bigcap"; "Intersection"; "in"; "coloneqq"; "Coloneqq"; "coloneq"; "Coloneq"; "eqqcolon"; "Eqqcolon"; "eqcolon"; "Eqcolon"; "colonapprox"; "Colonapprox"; "colonsim"; "Colonsim"; "dblcolon"; "ast"; "Cap"; "Cup"; "circledast"; "circledcirc"; "curlyvee"; "curlywedge"; "divideontimes"; "dotplus"; "leftthreetimes"; "rightthreetimes"; "veebar"; "gt"; "lt"; "approxeq"; "backsim"; "backsimeq"; "barwedge"; "doublebarwedge"; "subset"; "subseteq"; "subseteqq"; "subsetneq"; "subsetneqq"; "varsubsetneq"; "varsubsetneqq"; "prec"; "parallel"; "nparallel"; "shortparallel"; "nshortparallel"; "perp"; "eqslantgtr"; "eqslantless"; "gg"; "ggg"; "geq"; "geqq"; "geqslant"; "gneq"; "gneqq"; "gnapprox"; "gnsim"; "gtrapprox"; "ge"; "le"; "leq"; "leqq"; "leqslant"; "lessapprox"; "lessdot"; "lesseqgtr"; "lesseqqgtr"; "lessgtr"; "lneq"; "lneqq"; "lnsim"; "lvertneqq"; "gtrsim"; "gtrdot"; "gtreqless"; "gtreqqless"; "gtrless"; "gvertneqq"; "lesssim"; "lnapprox"; "nsubset"; "nsubseteq"; "nsubseteqq"; "notin"; "ni"; "notni"; "nmid"; "nshortmid"; "preceq"; "npreceq"; "ll"; "ngeq"; "ngeqq"; "ngeqslant"; "nleq"; "nleqq"; "nleqslant"; "nless"; "supset"; "supseteq"; "supseteqq"; "supsetneq"; "supsetneqq"; "varsupsetneq"; "varsupsetneqq"; "approx"; "asymp"; "bowtie"; "dashv"; "Vdash"; "vDash"; "VDash"; "vdash"; "Vvdash"; "models"; "sim"; "simeq"; "nsim"; "smile"; "triangle"; "triangledown"; "triangleleft"; "cong"; "succ"; "nsucc"; "ngtr"; "nsupset"; "nsupseteq"; "propto"; "equiv"; "nequiv"; "frown"; "triangleright"; "ncong"; "succeq"; "succapprox"; "succnapprox"; "succcurlyeq"; "succsim"; "succnsim"; "nsucceq"; "nvDash"; "nvdash"; "nVDash"; "amalg"; "pm"; "mp"; "bigcirc"; "wr"; "odot"; "uplus"; "clubsuit"; "spadesuit"; "Diamond"; "diamond"; "sqcup"; "sqcap"; "sqsubset"; "sqsubseteq"; "sqsupset"; "sqsupseteq"; "Subset"; "Supset"; "ltimes"; "div"; "rtimes"; "bot"; "therefore"; "thickapprox"; "thicksim"; "varpropto"; "varnothing"; "flat"; "vee"; "because"; "between"; "Bumpeq"; "bumpeq"; "circeq"; "curlyeqprec"; "curlyeqsucc"; "doteq"; "doteqdot"; "eqcirc"; "fallingdotseq"; "multimap"; "pitchfork"; "precapprox"; "precnapprox"; "preccurlyeq"; "precsim"; "precnsim"; "risingdotseq"; "sharp"; "bullet"; "nexists"; "dagger"; "ddagger"; "not"; "top"; "natural"; "angle"; "measuredangle"; "backprime"; "bigstar"; "blacklozenge"; "lozenge"; "blacksquare"; "blacktriangle"; "blacktriangleleft"; "blacktriangleright"; "blacktriangledown"; "ntriangleleft"; "ntriangleright"; "ntrianglelefteq"; "ntrianglerighteq"; "trianglelefteq"; "trianglerighteq"; "triangleq"; "vartriangleleft"; "vartriangleright"; "forall"; "bigtriangleup"; "bigtriangledown"; "nprec"; "aleph"; "beth"; "eth"; "ell"; "hbar"; "Im"; "imath"; "jmath"; "wp"; "Re"; "Perp"; "Vbar"; "boxdot"; "Box"; "square"; "emptyset"; "empty"; "exists"; "circ"; "rhd"; "lhd"; "lll"; "unrhd"; "unlhd"; "Del"; "nabla"; "sphericalangle"; "heartsuit"; "diamondsuit"; "partial"; "qed"; "mod"; "pmod"; "bottom"; "neg"; "neq"; "ne"; "shortmid"; "mid"; "int"; "integral"; "iint"; "doubleintegral"; "iiint"; "tripleintegral"; "iiiint"; "quadrupleintegral"; "oint"; "conint"; "contourintegral"; "times"; "star"; "circleddash"; "odash"; "intercal"; "smallfrown"; "smallsmile"; "boxminus"; "minusb"; "boxplus"; "plusb"; "boxtimes"; "timesb"; "sum"; "prod"; "product"; "coprod"; "coproduct"; "otimes"; "Otimes"; "bigotimes"; "ominus"; "oslash"; "oplus"; "Oplus"; "bigoplus"; "bigodot"; "bigsqcup"; "bigsqcap"; "biginterleave"; "biguplus"; "wedge"; "Wedge"; "bigwedge"; "Vee"; "bigvee"; "invamp"; "parr"; "frac"; "tfrac"; "binom"; "tbinom"; "tensor"; "multiscripts"; "overbrace"; "underbrace"; "underline"; "bar"; "overline"; "closure"; "widebar"; "vec"; "widevec"; "overrightarrow"; "overleftarrow"; "overleftrightarrow"; "underrightarrow"; "underleftarrow"; "underleftrightarrow"; "dot"; "ddot"; "dddot"; "ddddot"; "tilde"; "widetilde"; "check"; "widecheck"; "hat"; "widehat"; "underset"; "stackrel"; "overset"; "over"; "atop"; "underoverset"; "sqrt"; "root"; "space"; "text"; "statusline"; "tooltip"; "toggle"; "begintoggle"; "endtoggle"; "mathraisebox"; "fghilight"; "fghighlight"; "bghilight"; "bghighlight"; "color"; "bgcolor"; "displaystyle"; "textstyle"; "textsize"; "scriptsize"; "scriptscriptsize"; "mathit"; "mathsf"; "mathtt"; "boldsymbol"; "mathbf"; "mathrm"; "mathbb"; "mathfrak"; "mathfr"; "slash"; "boxed"; "mathcal"; "mathscr"; "begin"; "end"; "substack"; "array"; "arrayopts"; "colalign"; "collayout"; "rowalign"; "align"; "equalrows"; "equalcols"; "rowlines"; "collines"; "frame"; "padding"; "rowopts"; "cellopts"; "rowspan"; "colspan"; "thinspace"; "medspace"; "thickspace"; "quad"; "qquad"; "negspace"; "negthinspace"; "negmedspace"; "negthickspace"; "phantom"; "operatorname"; "mathop"; "mathbin"; "mathrel"; "includegraphics"; "lparen"; "rparen"; "land"; "lor"; "middle"; "mathpunct"; "mathord"]
+
+(* Feel free to extend this *)
+let tex_builtin_symbols = ['_'; ','; ';']
+
+let builtins =
+  [
+    ["p"], Syn.Prim `P;
+    ["em"], Syn.Prim `Em;
+    ["strong"], Syn.Prim `Strong;
+    ["li"], Syn.Prim `Li;
+    ["ol"], Syn.Prim `Ol;
+    ["ul"], Syn.Prim `Ul;
+    ["code"], Syn.Prim `Code;
+    ["blockquote"], Syn.Prim `Blockquote;
+    ["pre"], Syn.Prim `Pre;
+    ["figure"], Syn.Prim `Figure;
+    ["figcaption"], Syn.Prim `Figcaption;
+    ["transclude"], Syn.Transclude;
+    ["tex"], Syn.Embed_tex;
+    ["ref"], Syn.Ref;
+    ["title"], Syn.Title;
+    ["taxon"], Syn.Taxon;
+    ["date"], Syn.Date;
+    ["meta"], Syn.Meta;
+    ["author"], Syn.Attribution (Author, `Uri);
+    ["author"; "literal"], Syn.Attribution (Author, `Content);
+    ["contributor"], Syn.Attribution (Contributor, `Uri);
+    ["contributor"; "literal"], Syn.Attribution (Contributor, `Content);
+    ["parent"], Syn.Parent;
+    ["number"], Syn.Number;
+    ["tag"], Syn.Tag `Content;
+    ["query"], Syn.Results_of_query;
+    ["rel"; "has-tag"], Syn.Text Builtin_relation.has_tag;
+    ["rel"; "has-taxon"], Syn.Text Builtin_relation.has_taxon;
+    ["rel"; "has-author"], Syn.Text Builtin_relation.has_author;
+    ["rel"; "has-direct-contributor"], Syn.Text Builtin_relation.has_direct_contributor;
+    ["rel"; "transcludes"], Syn.Text Builtin_relation.transcludes;
+    ["rel"; "transcludes"; "transitive-closure"], Syn.Text Builtin_relation.transcludes_tc;
+    ["rel"; "transcludes"; "reflexive-transitive-closure"], Syn.Text Builtin_relation.transcludes_rtc;
+    ["rel"; "links-to"], Syn.Text Builtin_relation.links_to;
+    ["rel"; "is-reference"], Syn.Text Builtin_relation.is_reference;
+    ["rel"; "is-person"], Syn.Text Builtin_relation.is_person;
+    ["rel"; "is-node"], Syn.Text Builtin_relation.is_node;
+    ["rel"; "is-article"], Syn.Text Builtin_relation.is_article;
+    ["rel"; "is-asset"], Syn.Text Builtin_relation.is_asset;
+    ["rel"; "in-host"], Syn.Text Builtin_relation.in_host;
+    ["execute"], Syn.Dx_execute;
+    ["route-asset"], Syn.Route_asset;
+    ["syndicate-query-as-json-blob"], Syn.Syndicate_query_as_json_blob;
+    ["syndicate-current-tree-as-atom-feed"], Syn.Syndicate_current_tree_as_atom_feed;
+    ["current-tree"], Syn.Current_tree;
+  ] @
+    begin
+      let@ word = List.map @~ tex_builtin_words in
+      [word], Syn.TeX_cs (TeX_cs.Word word)
+    end @
+    begin
+      let@ sym = List.map @~ tex_builtin_symbols in
+      [String_util.implode [sym]], Syn.TeX_cs (TeX_cs.Symbol sym)
+    end
 
 let expand_tree_inner ~forest (code : Tree.code) : Tree.syn =
   let trace k =

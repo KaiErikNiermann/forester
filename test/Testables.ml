@@ -45,7 +45,7 @@ let syn_node = testable Forester_core.Syn.pp_node (=)
 let syn = testable Syn.pp (=)
 let eval_result = testable Eval.pp_result (=)
 let path = testable Trie.pp_path (=)
-let data = testable Resolver.P.pp_data (=)
+let data = testable Syn.pp_resolver_data (=)
 let diagnostic =
   let pp = pp_diagnostic Reporter.Message.pp in
   testable pp (=)

@@ -193,6 +193,7 @@ let kind
   | Get _
   | Xml_tag (_, _, _)
   | TeX_cs _
+  | Unresolved_ident _
   | Object _
   | Patch _
   | Call (_, _)
@@ -242,7 +243,7 @@ let asset_completions ~(config : Config.t) () =
 
 let make (path, (data, _): Yuujinchou.Trie.path * (Resolver.P.data * Asai.Range.t option)) =
   match data with
-  | Resolver.P.Term syn ->
+  | Term syn ->
     (* NOTE: Eventually we want to analyse the syntax so that, for example,
        you can tab through the snippet for a function of arity n*)
     let kind = kind (List.hd syn).value in
@@ -255,7 +256,7 @@ let make (path, (data, _): Yuujinchou.Trie.path * (Resolver.P.data * Asai.Range.
           ~label: (String.concat "/" path)
           ()
       )
-  | Resolver.P.Xmlns _ ->
+  | Xmlns _ ->
     assert false
 
 (* These are useful completion items that are handled during parsing, not during expansion and are thus not "builtins"*)

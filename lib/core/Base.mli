@@ -6,6 +6,16 @@
 
 (** {1 Base} *)
 
+type eval_mode =
+  | Text_mode
+  | TeX_mode
+[@@deriving show, repr]
+
+type binding_info =
+  | Strict
+  | Lazy
+[@@deriving show, repr]
+
 (** {2 Delimiters} *)
 
 type delim = Braces | Squares | Parens
@@ -16,25 +26,8 @@ val delim_t : delim Repr.t
 val delim_to_strings : delim -> string * string
 
 (** {2 Variable binding} *)
-
-type binding_strategy = Lazy | Strict
-val pp_binding_strategy :
-  Format.formatter ->
-  binding_strategy ->
-  unit
-val show_binding_strategy : binding_strategy -> string
-val binding_strategy_t : binding_strategy Repr.t
-type 'a binding = binding_strategy * 'a
-val pp_binding :
-  (Format.formatter -> 'a -> unit) ->
-  Format.formatter ->
-  'a binding ->
-  unit
-val show_binding :
-  (Format.formatter -> 'a -> unit) ->
-  'a binding ->
-  string
-val binding_t : 'a Repr.t -> (binding_strategy * 'a) Repr.t
+type 'a binding = binding_info * 'a
+[@@deriving show, repr]
 
 (** {2 Math modes} *)
 

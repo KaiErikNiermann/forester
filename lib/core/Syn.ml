@@ -22,6 +22,7 @@ type node =
   | Get of t
   | Xml_tag of xml_qname * (xml_qname * t) list * t
   | TeX_cs of TeX_cs.t
+  | Unresolved_ident of ((resolver_data, Range.t option) Trie.t [@opaque]) * Trie.path
   | Prim of Prim.t
   | Object of {self: Symbol.t; methods: (string * t) list}
   | Patch of {obj: t; self: Symbol.t; super: Symbol.t; methods: (string * t) list}
@@ -53,6 +54,11 @@ type node =
 and t = node Range.located list
 [@@deriving show]
 
+and resolver_data =
+  | Term of t
+  | Xmlns of {xmlns: string; prefix: string}
+[@@deriving show]
+
 let map f node =
   match node with
   | Group (d, t) -> Group (d, f @@ t)
@@ -66,19 +72,9 @@ let map f node =
   | Xml_tag (q, qs, t) -> Xml_tag (q, List.map (fun (q, t) -> q, f t) qs, f t)
   | Call (t, s) -> Call (f t, s)
   | Object {self; methods} ->
-    Object
-      {
-        self;
-        methods = List.map (fun (str, t) -> str, f t) methods
-      }
+    Object {self; methods = List.map (fun (str, t) -> str, f t) methods}
   | Patch {obj; self; super; methods} ->
-    Patch
-      {
-        obj = f obj;
-        self;
-        super;
-        methods = List.map (fun (str, t) -> str, f t) methods
-      }
+    Patch {obj = f obj; self; super; methods = List.map (fun (str, t) -> str, f t) methods}
   | Dx_sequent (t, ts) -> Dx_sequent (f t, List.map f ts)
   | Dx_query (s, ps, ns) -> Dx_query (s, List.map f ps, List.map f ns)
   | Dx_const (s, n) -> Dx_const (s, f n)
@@ -88,6 +84,7 @@ let map f node =
   | Var _
   | Sym _
   | TeX_cs _
+  | Unresolved_ident _
   | Prim _
   | Results_of_query
   | Transclude
@@ -135,6 +132,7 @@ let children (node : node Range.located) =
   | Var _
   | Sym _
   | TeX_cs _
+  | Unresolved_ident _
   | Prim _
   | Results_of_query
   | Transclude

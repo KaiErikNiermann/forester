@@ -18,7 +18,7 @@ open struct
   module S = Resolver.Scope
   module P = Resolver.P
   let config = Config.default ()
-  let _data = Alcotest.testable P.pp_data (=)
+  let _data = Alcotest.testable Syn.pp_resolver_data (=)
 end
 
 open State.Syntax

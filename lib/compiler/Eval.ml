@@ -79,6 +79,7 @@ module Heap = Algaeff.State.Make(struct type t = Value.obj Env.t end)
 module Emitted_trees = Algaeff.State.Make(struct type t = T.content T.article list end)
 module Jobs = Algaeff.State.Make(struct type t = Job.job Range.located list end)
 module Frontmatter = Algaeff.State.Make(struct type t = T.content T.frontmatter end)
+module Mode_env = Algaeff.Reader.Make(struct type t = eval_mode end)
 
 let get_current_uri ~loc =
   match (Frontmatter.get ()).uri with
@@ -224,6 +225,7 @@ and eval_node node : Value.t =
     emit_content_node ~loc @@ Link {href; content}
   | Math (mode, body) ->
     let content =
+      let@ () = Mode_env.run ~env: TeX_mode in
       {node with value = eval_tape body} |> extract_content
     in
     emit_content_node ~loc @@ KaTeX (mode, content)
@@ -238,6 +240,21 @@ and eval_node node : Value.t =
     emit_content_node ~loc @@ T.Xml_elt {name; attrs = process attrs; content}
   | TeX_cs cs ->
     emit_content_node ~loc @@ T.Text (Format.asprintf "%a" pp_tex_cs cs)
+  | Unresolved_ident (visible, path) ->
+    let tex_cs_opt =
+      match path with
+      | [name] -> TeX_cs.parse name
+      | _ -> None
+    in
+    begin
+      match Mode_env.read (), tex_cs_opt with
+      | TeX_mode, Some (cs, rest) ->
+        emit_content_node ~loc @@ T.Text (Format.asprintf "%a%s" pp_tex_cs cs rest)
+      | _, _ ->
+        let extra_remarks = Suggestions.create_suggestions ~visible path in
+        Reporter.emit ?loc ~extra_remarks (Unresolved_identifier (visible, path));
+        emit_content_node ~loc @@ T.Text (Format.asprintf "\\%a" Resolver.Scope.pp_path path)
+    end
   | Transclude ->
     let flags = get_transclusion_flags ~loc in
     let href_arg = eval_pop_arg ~loc in
@@ -300,8 +317,12 @@ and eval_node node : Value.t =
     process_tape ()
   | Embed_tex ->
     let config = Config_env.read () in
-    let preamble = pop_content_arg ~loc |> TeX_like.string_of_content in
-    let body = pop_content_arg ~loc |> TeX_like.string_of_content in
+    let preamble, body =
+      let@ () = Mode_env.run ~env: TeX_mode in
+      let preamble = pop_content_arg ~loc |> TeX_like.string_of_content in
+      let body = pop_content_arg ~loc |> TeX_like.string_of_content in
+      preamble, body
+    in
     let source = LaTeX_template.to_string ~preamble ~body in
     let hash = Digest.to_hex @@ Digest.string source in
     let job = Job.{hash; source} in
@@ -416,7 +437,7 @@ and eval_node node : Value.t =
       | None ->
         Reporter.fatal
           ?loc: node.loc
-          (Resolution_error (k, env))
+          (Unbound_fluid_symbol (k, env))
       | Some v -> focus ?loc: node.loc v
     end
   | Verbatim str ->
@@ -544,7 +565,7 @@ and eval_var ~loc x =
   | None ->
     Reporter.fatal
       ?loc
-      (Resolution_error (x, env))
+      (Unbound_lexical_symbol (x, env))
 
 and focus ?loc = function
   | Clo (rho, xs, body) ->
@@ -572,11 +593,11 @@ and focus_clo ?loc rho xs body =
     focus ?loc @@
       let@ () = Lex_env.run ~env: rho in
       eval_tape body
-  | (strategy, y) :: ys ->
+  | (info, y) :: ys ->
     match Tape.pop_arg_opt () with
     | Some arg ->
       let yval =
-        match strategy with
+        match info with
         | Strict -> eval_tape arg.value
         | Lazy -> Clo (Lex_env.read (), [(Strict, Symbol.fresh ())], arg.value)
       in
@@ -637,6 +658,7 @@ let eval_tree
       ~emit: push
       @@ fun () ->
       let fm = T.default_frontmatter ~uri ?source_path () in
+      let@ () = Mode_env.run ~env: Text_mode in
       let@ () = Frontmatter.run ~init: fm in
       let@ () = Emitted_trees.run ~init: [] in
       let@ () = Jobs.run ~init: [] in

@@ -39,7 +39,8 @@ let pipe_latex_dvi ~env ~tex_source ?loc kont =
         Reporter.fatal
           External_error
           ~extra_remarks: [
-            Asai.Diagnostic.loctextf ?loc
+            Asai.Diagnostic.loctextf
+              ?loc
               "Encountered fatal LaTeX error: @.@.%s@.@. while running `%s` in directory `%s`."
               formatted_output
               (String.concat " " cmd)
@@ -61,7 +62,8 @@ let pipe_dvi_svg ~env ?loc ~dvi_source ~svg_sink () =
       Reporter.fatal
         External_error
         ~extra_remarks: [
-          Asai.Diagnostic.loctextf ?loc
+          Asai.Diagnostic.loctextf
+            ?loc
             "Encountered fatal error running `dvisvgm`: %s"
             (Buffer.contents err_buf)
         ]

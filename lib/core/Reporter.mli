@@ -36,14 +36,10 @@ sig
         got: Value.t option;
         expected: expected_value list
       }
-    | Resolution_error of (Symbol.t * Value.t Value.Env.t)
-    | Expansion_error of
-      [
-        | `Resolution_error of
-        (Resolver.Scope.data, Resolver.P.tag) Trie.t * Trie.Untagged.path
-        | `Xmlns_error
-      ]
-    | Resolution_warning
+    | Unbound_fluid_symbol of (Symbol.t * Value.t Value.Env.t)
+    | Unbound_lexical_symbol of (Symbol.t * Value.t Value.Env.t)
+    | Unresolved_identifier of ((Resolver.Scope.data, Resolver.P.tag) Trie.t) * Trie.path
+    | Unresolved_xmlns of string
     | Reference_error of URI.t
     | Unhandled_case
     | Transclusion_loop

@@ -5,10 +5,7 @@
  *)
 
 module P = struct
-  type data =
-    | Term of Syn.t
-    | Xmlns of {xmlns: string; prefix: string}
-  [@@deriving show]
+  type data = Syn.resolver_data
 
   type tag = Asai.Range.t option
 
@@ -47,7 +44,7 @@ module Scope = struct
         (
           pp_print_pair
             Trie.pp_path
-            (pp_print_pair P.pp_data (pp_print_option Asai.Range.dump))
+            (pp_print_pair Syn.pp_resolver_data (pp_print_option Asai.Range.dump))
         )
     )
 end
