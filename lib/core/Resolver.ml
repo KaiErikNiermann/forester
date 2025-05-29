@@ -29,8 +29,6 @@ module Scope = struct
   let include_subtree ?modifier path subtree =
     include_subtree ?modifier (path, subtree)
 
-  let easy_run kont = run kont
-
   let pp_path ppf path =
     let pp_slash ppf () = Format.fprintf ppf "/" in
     Format.(fprintf ppf "%a" (pp_print_list ~pp_sep: pp_slash pp_print_string) path)

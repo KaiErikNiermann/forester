@@ -25,7 +25,7 @@ open State.Syntax
 
 let expand ~forest src =
   let@ code = Result.map @~ parse_string_no_loc src in
-  let@ () = S.easy_run in
+  S.run ~init_visible: Expand.initial_visible_trie @@ fun () ->
   Expand.expand ~forest code
 
 let render ~forest expanded =

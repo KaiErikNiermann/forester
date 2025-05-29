@@ -8,11 +8,10 @@ open Forester_core
 
 module Unit_map = URI.Map
 
-val builtins : (string list * Syn.node) list
+val initial_visible_trie : (Syn.resolver_data, Range.t option) Trie.t
 
 module Builtins :
 sig
-  val register_builtins : (Yuujinchou.Trie.path * Syn.node) list -> unit
   module Transclude :
   sig
     val expanded_sym : Symbol.t

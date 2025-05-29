@@ -241,8 +241,7 @@ let node_at_code ~position = node_at ~position ~children: Code.children
 let node_at_syn ~position = node_at ~position ~children: Syn.children
 
 let get_visible ~forest ~position code =
-  let@ () = Sc.easy_run in
-  Expand.Builtins.register_builtins Expand.builtins;
+  Sc.run ~init_visible: Expand.initial_visible_trie @@ fun () ->
   let open Effect.Deep in
   match_with
     (Expand.expand_eff ~forest)

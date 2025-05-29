@@ -16,19 +16,12 @@ open struct
 end
 
 module Builtins = struct
-
   let create_sym path =
     let sym = Symbol.named path in
     sym,
     fun () ->
       Sc.include_singleton path @@
         (Term [Range.locate_opt None (Syn.Sym sym)], None)
-
-  let register_builtins builtins =
-    Sc.include_subtree [] @@
-    Yuujinchou.Trie.of_seq @@
-    let@ path, node = Seq.map @~ List.to_seq builtins in
-    path, (Syn.Term [Range.locate_opt None node], None)
 
   module Transclude = struct
     let expanded_sym, alloc_expanded = create_sym ["transclude"; "expanded"]
@@ -309,67 +302,89 @@ let expand ~forest (xs : Code.t) : Syn.t =
   ignore_entered_range (expand_eff ~forest) xs
 
 (* Feel free to extend this *)
-let tex_builtin_words = ["left"; "right"; "big"; "bigr"; "Big"; "Bigr"; "bigg"; "biggr"; "Bigg"; "Biggr"; "bigl"; "Bigl"; "biggl"; "Biggl"; "mathrlap"; "mathllap"; "mathclap"; "rlap"; "llap"; "ulap"; "dlap"; "infty"; "infinity"; "lbrace"; "rbrace"; "llbracket"; "rrbracket"; "lvert"; "lVert"; "rvert"; "rVert"; "vert"; "Vert"; "setminus"; "backslash"; "smallsetminus"; "sslash"; "lfloor"; "lceil"; "lmoustache"; "lang"; "langle"; "llangle"; "rfloor"; "rceil"; "rmoustache"; "rang"; "rangle"; "rrangle"; "uparrow"; "downarrow"; "updownarrow"; "prime"; "alpha"; "beta"; "gamma"; "delta"; "zeta"; "eta"; "theta"; "iota"; "kappa"; "lambda"; "mu"; "nu"; "xi"; "pi"; "rho"; "sigma"; "tau"; "upsilon"; "chi"; "psi"; "omega"; "backepsilon"; "varkappa"; "varpi"; "varrho"; "varsigma"; "vartheta"; "varepsilon"; "phi"; "varphi"; "arccos"; "arcsin"; "arctan"; "arg"; "cos"; "cosh"; "cot"; "coth"; "csc"; "deg"; "dim"; "exp"; "hom"; "ker"; "lg"; "ln"; "log"; "sec"; "sin"; "sinh"; "tan"; "tanh"; "det"; "gcd"; "inf"; "lim"; "liminf"; "limsup"; "max"; "min"; "Pr"; "sup"; "omicron"; "epsilon"; "cdot"; "Alpha"; "Beta"; "Delta"; "Gamma"; "digamma"; "Lambda"; "Pi"; "Phi"; "Psi"; "Sigma"; "Theta"; "Xi"; "Zeta"; "Eta"; "Iota"; "Kappa"; "Mu"; "Nu"; "Rho"; "Tau"; "mho"; "Omega"; "Upsilon"; "Upsi"; "iff"; "Longleftrightarrow"; "Leftrightarrow"; "impliedby"; "Leftarrow"; "implies"; "Rightarrow"; "hookleftarrow"; "embedsin"; "hookrightarrow"; "longleftarrow"; "longrightarrow"; "leftarrow"; "to"; "rightarrow"; "leftrightarrow"; "mapsto"; "map"; "nearrow"; "nearr"; "nwarrow"; "nwarr"; "searrow"; "searr"; "swarrow"; "swarr"; "neArrow"; "neArr"; "nwArrow"; "nwArr"; "seArrow"; "seArr"; "swArrow"; "swArr"; "darr"; "Downarrow"; "uparr"; "Uparrow"; "downuparrow"; "duparr"; "updarr"; "Updownarrow"; "leftsquigarrow"; "rightsquigarrow"; "dashleftarrow"; "dashrightarrow"; "curvearrowbotright"; "righttoleftarrow"; "lefttorightarrow"; "leftrightsquigarrow"; "upuparrows"; "rightleftarrows"; "rightrightarrows"; "curvearrowleft"; "curvearrowright"; "downdownarrows"; "leftarrowtail"; "rightarrowtail"; "leftleftarrows"; "leftrightarrows"; "Lleftarrow"; "Rrightarrow"; "looparrowleft"; "looparrowright"; "Lsh"; "Rsh"; "circlearrowleft"; "circlearrowright"; "twoheadleftarrow"; "twoheadrightarrow"; "nLeftarrow"; "nleftarrow"; "nLeftrightarrow"; "nleftrightarrow"; "nRightarrow"; "nrightarrow"; "rightharpoonup"; "rightharpoondown"; "leftharpoonup"; "leftharpoondown"; "downharpoonleft"; "downharpoonright"; "leftrightharpoons"; "rightleftharpoons"; "upharpoonleft"; "upharpoonright"; "xrightarrow"; "xleftarrow"; "xleftrightarrow"; "xLeftarrow"; "xRightarrow"; "xLeftrightarrow"; "xleftrightharpoons"; "xrightleftharpoons"; "xhookleftarrow"; "xhookrightarrow"; "xmapsto"; "dots"; "ldots"; "cdots"; "ddots"; "udots"; "vdots"; "colon"; "cup"; "union"; "bigcup"; "Union"; "&Union;"; "cap"; "intersection"; "bigcap"; "Intersection"; "in"; "coloneqq"; "Coloneqq"; "coloneq"; "Coloneq"; "eqqcolon"; "Eqqcolon"; "eqcolon"; "Eqcolon"; "colonapprox"; "Colonapprox"; "colonsim"; "Colonsim"; "dblcolon"; "ast"; "Cap"; "Cup"; "circledast"; "circledcirc"; "curlyvee"; "curlywedge"; "divideontimes"; "dotplus"; "leftthreetimes"; "rightthreetimes"; "veebar"; "gt"; "lt"; "approxeq"; "backsim"; "backsimeq"; "barwedge"; "doublebarwedge"; "subset"; "subseteq"; "subseteqq"; "subsetneq"; "subsetneqq"; "varsubsetneq"; "varsubsetneqq"; "prec"; "parallel"; "nparallel"; "shortparallel"; "nshortparallel"; "perp"; "eqslantgtr"; "eqslantless"; "gg"; "ggg"; "geq"; "geqq"; "geqslant"; "gneq"; "gneqq"; "gnapprox"; "gnsim"; "gtrapprox"; "ge"; "le"; "leq"; "leqq"; "leqslant"; "lessapprox"; "lessdot"; "lesseqgtr"; "lesseqqgtr"; "lessgtr"; "lneq"; "lneqq"; "lnsim"; "lvertneqq"; "gtrsim"; "gtrdot"; "gtreqless"; "gtreqqless"; "gtrless"; "gvertneqq"; "lesssim"; "lnapprox"; "nsubset"; "nsubseteq"; "nsubseteqq"; "notin"; "ni"; "notni"; "nmid"; "nshortmid"; "preceq"; "npreceq"; "ll"; "ngeq"; "ngeqq"; "ngeqslant"; "nleq"; "nleqq"; "nleqslant"; "nless"; "supset"; "supseteq"; "supseteqq"; "supsetneq"; "supsetneqq"; "varsupsetneq"; "varsupsetneqq"; "approx"; "asymp"; "bowtie"; "dashv"; "Vdash"; "vDash"; "VDash"; "vdash"; "Vvdash"; "models"; "sim"; "simeq"; "nsim"; "smile"; "triangle"; "triangledown"; "triangleleft"; "cong"; "succ"; "nsucc"; "ngtr"; "nsupset"; "nsupseteq"; "propto"; "equiv"; "nequiv"; "frown"; "triangleright"; "ncong"; "succeq"; "succapprox"; "succnapprox"; "succcurlyeq"; "succsim"; "succnsim"; "nsucceq"; "nvDash"; "nvdash"; "nVDash"; "amalg"; "pm"; "mp"; "bigcirc"; "wr"; "odot"; "uplus"; "clubsuit"; "spadesuit"; "Diamond"; "diamond"; "sqcup"; "sqcap"; "sqsubset"; "sqsubseteq"; "sqsupset"; "sqsupseteq"; "Subset"; "Supset"; "ltimes"; "div"; "rtimes"; "bot"; "therefore"; "thickapprox"; "thicksim"; "varpropto"; "varnothing"; "flat"; "vee"; "because"; "between"; "Bumpeq"; "bumpeq"; "circeq"; "curlyeqprec"; "curlyeqsucc"; "doteq"; "doteqdot"; "eqcirc"; "fallingdotseq"; "multimap"; "pitchfork"; "precapprox"; "precnapprox"; "preccurlyeq"; "precsim"; "precnsim"; "risingdotseq"; "sharp"; "bullet"; "nexists"; "dagger"; "ddagger"; "not"; "top"; "natural"; "angle"; "measuredangle"; "backprime"; "bigstar"; "blacklozenge"; "lozenge"; "blacksquare"; "blacktriangle"; "blacktriangleleft"; "blacktriangleright"; "blacktriangledown"; "ntriangleleft"; "ntriangleright"; "ntrianglelefteq"; "ntrianglerighteq"; "trianglelefteq"; "trianglerighteq"; "triangleq"; "vartriangleleft"; "vartriangleright"; "forall"; "bigtriangleup"; "bigtriangledown"; "nprec"; "aleph"; "beth"; "eth"; "ell"; "hbar"; "Im"; "imath"; "jmath"; "wp"; "Re"; "Perp"; "Vbar"; "boxdot"; "Box"; "square"; "emptyset"; "empty"; "exists"; "circ"; "rhd"; "lhd"; "lll"; "unrhd"; "unlhd"; "Del"; "nabla"; "sphericalangle"; "heartsuit"; "diamondsuit"; "partial"; "qed"; "mod"; "pmod"; "bottom"; "neg"; "neq"; "ne"; "shortmid"; "mid"; "int"; "integral"; "iint"; "doubleintegral"; "iiint"; "tripleintegral"; "iiiint"; "quadrupleintegral"; "oint"; "conint"; "contourintegral"; "times"; "star"; "circleddash"; "odash"; "intercal"; "smallfrown"; "smallsmile"; "boxminus"; "minusb"; "boxplus"; "plusb"; "boxtimes"; "timesb"; "sum"; "prod"; "product"; "coprod"; "coproduct"; "otimes"; "Otimes"; "bigotimes"; "ominus"; "oslash"; "oplus"; "Oplus"; "bigoplus"; "bigodot"; "bigsqcup"; "bigsqcap"; "biginterleave"; "biguplus"; "wedge"; "Wedge"; "bigwedge"; "Vee"; "bigvee"; "invamp"; "parr"; "frac"; "tfrac"; "binom"; "tbinom"; "tensor"; "multiscripts"; "overbrace"; "underbrace"; "underline"; "bar"; "overline"; "closure"; "widebar"; "vec"; "widevec"; "overrightarrow"; "overleftarrow"; "overleftrightarrow"; "underrightarrow"; "underleftarrow"; "underleftrightarrow"; "dot"; "ddot"; "dddot"; "ddddot"; "tilde"; "widetilde"; "check"; "widecheck"; "hat"; "widehat"; "underset"; "stackrel"; "overset"; "over"; "atop"; "underoverset"; "sqrt"; "root"; "space"; "text"; "statusline"; "tooltip"; "toggle"; "begintoggle"; "endtoggle"; "mathraisebox"; "fghilight"; "fghighlight"; "bghilight"; "bghighlight"; "color"; "bgcolor"; "displaystyle"; "textstyle"; "textsize"; "scriptsize"; "scriptscriptsize"; "mathit"; "mathsf"; "mathtt"; "boldsymbol"; "mathbf"; "mathrm"; "mathbb"; "mathfrak"; "mathfr"; "slash"; "boxed"; "mathcal"; "mathscr"; "begin"; "end"; "substack"; "array"; "arrayopts"; "colalign"; "collayout"; "rowalign"; "align"; "equalrows"; "equalcols"; "rowlines"; "collines"; "frame"; "padding"; "rowopts"; "cellopts"; "rowspan"; "colspan"; "thinspace"; "medspace"; "thickspace"; "quad"; "qquad"; "negspace"; "negthinspace"; "negmedspace"; "negthickspace"; "phantom"; "operatorname"; "mathop"; "mathbin"; "mathrel"; "includegraphics"; "lparen"; "rparen"; "land"; "lor"; "middle"; "mathpunct"; "mathord"]
+let tex_builtin_words =
+  List.to_seq ["left"; "right"; "big"; "bigr"; "Big"; "Bigr"; "bigg"; "biggr"; "Bigg"; "Biggr"; "bigl"; "Bigl"; "biggl"; "Biggl"; "mathrlap"; "mathllap"; "mathclap"; "rlap"; "llap"; "ulap"; "dlap"; "infty"; "infinity"; "lbrace"; "rbrace"; "llbracket"; "rrbracket"; "lvert"; "lVert"; "rvert"; "rVert"; "vert"; "Vert"; "setminus"; "backslash"; "smallsetminus"; "sslash"; "lfloor"; "lceil"; "lmoustache"; "lang"; "langle"; "llangle"; "rfloor"; "rceil"; "rmoustache"; "rang"; "rangle"; "rrangle"; "uparrow"; "downarrow"; "updownarrow"; "prime"; "alpha"; "beta"; "gamma"; "delta"; "zeta"; "eta"; "theta"; "iota"; "kappa"; "lambda"; "mu"; "nu"; "xi"; "pi"; "rho"; "sigma"; "tau"; "upsilon"; "chi"; "psi"; "omega"; "backepsilon"; "varkappa"; "varpi"; "varrho"; "varsigma"; "vartheta"; "varepsilon"; "phi"; "varphi"; "arccos"; "arcsin"; "arctan"; "arg"; "cos"; "cosh"; "cot"; "coth"; "csc"; "deg"; "dim"; "exp"; "hom"; "ker"; "lg"; "ln"; "log"; "sec"; "sin"; "sinh"; "tan"; "tanh"; "det"; "gcd"; "inf"; "lim"; "liminf"; "limsup"; "max"; "min"; "Pr"; "sup"; "omicron"; "epsilon"; "cdot"; "Alpha"; "Beta"; "Delta"; "Gamma"; "digamma"; "Lambda"; "Pi"; "Phi"; "Psi"; "Sigma"; "Theta"; "Xi"; "Zeta"; "Eta"; "Iota"; "Kappa"; "Mu"; "Nu"; "Rho"; "Tau"; "mho"; "Omega"; "Upsilon"; "Upsi"; "iff"; "Longleftrightarrow"; "Leftrightarrow"; "impliedby"; "Leftarrow"; "implies"; "Rightarrow"; "hookleftarrow"; "embedsin"; "hookrightarrow"; "longleftarrow"; "longrightarrow"; "leftarrow"; "to"; "rightarrow"; "leftrightarrow"; "mapsto"; "map"; "nearrow"; "nearr"; "nwarrow"; "nwarr"; "searrow"; "searr"; "swarrow"; "swarr"; "neArrow"; "neArr"; "nwArrow"; "nwArr"; "seArrow"; "seArr"; "swArrow"; "swArr"; "darr"; "Downarrow"; "uparr"; "Uparrow"; "downuparrow"; "duparr"; "updarr"; "Updownarrow"; "leftsquigarrow"; "rightsquigarrow"; "dashleftarrow"; "dashrightarrow"; "curvearrowbotright"; "righttoleftarrow"; "lefttorightarrow"; "leftrightsquigarrow"; "upuparrows"; "rightleftarrows"; "rightrightarrows"; "curvearrowleft"; "curvearrowright"; "downdownarrows"; "leftarrowtail"; "rightarrowtail"; "leftleftarrows"; "leftrightarrows"; "Lleftarrow"; "Rrightarrow"; "looparrowleft"; "looparrowright"; "Lsh"; "Rsh"; "circlearrowleft"; "circlearrowright"; "twoheadleftarrow"; "twoheadrightarrow"; "nLeftarrow"; "nleftarrow"; "nLeftrightarrow"; "nleftrightarrow"; "nRightarrow"; "nrightarrow"; "rightharpoonup"; "rightharpoondown"; "leftharpoonup"; "leftharpoondown"; "downharpoonleft"; "downharpoonright"; "leftrightharpoons"; "rightleftharpoons"; "upharpoonleft"; "upharpoonright"; "xrightarrow"; "xleftarrow"; "xleftrightarrow"; "xLeftarrow"; "xRightarrow"; "xLeftrightarrow"; "xleftrightharpoons"; "xrightleftharpoons"; "xhookleftarrow"; "xhookrightarrow"; "xmapsto"; "dots"; "ldots"; "cdots"; "ddots"; "udots"; "vdots"; "colon"; "cup"; "union"; "bigcup"; "Union"; "&Union;"; "cap"; "intersection"; "bigcap"; "Intersection"; "in"; "coloneqq"; "Coloneqq"; "coloneq"; "Coloneq"; "eqqcolon"; "Eqqcolon"; "eqcolon"; "Eqcolon"; "colonapprox"; "Colonapprox"; "colonsim"; "Colonsim"; "dblcolon"; "ast"; "Cap"; "Cup"; "circledast"; "circledcirc"; "curlyvee"; "curlywedge"; "divideontimes"; "dotplus"; "leftthreetimes"; "rightthreetimes"; "veebar"; "gt"; "lt"; "approxeq"; "backsim"; "backsimeq"; "barwedge"; "doublebarwedge"; "subset"; "subseteq"; "subseteqq"; "subsetneq"; "subsetneqq"; "varsubsetneq"; "varsubsetneqq"; "prec"; "parallel"; "nparallel"; "shortparallel"; "nshortparallel"; "perp"; "eqslantgtr"; "eqslantless"; "gg"; "ggg"; "geq"; "geqq"; "geqslant"; "gneq"; "gneqq"; "gnapprox"; "gnsim"; "gtrapprox"; "ge"; "le"; "leq"; "leqq"; "leqslant"; "lessapprox"; "lessdot"; "lesseqgtr"; "lesseqqgtr"; "lessgtr"; "lneq"; "lneqq"; "lnsim"; "lvertneqq"; "gtrsim"; "gtrdot"; "gtreqless"; "gtreqqless"; "gtrless"; "gvertneqq"; "lesssim"; "lnapprox"; "nsubset"; "nsubseteq"; "nsubseteqq"; "notin"; "ni"; "notni"; "nmid"; "nshortmid"; "preceq"; "npreceq"; "ll"; "ngeq"; "ngeqq"; "ngeqslant"; "nleq"; "nleqq"; "nleqslant"; "nless"; "supset"; "supseteq"; "supseteqq"; "supsetneq"; "supsetneqq"; "varsupsetneq"; "varsupsetneqq"; "approx"; "asymp"; "bowtie"; "dashv"; "Vdash"; "vDash"; "VDash"; "vdash"; "Vvdash"; "models"; "sim"; "simeq"; "nsim"; "smile"; "triangle"; "triangledown"; "triangleleft"; "cong"; "succ"; "nsucc"; "ngtr"; "nsupset"; "nsupseteq"; "propto"; "equiv"; "nequiv"; "frown"; "triangleright"; "ncong"; "succeq"; "succapprox"; "succnapprox"; "succcurlyeq"; "succsim"; "succnsim"; "nsucceq"; "nvDash"; "nvdash"; "nVDash"; "amalg"; "pm"; "mp"; "bigcirc"; "wr"; "odot"; "uplus"; "clubsuit"; "spadesuit"; "Diamond"; "diamond"; "sqcup"; "sqcap"; "sqsubset"; "sqsubseteq"; "sqsupset"; "sqsupseteq"; "Subset"; "Supset"; "ltimes"; "div"; "rtimes"; "bot"; "therefore"; "thickapprox"; "thicksim"; "varpropto"; "varnothing"; "flat"; "vee"; "because"; "between"; "Bumpeq"; "bumpeq"; "circeq"; "curlyeqprec"; "curlyeqsucc"; "doteq"; "doteqdot"; "eqcirc"; "fallingdotseq"; "multimap"; "pitchfork"; "precapprox"; "precnapprox"; "preccurlyeq"; "precsim"; "precnsim"; "risingdotseq"; "sharp"; "bullet"; "nexists"; "dagger"; "ddagger"; "not"; "top"; "natural"; "angle"; "measuredangle"; "backprime"; "bigstar"; "blacklozenge"; "lozenge"; "blacksquare"; "blacktriangle"; "blacktriangleleft"; "blacktriangleright"; "blacktriangledown"; "ntriangleleft"; "ntriangleright"; "ntrianglelefteq"; "ntrianglerighteq"; "trianglelefteq"; "trianglerighteq"; "triangleq"; "vartriangleleft"; "vartriangleright"; "forall"; "bigtriangleup"; "bigtriangledown"; "nprec"; "aleph"; "beth"; "eth"; "ell"; "hbar"; "Im"; "imath"; "jmath"; "wp"; "Re"; "Perp"; "Vbar"; "boxdot"; "Box"; "square"; "emptyset"; "empty"; "exists"; "circ"; "rhd"; "lhd"; "lll"; "unrhd"; "unlhd"; "Del"; "nabla"; "sphericalangle"; "heartsuit"; "diamondsuit"; "partial"; "qed"; "mod"; "pmod"; "bottom"; "neg"; "neq"; "ne"; "shortmid"; "mid"; "int"; "integral"; "iint"; "doubleintegral"; "iiint"; "tripleintegral"; "iiiint"; "quadrupleintegral"; "oint"; "conint"; "contourintegral"; "times"; "star"; "circleddash"; "odash"; "intercal"; "smallfrown"; "smallsmile"; "boxminus"; "minusb"; "boxplus"; "plusb"; "boxtimes"; "timesb"; "sum"; "prod"; "product"; "coprod"; "coproduct"; "otimes"; "Otimes"; "bigotimes"; "ominus"; "oslash"; "oplus"; "Oplus"; "bigoplus"; "bigodot"; "bigsqcup"; "bigsqcap"; "biginterleave"; "biguplus"; "wedge"; "Wedge"; "bigwedge"; "Vee"; "bigvee"; "invamp"; "parr"; "frac"; "tfrac"; "binom"; "tbinom"; "tensor"; "multiscripts"; "overbrace"; "underbrace"; "underline"; "bar"; "overline"; "closure"; "widebar"; "vec"; "widevec"; "overrightarrow"; "overleftarrow"; "overleftrightarrow"; "underrightarrow"; "underleftarrow"; "underleftrightarrow"; "dot"; "ddot"; "dddot"; "ddddot"; "tilde"; "widetilde"; "check"; "widecheck"; "hat"; "widehat"; "underset"; "stackrel"; "overset"; "over"; "atop"; "underoverset"; "sqrt"; "root"; "space"; "text"; "statusline"; "tooltip"; "toggle"; "begintoggle"; "endtoggle"; "mathraisebox"; "fghilight"; "fghighlight"; "bghilight"; "bghighlight"; "color"; "bgcolor"; "displaystyle"; "textstyle"; "textsize"; "scriptsize"; "scriptscriptsize"; "mathit"; "mathsf"; "mathtt"; "boldsymbol"; "mathbf"; "mathrm"; "mathbb"; "mathfrak"; "mathfr"; "slash"; "boxed"; "mathcal"; "mathscr"; "begin"; "end"; "substack"; "array"; "arrayopts"; "colalign"; "collayout"; "rowalign"; "align"; "equalrows"; "equalcols"; "rowlines"; "collines"; "frame"; "padding"; "rowopts"; "cellopts"; "rowspan"; "colspan"; "thinspace"; "medspace"; "thickspace"; "quad"; "qquad"; "negspace"; "negthinspace"; "negmedspace"; "negthickspace"; "phantom"; "operatorname"; "mathop"; "mathbin"; "mathrel"; "includegraphics"; "lparen"; "rparen"; "land"; "lor"; "middle"; "mathpunct"; "mathord"]
+  |> Seq.map @@ fun word ->
+    let path = [word] in
+    let node = Syn.TeX_cs (TeX_cs.Word word) in
+    path, (Syn.Term [Range.locate_opt None node], None)
 
 (* Feel free to extend this *)
-let tex_builtin_symbols = ['_'; ','; ';']
+let tex_builtin_symbols =
+  List.to_seq ['_'; ','; ';']
+  |> Seq.map @@ fun c ->
+    let path = [String_util.implode [c]] in
+    let node = Syn.TeX_cs (TeX_cs.Symbol c) in
+    path, (Syn.Term [Range.locate_opt None node], None)
 
 let builtins =
-  [
-    ["p"], Syn.Prim `P;
-    ["em"], Syn.Prim `Em;
-    ["strong"], Syn.Prim `Strong;
-    ["li"], Syn.Prim `Li;
-    ["ol"], Syn.Prim `Ol;
-    ["ul"], Syn.Prim `Ul;
-    ["code"], Syn.Prim `Code;
-    ["blockquote"], Syn.Prim `Blockquote;
-    ["pre"], Syn.Prim `Pre;
-    ["figure"], Syn.Prim `Figure;
-    ["figcaption"], Syn.Prim `Figcaption;
-    ["transclude"], Syn.Transclude;
-    ["tex"], Syn.Embed_tex;
-    ["ref"], Syn.Ref;
-    ["title"], Syn.Title;
-    ["taxon"], Syn.Taxon;
-    ["date"], Syn.Date;
-    ["meta"], Syn.Meta;
-    ["author"], Syn.Attribution (Author, `Uri);
-    ["author"; "literal"], Syn.Attribution (Author, `Content);
-    ["contributor"], Syn.Attribution (Contributor, `Uri);
-    ["contributor"; "literal"], Syn.Attribution (Contributor, `Content);
-    ["parent"], Syn.Parent;
-    ["number"], Syn.Number;
-    ["tag"], Syn.Tag `Content;
-    ["query"], Syn.Results_of_query;
-    ["rel"; "has-tag"], Syn.Text Builtin_relation.has_tag;
-    ["rel"; "has-taxon"], Syn.Text Builtin_relation.has_taxon;
-    ["rel"; "has-author"], Syn.Text Builtin_relation.has_author;
-    ["rel"; "has-direct-contributor"], Syn.Text Builtin_relation.has_direct_contributor;
-    ["rel"; "transcludes"], Syn.Text Builtin_relation.transcludes;
-    ["rel"; "transcludes"; "transitive-closure"], Syn.Text Builtin_relation.transcludes_tc;
-    ["rel"; "transcludes"; "reflexive-transitive-closure"], Syn.Text Builtin_relation.transcludes_rtc;
-    ["rel"; "links-to"], Syn.Text Builtin_relation.links_to;
-    ["rel"; "is-reference"], Syn.Text Builtin_relation.is_reference;
-    ["rel"; "is-person"], Syn.Text Builtin_relation.is_person;
-    ["rel"; "is-node"], Syn.Text Builtin_relation.is_node;
-    ["rel"; "is-article"], Syn.Text Builtin_relation.is_article;
-    ["rel"; "is-asset"], Syn.Text Builtin_relation.is_asset;
-    ["rel"; "in-host"], Syn.Text Builtin_relation.in_host;
-    ["execute"], Syn.Dx_execute;
-    ["route-asset"], Syn.Route_asset;
-    ["syndicate-query-as-json-blob"], Syn.Syndicate_query_as_json_blob;
-    ["syndicate-current-tree-as-atom-feed"], Syn.Syndicate_current_tree_as_atom_feed;
-    ["current-tree"], Syn.Current_tree;
-  ] @
-    begin
-      let@ word = List.map @~ tex_builtin_words in
-      [word], Syn.TeX_cs (TeX_cs.Word word)
-    end @
-    begin
-      let@ sym = List.map @~ tex_builtin_symbols in
-      [String_util.implode [sym]], Syn.TeX_cs (TeX_cs.Symbol sym)
-    end
+  Seq.concat @@
+    List.to_seq
+      [
+        tex_builtin_words;
+        tex_builtin_symbols;
+        begin
+          let open Builtins.Transclude in
+          List.to_seq [expanded_sym; show_heading_sym; toc_sym; show_metadata_sym]
+          |> Seq.map @@ fun sym ->
+            Symbol.name sym, (Syn.Term [Range.locate_opt None (Syn.Sym sym)], None)
+        end;
+        begin
+          List.to_seq
+            [
+              ["p"], Syn.Prim `P;
+              ["em"], Syn.Prim `Em;
+              ["strong"], Syn.Prim `Strong;
+              ["li"], Syn.Prim `Li;
+              ["ol"], Syn.Prim `Ol;
+              ["ul"], Syn.Prim `Ul;
+              ["code"], Syn.Prim `Code;
+              ["blockquote"], Syn.Prim `Blockquote;
+              ["pre"], Syn.Prim `Pre;
+              ["figure"], Syn.Prim `Figure;
+              ["figcaption"], Syn.Prim `Figcaption;
+              ["transclude"], Syn.Transclude;
+              ["tex"], Syn.Embed_tex;
+              ["ref"], Syn.Ref;
+              ["title"], Syn.Title;
+              ["taxon"], Syn.Taxon;
+              ["date"], Syn.Date;
+              ["meta"], Syn.Meta;
+              ["author"], Syn.Attribution (Author, `Uri);
+              ["author"; "literal"], Syn.Attribution (Author, `Content);
+              ["contributor"], Syn.Attribution (Contributor, `Uri);
+              ["contributor"; "literal"], Syn.Attribution (Contributor, `Content);
+              ["parent"], Syn.Parent;
+              ["number"], Syn.Number;
+              ["tag"], Syn.Tag `Content;
+              ["query"], Syn.Results_of_query;
+              ["rel"; "has-tag"], Syn.Text Builtin_relation.has_tag;
+              ["rel"; "has-taxon"], Syn.Text Builtin_relation.has_taxon;
+              ["rel"; "has-author"], Syn.Text Builtin_relation.has_author;
+              ["rel"; "has-direct-contributor"], Syn.Text Builtin_relation.has_direct_contributor;
+              ["rel"; "transcludes"], Syn.Text Builtin_relation.transcludes;
+              ["rel"; "transcludes"; "transitive-closure"], Syn.Text Builtin_relation.transcludes_tc;
+              ["rel"; "transcludes"; "reflexive-transitive-closure"], Syn.Text Builtin_relation.transcludes_rtc;
+              ["rel"; "links-to"], Syn.Text Builtin_relation.links_to;
+              ["rel"; "is-reference"], Syn.Text Builtin_relation.is_reference;
+              ["rel"; "is-person"], Syn.Text Builtin_relation.is_person;
+              ["rel"; "is-node"], Syn.Text Builtin_relation.is_node;
+              ["rel"; "is-article"], Syn.Text Builtin_relation.is_article;
+              ["rel"; "is-asset"], Syn.Text Builtin_relation.is_asset;
+              ["rel"; "in-host"], Syn.Text Builtin_relation.in_host;
+              ["execute"], Syn.Dx_execute;
+              ["route-asset"], Syn.Route_asset;
+              ["syndicate-query-as-json-blob"], Syn.Syndicate_query_as_json_blob;
+              ["syndicate-current-tree-as-atom-feed"], Syn.Syndicate_current_tree_as_atom_feed;
+              ["current-tree"], Syn.Current_tree;
+            ]
+          |> Seq.map @@ fun (path, node) ->
+            path, (Syn.Term [Range.locate_opt None node], None)
+        end
+      ]
+
+let initial_visible_trie : (Syn.resolver_data, Range.t option) Trie.t =
+  Yuujinchou.Trie.of_seq builtins
 
 let expand_tree_inner ~forest (code : Tree.code) : Tree.syn =
   let trace k =
@@ -399,8 +414,7 @@ let expand_tree ~(forest : State.t) (code : Tree.code) : Tree.syn * Reporter.Mes
     !diagnostics
   in
   Reporter.run ~emit ~fatal @@ fun () ->
-  let@ () = Sc.easy_run in
-  Builtins.register_builtins builtins;
+  Sc.run ~init_visible: initial_visible_trie @@ fun () ->
   Builtins.Transclude.alloc_expanded ();
   Builtins.Transclude.alloc_show_heading ();
   Builtins.Transclude.alloc_toc ();

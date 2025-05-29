@@ -12,6 +12,7 @@ val show : t -> string
 val t : t Repr.t
 
 val named : Trie.path -> t
+val name : t -> Trie.path
 val fresh : unit -> t
 
 val clone : t -> t

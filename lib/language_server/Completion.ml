@@ -380,7 +380,7 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
           match code with
           | None ->
             List.append syntax_completions @@
-              let@ path, _node = List.map @~ Expand.builtins in
+              let@ path, _ = List.map @~ List.of_seq @@ Trie.to_seq Expand.initial_visible_trie in
               L.CompletionItem.create
                 ~insertText: "todo"
                 ~label: (String.concat "/" path)

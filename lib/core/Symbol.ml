@@ -24,5 +24,7 @@ let show x = Format.asprintf "%a" pp x
 
 let compare = compare
 
+let name (sym, _) = sym
+
 let repr : t Repr.t =
   Repr.pair (Repr.list Repr.string) Repr.int

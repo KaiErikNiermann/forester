@@ -130,8 +130,7 @@ let test_completion_types ~env () =
     let code = Result.get_ok @@ parse_string {|\route-asset{}|} in
     let uri = URI.of_string_exn "http://localhost/tree" in
     let expanded =
-      let@ () = Resolver.Scope.easy_run in
-      Expand.Builtins.register_builtins Expand.builtins;
+      Resolver.Scope.run ~init_visible: Expand.initial_visible_trie @@ fun () ->
       Expand.expand ~forest code
     in
     let tree = mk_tree ~uri ~code ~expanded in
@@ -274,7 +273,7 @@ let test_enclosing_group ~env () =
   (*                                         012345678901234*)
   let code = Result.get_ok @@ parse_string {|\foo{\bar{baz}}|} in
   let expanded =
-    let@ () = Resolver.Scope.easy_run in
+    Resolver.Scope.run ~init_visible: Expand.initial_visible_trie @@ fun () ->
     Expand.expand ~forest code
   in
   let uri = URI.of_string_exn "localhost:foo" in

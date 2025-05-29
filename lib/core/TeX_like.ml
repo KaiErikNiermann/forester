@@ -1,8 +1,8 @@
 open Types
 
 let rec pp_content fmt = function
-  | (Content nodes) ->
-    (List.iter @@ pp_content_node fmt) nodes
+  | Content nodes ->
+    List.iter (pp_content_node fmt) nodes
 
 and pp_content_node fmt = function
   | Text str -> Format.fprintf fmt "%s" str
