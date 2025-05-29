@@ -202,7 +202,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
       | Inline -> "inline"
       | Display -> "block"
     in
-    let body = Format.asprintf "%a" T.TeX_like.pp_content content in
+    let body = Format.asprintf "%a" TeX_like.pp_content content in
     [X.tex [X.display "%s" display] "<![CDATA[%s]]>" body]
   | Artefact resource ->
     [render_artefact forest resource]

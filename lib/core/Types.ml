@@ -159,18 +159,16 @@ type 'content content_node =
   | Results_of_datalog_query of (string, 'content vertex) Datalog_expr.query
 [@@deriving show, repr]
 
-type content = Content of content content_node list
+type content =
+  Content of content content_node list
 [@@deriving show, repr]
 
-
-let rec compress_nodes =
-  function
+let rec compress_nodes = function
   | [] -> []
   | Text x :: Text y :: ys -> compress_nodes (Text (x ^ y) :: ys)
   | x :: xs -> x :: compress_nodes xs
 
-let compress_content =
-  function
+let compress_content = function
   | Content nodes -> Content (compress_nodes nodes)
 
 let concat_compressed_content (Content xs) (Content ys) =
@@ -263,33 +261,4 @@ module Comparators (I : sig val string_of_content : content -> string end) = str
     Compare.cascade by_parent @@ Compare.cascade by_date by_title
 
   let compare_article = compare_frontmatter |> Compare.under @@ fun x -> x.frontmatter
-end
-
-module TeX_like : sig
-    val pp_content : Format.formatter -> content -> unit
-    val string_of_content : content -> string
-  end
-= struct
-  let rec pp_content fmt = function
-    | (Content nodes) ->
-      (List.iter @@ pp_content_node fmt) nodes
-
-  and pp_content_node fmt = function
-    | Text str -> Format.fprintf fmt "%s" str
-    | CDATA str -> Format.fprintf fmt "%s" str
-    | KaTeX (_, xs) -> pp_content fmt xs
-    | Xml_elt _ | Transclude _ | Contextual_number _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
-      (*Temporary workaround, this causes a dependency cycle
-           Vertex_set
-        -> Reporter
-        -> Reporter
-        -> required by _build/default/lib/core/Forester_core.a
-        -> required by alias lib/core/all
-        -> required by alias default
-      *)
-      (* Reporter.fatal (Internal_error "Cannot render this kind of content as TeX-like string") *)
-      assert false
-
-  let string_of_content =
-    Format.asprintf "%a" pp_content
 end

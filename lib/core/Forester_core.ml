@@ -54,6 +54,7 @@ module Prim = Prim
 module TeX_cs = TeX_cs
 
 module Types = Types
+module TeX_like = TeX_like (* TODO: rename this *)
 
 module Trie = Trie
 

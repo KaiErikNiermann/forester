@@ -300,8 +300,8 @@ and eval_node node : Value.t =
     process_tape ()
   | Embed_tex ->
     let config = Config_env.read () in
-    let preamble = pop_content_arg ~loc |> T.TeX_like.string_of_content in
-    let body = pop_content_arg ~loc |> T.TeX_like.string_of_content in
+    let preamble = pop_content_arg ~loc |> TeX_like.string_of_content in
+    let body = pop_content_arg ~loc |> TeX_like.string_of_content in
     let source = LaTeX_template.to_string ~preamble ~body in
     let hash = Digest.to_hex @@ Digest.string source in
     let job = Job.{hash; source} in
