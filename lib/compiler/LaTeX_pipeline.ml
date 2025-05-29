@@ -18,7 +18,7 @@ let indent_string string =
   |> String.concat "\n"
 
 (* TODO: When error occurs on stderr, there is nothing informative in the diagnostic*)
-let pipe_latex_dvi ~env ~tex_source ?loc: _ kont =
+let pipe_latex_dvi ~env ~tex_source ?loc kont =
   let mgr = Eio.Stdenv.process_mgr env in
   let@ tmp = Eio_util.with_open_tmp_dir ~env in
   let tex_fn = "job.tex" in
@@ -39,7 +39,7 @@ let pipe_latex_dvi ~env ~tex_source ?loc: _ kont =
         Reporter.fatal
           External_error
           ~extra_remarks: [
-            Asai.Diagnostic.loctextf
+            Asai.Diagnostic.loctextf ?loc
               "Encountered fatal LaTeX error: @.@.%s@.@. while running `%s` in directory `%s`."
               formatted_output
               (String.concat " " cmd)
@@ -48,7 +48,7 @@ let pipe_latex_dvi ~env ~tex_source ?loc: _ kont =
   end;
   EP.with_open_in EP.(tmp / "job.dvi") kont
 
-let pipe_dvi_svg ~env ?loc: _ ~dvi_source ~svg_sink () =
+let pipe_dvi_svg ~env ?loc ~dvi_source ~svg_sink () =
   let cwd = Eio.Stdenv.cwd env in
   let mgr = Eio.Stdenv.process_mgr env in
   let err_buf = Buffer.create 1000 in
@@ -61,7 +61,7 @@ let pipe_dvi_svg ~env ?loc: _ ~dvi_source ~svg_sink () =
       Reporter.fatal
         External_error
         ~extra_remarks: [
-          Asai.Diagnostic.loctextf
+          Asai.Diagnostic.loctextf ?loc
             "Encountered fatal error running `dvisvgm`: %s"
             (Buffer.contents err_buf)
         ]
