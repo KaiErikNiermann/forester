@@ -58,7 +58,7 @@ module Scope = struct
       let@ uri = Option.bind env in
       let@ path = Option.map @~ State.source_path_of_uri uri forest in
       let position = Range.{source = `File path; offset = 0; start_of_line = 0; line_num = 0} in
-      Range.make (position,position)
+      Range.make (position, position)
     in
     let@ () = Reporter.with_loc loc_opt in
     kont ()

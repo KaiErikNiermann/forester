@@ -320,7 +320,6 @@ let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
         ()
       )
 
-
 let rec source_path_of_uri (uri : URI.t) (forest : t) : string option =
   let@ tree = Option.bind @@ find_opt forest uri in
   source_path_of_origin (Tree.origin tree) forest
