@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-topiary format bin/**/*.ml
-topiary format lib/**/*.mli
-topiary format lib/**/*.ml
-topiary format test/*.ml
+topiary format -s bin/**/*.ml
+topiary format -s lib/**/*.mli
+topiary format -s lib/**/*.ml
+topiary format -s test/*.ml
