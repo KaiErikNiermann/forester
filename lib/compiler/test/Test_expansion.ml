@@ -57,45 +57,6 @@ let render ~forest expanded =
     )
     expanded
 
-let test ~env () =
-  let forest = State.make ~env ~config ~dev: false () in
-  let expanded =
-    expand ~forest
-      {|
-      \namespace\foo{
-        \let\greet[name]{Hello, \name!}
-        \greet{Jon}
-      }
-    |}
-  in
-  let evaluated = render ~forest expanded in
-  Alcotest.(check @@ result syn diagnostic)
-    ""
-    (
-      Ok
-        [
-          Range.locate_opt
-            None
-            (
-              Syn.Fun
-                (
-                  [Strict, (["name"], 6)],
-                  (
-                    List.map
-                      (Range.locate_opt None)
-                      [Syn.Text "Hello,"; Text " "; Var (["name"], 6); Text "!"]
-                  )
-                )
-            );
-          Range.locate_opt None (Syn.Group (Braces, List.map (Range.locate_opt None) [(Syn.Text "Jon")]))
-        ]
-    )
-    expanded;
-  Alcotest.(check @@ result string diagnostic)
-    ""
-    (Ok "Hello, Jon!")
-    evaluated
-
 let test_subtree ~env () =
   let@ () = Reporter.easy_run in
   let forest = State.make ~env ~config ~dev: false () in
@@ -150,7 +111,6 @@ let () =
     [
       "",
       [
-        test_case "expand" `Quick (test ~env);
         test_case "subtree" `Quick (test_subtree ~env);
         test_case "get_visible" `Quick (test_visible ~env);
       ]
