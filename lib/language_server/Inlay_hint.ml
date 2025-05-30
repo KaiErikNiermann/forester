@@ -13,7 +13,6 @@ open State.Syntax
 
 open struct
   module L = Lsp.Types
-  let (let*) = Option.bind
 end
 
 let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =

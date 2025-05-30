@@ -34,8 +34,6 @@ let safe_pred g x =
 
 let immediate_dependencies = safe_pred
 
-let add_edge_safe g v w = if mem_vertex g v && mem_vertex g w then add_edge g v w
-
 let dependencies graph vertex : t =
   let dep_graph = create () in
   let rec go v =
@@ -67,6 +65,6 @@ module Graphviz = Graph.Graphviz.Dot(struct
   let default_vertex_attributes _ = []
   let vertex_attributes _ = []
   let default_edge_attributes _ = []
-  let edge_attributes e = [`Label ""]
+  let edge_attributes _e = [`Label ""]
   let get_subgraph _ = None
 end)

@@ -9,14 +9,13 @@ open Forester_core
 open Forester_compiler
 open Forester_search
 open Forester_frontend
-open Cmdliner
-open Cmdliner.Term.Syntax
+
 
 open struct module T = Types end
 
 let ranked_search
   : ?fuzz: int -> State.t -> string -> (URI.t * float) list
-= fun ?fuzz forest terms ->
+= fun ?fuzz: _ forest terms ->
   Tokenizer.tokenize terms |> function
     | tokens ->
       (* In order to rank documents, I search for the first token and then
@@ -51,7 +50,7 @@ let test_ranked (forest : State.t) =
   List.iter
     (fun (uri, score) ->
       match State.get_article uri forest with
-      | Some article ->
+      | Some _article ->
         Format.printf "%a, %f@." URI.pp uri score;
       | None -> assert false
     )

@@ -59,7 +59,7 @@ let rec render_context_frontmatter
 = fun path frontmatter ->
   match path with
   | [] -> raise (Invalid_argument "stopped on non-leaf node")
-  | 0 :: path ->
+  | 0 :: _path ->
     Format.(asprintf "%a" (pp_print_option URI.pp) frontmatter.uri)
   | 1 :: path' ->
     begin
@@ -75,13 +75,13 @@ let rec render_context_frontmatter
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.dates*)
   | 3 :: path' ->
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.attributions*)
   | 4 :: path' ->
     begin
@@ -95,31 +95,31 @@ let rec render_context_frontmatter
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.number*)
   | 6 :: path' ->
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.designated_parent*)
   | 7 :: path' ->
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.source_path*)
   | 8 :: path' ->
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.tags*)
   | 9 :: path' ->
     begin
       match path' with
       | [] -> assert false
-      | path -> assert false
+      | _path -> assert false
     end (*frontmatter.metas*)
   | _ -> raise (Invalid_argument "out of bound index")
 
@@ -137,7 +137,7 @@ and render_context_node
     | T.Contextual_number _ -> assert false
     | T.Section _ -> assert false
     | T.KaTeX (_, _) -> assert false
-    | T.Link {href; content} -> render_context_content path' content
+    | T.Link link -> render_context_content path' link.content
     | T.Artefact _ -> assert false
     | T.Uri _ -> assert false
     | T.Route_of_uri _ -> assert false
@@ -166,6 +166,6 @@ and render_context_article
 
 and debug_context_article : path -> string = function
   | [] -> "empty path"
-  | 0 :: path' -> "frontmatter ->"
-  | 1 :: path' -> "mainmatter ->"
+  | 0 :: _path' -> "frontmatter ->"
+  | 1 :: _path' -> "mainmatter ->"
   | _ -> raise (Invalid_argument "out of bound index")

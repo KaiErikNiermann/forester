@@ -26,15 +26,6 @@ let init (db : Dl.db) : (module S) =
     let@ host = Option.iter @~ URI.host uri in
     let host_vtx = T.Content_vertex (T.Content [T.Text host]) in
     Dl.db_add_fact dl_db @@ Dl.mk_literal Builtin_relation.in_host [Dl.mk_const vtx; Dl.mk_const host_vtx]
-
-  let add_edge rel ~source ~target =
-    Dl.db_add_fact dl_db @@
-      Dl.mk_literal
-        rel
-        [
-          Dl.mk_const source;
-          Dl.mk_const target
-        ]
 end)
 
 module Make () : S = (val (init @@ Dl.db_create ()))

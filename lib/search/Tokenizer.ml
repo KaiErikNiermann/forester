@@ -167,7 +167,7 @@ and tokenize_frontmatter
         List.concat_map (tokenize_vertex path In_frontmatter) tags;
         List.concat @@
           List.mapi
-            (fun i (s, c) ->
+            (fun _i (s, c) ->
               (List.mapi (fun i t -> i :: path, t) @@ tokenize s) @
                 tokenize_content path In_frontmatter c
             )

@@ -45,12 +45,12 @@ type t =
 
 let origin = function
   | Document doc -> Physical doc
-  | Parsed {nodes; identity; origin; timestamp} -> origin
-  | Expanded {nodes; code; identity; units} -> code.origin
-  | Resource {resource; route_locally; expanded} ->
-    match expanded with
+  | Parsed parsed -> parsed.origin
+  | Expanded expanded -> expanded.code.origin
+  | Resource resource ->
+    match resource.expanded with
     | None -> Undefined
-    | Some {nodes; code; identity; units} -> code.origin
+    | Some expanded -> expanded.code.origin
 
 let show_phase = function
   | Document _ -> "document"

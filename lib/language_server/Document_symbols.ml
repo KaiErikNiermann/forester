@@ -11,7 +11,6 @@ open Forester_compiler
 
 open struct
   module L = Lsp.Types
-  let (let*) = Option.bind
   let pp_path = Resolver.Scope.pp_path
 end
 

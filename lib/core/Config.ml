@@ -29,7 +29,4 @@ let default ?(url = default_url) () : t = {
   home = URI_scheme.named_uri ~base: url "index";
 }
 
-(* TODO: validate beforehand *)
-let base_uri {url; _} = url
-
 let home_uri config = config.home

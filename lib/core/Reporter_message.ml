@@ -1,4 +1,3 @@
-open Forester_prelude
 open Base
 
 open struct
@@ -90,7 +89,7 @@ let default_severity : t -> Asai.Diagnostic.severity = function
   | Missing_argument -> Error
   | Uninterpreted_config_options _ -> Warning
   | Using_default_option _ -> Info
-  | Required_config_option string -> Error
+  | Required_config_option _ -> Error
 
 let short_code : t -> string = function
   | Import_not_found _ -> "import_not_found"
@@ -189,7 +188,7 @@ let default_text : t -> Asai.Diagnostic.text = function
       Asai.Diagnostic.textf "%t%t.\n%t" expected_msg got_msg hint
     end
   | Asset_not_found msg -> Asai.Diagnostic.text msg
-  | Unbound_method (mthd, {prototype; methods}) ->
+  | Unbound_method (mthd, {prototype = _; methods; _}) ->
     let method_names = List.map fst @@ Value.Method_table.to_list methods in
     Asai.Diagnostic.textf
       "Unbound method %s. Available methods are:@.%a"

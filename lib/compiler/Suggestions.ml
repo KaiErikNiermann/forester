@@ -7,7 +7,6 @@
 
 open Forester_prelude
 open Forester_core
-open Bwd
 
 (* TODO: remove this in favor of https://github.com/ocaml/ocaml/pull/13760 *)
 let edit_distance ~cutoff x y =

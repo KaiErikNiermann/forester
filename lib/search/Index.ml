@@ -5,7 +5,6 @@
  *)
 
 open Forester_core
-open Forester_prelude
 open Spelll
 
 open struct module T = Forester_core.Types end

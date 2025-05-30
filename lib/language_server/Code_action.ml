@@ -5,7 +5,6 @@
  *
  *)
 
-open Forester_prelude
 open Forester_compiler
 
 open struct module L = Lsp.Types end
@@ -35,7 +34,6 @@ let create_tree_edit ~range ~uri addr dir =
 
 let compute (L.CodeActionParams.{range; textDocument = {uri}; _;}) : L.CodeActionResult.t =
   let Lsp_state.{forest; _} = Lsp_state.get () in
-  let config = forest.config in
   let actions =
     let next_sequential, next_random = next_addrs ~forest None in
     match forest.config.trees with

@@ -83,7 +83,7 @@ let test_tokenize_content () =
       ]
   in
   let tokens = Tokenizer.tokenize_content [] In_mainmatter content in
-  let locations = List.map (fun (x, y) -> List.rev x) tokens in
+  let locations = List.map (fun (x, _) -> List.rev x) tokens in
   let render path = Context.render_context_content path content in
   Alcotest.(check @@ list string)
     ""
@@ -124,7 +124,7 @@ let test_render_context_frontmatter () =
       ()
   in
   let tokens = Tokenizer.tokenize_frontmatter [] frontmatter in
-  let locations = List.map (fun (x, y) -> List.rev x) tokens in
+  let locations = List.map (fun (x, _) -> List.rev x) tokens in
   let render path = Context.render_context_frontmatter path frontmatter in
   Alcotest.(check @@ list string)
     ""

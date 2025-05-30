@@ -14,7 +14,6 @@ end
 
 include URI.Tbl
 
-type resource = T.content T.resource
 type article = T.content T.article
 type env = (module Forest_graphs.S)
 

@@ -4,9 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-open Forester_prelude
-open Base
-
 module R = Resolver
 module Sc = R.Scope
 
@@ -23,8 +20,7 @@ let profile msg body =
   let before = Unix.gettimeofday () in
   let result = body () in
   let after = Unix.gettimeofday () in
-  emit (Profiling (after, before));
-  (* "[%fs] %s" (after -. before) msg; *)
+  emit ~extra_remarks: [Asai.Diagnostic.loctextf "%s" msg] (Profiling (after, before));
   result
 
 module Tty = Asai.Tty.Make(Message)

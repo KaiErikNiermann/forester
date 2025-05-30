@@ -130,7 +130,8 @@ let group f l =
   in
   grouping [] l
 
-let node_to_tokens (_ : Code.node Range.located) _ list = []
+(* TODO? *)
+let node_to_tokens (_ : Code.node Range.located) _ _list = []
 
 let tokenize_path ~(start : L.Position.t) (path : string list) : token list =
   let offset = ref (start.character) in

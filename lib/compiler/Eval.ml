@@ -360,7 +360,6 @@ and eval_node node : Value.t =
     let table =
       let env = Lex_env.read () in
       let add (name, body) =
-        let super = Symbol.fresh () in
         Value.Method_table.add name Value.{body; self; super = None; env}
       in
       List.fold_right add methods Value.Method_table.empty

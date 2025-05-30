@@ -9,7 +9,6 @@ open Forester_test
 open Forester_core
 open Forester_compiler
 open Forester_frontend
-open Testables
 
 let error_run ~env ~config ~raw_trees =
   with_test_forest

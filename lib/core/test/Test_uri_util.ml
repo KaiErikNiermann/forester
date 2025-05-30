@@ -5,7 +5,7 @@
  *)
 
 open Forester_core
-open Forester_compiler
+
 
 let test_split_addr_1 () =
   let uri = URI.of_string_exn "forest://test/foo-bar" in
