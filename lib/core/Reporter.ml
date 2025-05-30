@@ -41,8 +41,8 @@ module Message = struct
         got: Value.t option;
         expected: expected_value list
       }
-    | Unbound_fluid_symbol of (Symbol.t * Value.t Value.Symbol_map.t)
-    | Unbound_variable of (string * Value.t Value.Env.t)
+    | Unbound_fluid_symbol of Symbol.t
+    | Unbound_variable of string
     | Unresolved_identifier of ((Sc.data, R.P.tag) Trie.t [@opaque]) * Trie.path
     | Unresolved_xmlns of string
     | Reference_error of URI.t

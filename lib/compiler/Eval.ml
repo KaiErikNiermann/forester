@@ -9,7 +9,7 @@ open Forester_core
 
 open struct
   module T = Types
-  module Env = Value.Env
+  module String_map = Value.String_map
   module Symbol_map = Value.Symbol_map
   type located = Value.t Range.located
 end
@@ -73,7 +73,7 @@ let default_backmatter ~(uri : URI.t) : T.content =
 type result = {articles: T.content T.article list; jobs: Job.job Range.located list} [@@deriving show]
 
 module Tape = Tape_effect.Make ()
-module Lex_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
+module Lex_env = Algaeff.Reader.Make(struct type t = Value.t String_map.t end)
 module Dyn_env = Algaeff.Reader.Make(struct type t = Value.t Symbol_map.t end)
 module Config_env = Algaeff.Reader.Make(struct type t = Config.t end)
 module Heap = Algaeff.State.Make(struct type t = Value.obj Symbol_map.t end)
@@ -399,14 +399,14 @@ and eval_node node : Value.t =
           let env =
             match mthd.self with
             | None -> mthd.env
-            | Some self -> Env.add self (Value.Obj sym) mthd.env
+            | Some self -> String_map.add self (Value.Obj sym) mthd.env
           in
           match proto_val with
           | None -> env
           | Some proto_val ->
             match mthd.super with
             | None -> env
-            | Some super -> Env.add super proto_val env
+            | Some super -> String_map.add super proto_val env
         in
         let@ () = Lex_env.run ~env in
         eval_tape mthd.body
@@ -444,7 +444,7 @@ and eval_node node : Value.t =
       | None ->
         Reporter.fatal
           ?loc: node.loc
-          (Unbound_fluid_symbol (k, env))
+          (Unbound_fluid_symbol k)
       | Some v -> focus ?loc: node.loc v
     end
   | Verbatim str ->
@@ -567,12 +567,12 @@ and eval_node node : Value.t =
 
 and eval_var ~loc (x : string) =
   let env = Lex_env.read () in
-  match Env.find_opt x env with
+  match String_map.find_opt x env with
   | Some v -> focus ?loc v
   | None ->
     Reporter.fatal
       ?loc
-      (Unbound_variable (x, env))
+      (Unbound_variable x)
 
 and focus ?loc = function
   | Clo (rho, xs, body) ->
@@ -608,7 +608,7 @@ and focus_clo ?loc rho (xs : string option binding list) body =
         | Strict -> eval_tape arg.value
         | Lazy -> Clo (Lex_env.read (), [(Strict, None)], arg.value)
       in
-      let rhoy = match y with Some y -> Env.add y yval rho | None -> rho in
+      let rhoy = match y with Some y -> String_map.add y yval rho | None -> rho in
       focus_clo ?loc rhoy ys body
     | None ->
       begin
@@ -670,7 +670,7 @@ let eval_tree
       let@ () = Emitted_trees.run ~init: [] in
       let@ () = Jobs.run ~init: [] in
       let@ () = Heap.run ~init: Symbol_map.empty in
-      let@ () = Lex_env.run ~env: Env.empty in
+      let@ () = Lex_env.run ~env: String_map.empty in
       let@ () = Dyn_env.run ~env: Symbol_map.empty in
       let@ () = Config_env.run ~env: config in
       let main = eval_tree_inner ~uri tree in
