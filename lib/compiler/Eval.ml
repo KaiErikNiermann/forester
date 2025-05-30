@@ -572,7 +572,7 @@ and eval_var ~loc (x : string) =
   | None ->
     Reporter.fatal
       ?loc
-      (Unbound_lexical_symbol (x, env))
+      (Unbound_variable (x, env))
 
 and focus ?loc = function
   | Clo (rho, xs, body) ->

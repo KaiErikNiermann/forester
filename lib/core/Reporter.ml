@@ -42,7 +42,7 @@ module Message = struct
         expected: expected_value list
       }
     | Unbound_fluid_symbol of (Symbol.t * Value.t Value.Symbol_map.t)
-    | Unbound_lexical_symbol of (string * Value.t Value.Env.t)
+    | Unbound_variable of (string * Value.t Value.Env.t)
     | Unresolved_identifier of ((Sc.data, R.P.tag) Trie.t [@opaque]) * Trie.path
     | Unresolved_xmlns of string
     | Reference_error of URI.t
@@ -79,7 +79,7 @@ module Message = struct
     | Type_error _ -> Error
     | Type_warning -> Warning
     | Unbound_fluid_symbol _ -> Error
-    | Unbound_lexical_symbol _ -> Error
+    | Unbound_variable _ -> Error
     | Unhandled_case -> Bug
     | Transclusion_loop -> Error
     | Internal_error -> Bug
@@ -109,7 +109,7 @@ module Message = struct
     | Type_warning -> "type_warning"
     | Type_error _ -> "type_error"
     | Unbound_fluid_symbol _ -> "unbound_fluid_symbol"
-    | Unbound_lexical_symbol _ -> "unbound_lexical_symbol"
+    | Unbound_variable _ -> "Unbound_variable"
     | Unresolved_xmlns _ -> "unresolved_xmlns"
     | Unresolved_identifier _ -> "unresolved_identifier"
     | Reference_error _ -> "reference_error"
@@ -250,7 +250,7 @@ module Message = struct
     | Parse_error
     | Type_warning
     | Unbound_fluid_symbol _
-    | Unbound_lexical_symbol _
+    | Unbound_variable _
     | Unhandled_case
     | Transclusion_loop
     | Internal_error

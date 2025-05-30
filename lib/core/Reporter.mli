@@ -37,7 +37,7 @@ sig
         expected: expected_value list
       }
     | Unbound_fluid_symbol of (Symbol.t * Value.t Value.Symbol_map.t)
-    | Unbound_lexical_symbol of (string * Value.t Value.Env.t)
+    | Unbound_variable of (string * Value.t Value.Env.t)
     | Unresolved_identifier of ((Resolver.Scope.data, Resolver.P.tag) Trie.t) * Trie.path
     | Unresolved_xmlns of string
     | Reference_error of URI.t
