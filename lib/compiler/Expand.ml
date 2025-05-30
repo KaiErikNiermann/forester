@@ -16,19 +16,12 @@ open struct
 end
 
 module Builtins = struct
-  let create_sym path =
-    let sym = Symbol.named path in
-    sym,
-    fun () ->
-      Sc.include_singleton path @@
-        (Term [Range.locate_opt None (Syn.Sym sym)], None)
-
   module Transclude = struct
-    let expanded_sym, alloc_expanded = create_sym ["transclude"; "expanded"]
-    let show_heading_sym, alloc_show_heading = create_sym ["transclude"; "heading"]
-    let toc_sym, alloc_toc = create_sym ["transclude"; "toc"]
-    let numbered_sym, alloc_numbered = create_sym ["transclude"; "numbered"]
-    let show_metadata_sym, alloc_show_metadata = create_sym ["transclude"; "metadata"]
+    let expanded_sym = Symbol.named ["transclude"; "expanded"]
+    let show_heading_sym = Symbol.named ["transclude"; "heading"]
+    let toc_sym = Symbol.named ["transclude"; "toc"]
+    let numbered_sym = Symbol.named ["transclude"; "numbered"]
+    let show_metadata_sym = Symbol.named ["transclude"; "metadata"]
   end
 end
 
@@ -335,7 +328,7 @@ let builtins =
         tex_builtin_symbols;
         begin
           let open Builtins.Transclude in
-          List.to_seq [expanded_sym; show_heading_sym; toc_sym; show_metadata_sym]
+          List.to_seq [expanded_sym; show_heading_sym; toc_sym; numbered_sym; show_metadata_sym]
           |> Seq.map @@ fun sym ->
             Symbol.name sym, (Syn.Term [Range.locate_opt None (Syn.Sym sym)], None)
         end;
@@ -425,10 +418,5 @@ let expand_tree ~(forest : State.t) (code : Tree.code) : Tree.syn * Reporter.Mes
   in
   Reporter.run ~emit ~fatal @@ fun () ->
   Sc.run ~init_visible: initial_visible_trie @@ fun () ->
-  Builtins.Transclude.alloc_expanded ();
-  Builtins.Transclude.alloc_show_heading ();
-  Builtins.Transclude.alloc_toc ();
-  Builtins.Transclude.alloc_numbered ();
-  Builtins.Transclude.alloc_show_metadata ();
   let expanded_tree = ignore_entered_range (expand_tree_inner ~forest) code in
   expanded_tree, !diagnostics
