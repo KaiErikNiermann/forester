@@ -14,8 +14,8 @@ type node =
   | Math of math_mode * t
   | Link of {dest: t; title: t option}
   | Subtree of string option * t
-  | Fun of Symbol.t binding list * t
-  | Var of Symbol.t
+  | Fun of string binding list * t
+  | Var of string
   | Sym of Symbol.t
   | Put of t * t * t
   | Default of t * t * t
@@ -24,8 +24,8 @@ type node =
   | TeX_cs of TeX_cs.t
   | Unresolved_ident of ((resolver_data, Range.t option) Trie.t [@opaque]) * Trie.path
   | Prim of Prim.t
-  | Object of {self: Symbol.t; methods: (string * t) list}
-  | Patch of {obj: t; self: Symbol.t; super: Symbol.t; methods: (string * t) list}
+  | Object of {self: string option; methods: (string * t) list}
+  | Patch of {obj: t; self: string option; super: string option; methods: (string * t) list}
   | Call of t * string
   | Results_of_query
   | Transclude

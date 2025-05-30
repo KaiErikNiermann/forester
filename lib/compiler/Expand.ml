@@ -158,32 +158,29 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, node.loc);
       expand_eff ~forest rest
     | Object {self; methods} ->
-      let self, methods =
+      let methods =
         let@ () = Sc.section [] in
-        let sym = Symbol.fresh () in
-        let var = Range.{value = Syn.Var sym; loc = node.loc} in (* TODO: correct the location *)
         begin
           let@ self = Option.iter @~ self in
-          Sc.import_singleton self @@ (Term [var], node.loc) (* TODO: correct the location*)
+          let var = Range.{value = Syn.Var self; loc = node.loc} in (* TODO: correct the location *)
+          Sc.import_singleton [self] @@ (Term [var], node.loc) (* TODO: correct the location*)
         end;
-        sym, List.map (expand_method ~forest) methods
+        List.map (expand_method ~forest) methods
       in
       {node with value = Object {self; methods}} :: expand_eff ~forest rest
-    | Patch {obj; self; methods} ->
+    | Patch {obj; self; super; methods} ->
       let obj = expand_eff ~forest obj in
-      let self, super, methods =
+      let methods =
         let@ () = Sc.section [] in
-        let self_sym = Symbol.fresh () in
-        let super_sym = Symbol.fresh () in
-        let self_var = Range.locate_opt None @@ Syn.Var self_sym in
-        let super_var = Range.locate_opt None @@ Syn.Var super_sym in
         begin
           let@ self = Option.iter @~ self in
-          Sc.import_singleton self @@ (Term [self_var], node.loc);
-          (* TODO: correct location*)
-          Sc.import_singleton (self @ ["super"]) @@ (Term [super_var], node.loc)
+          let self_var = Range.locate_opt None @@ Syn.Var self in
+          Sc.import_singleton [self] @@ (Term [self_var], node.loc);
+          let@ super = Option.iter @~ super in
+          let super_var = Range.locate_opt None @@ Syn.Var super in
+          Sc.import_singleton [super] @@ (Term [super_var], node.loc)
         end;
-        self_sym, super_sym, List.map (expand_method ~forest) methods
+        List.map (expand_method ~forest) methods
       in
       let patched = Syn.Patch {obj; self; super; methods} in
       {node with value = patched} :: expand_eff ~forest rest
@@ -268,14 +265,13 @@ and expand_method ~forest (key, body) =
 
 and expand_lambda ~forest loc (xs, body) =
   let@ () = Sc.section [] in
-  let syms =
+  let xs =
     let@ strategy, x = List.map @~ xs in
-    let sym = Symbol.named x in
-    let var = Range.locate_opt None @@ Syn.Var sym in
-    Sc.import_singleton x @@ (Term [var], loc);
-    strategy, sym
+    let var = Range.locate_opt None @@ Syn.Var x in
+    Sc.import_singleton [x] @@ (Term [var], loc);
+    strategy, x
   in
-  Range.{value = Syn.Fun (syms, expand_eff ~forest body); loc}
+  Range.{value = Syn.Fun (xs, expand_eff ~forest body); loc}
 
 let ignore_entered_range f x =
   let open Effect.Deep in

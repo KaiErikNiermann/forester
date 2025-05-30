@@ -37,11 +37,7 @@ let compute (params : L.DocumentSymbolParams.t) =
         (* TODO: What should the symbol kind of a subtree be? *)
         Option.some @@ L.DocumentSymbol.create ~name ~range ~selectionRange ~kind: Namespace ()
       | Object {self; _} ->
-        let name =
-          match self with
-          | Some path -> Format.asprintf "%a" pp_path path
-          | None -> "anonymous"
-        in
+        let name = Option.value ~default: "anonymous" self in
         Option.some @@ L.DocumentSymbol.create ~name ~range ~selectionRange ~kind: Object ()
       | Def (name, _, _) ->
         let name = Format.asprintf "%a" pp_path name in

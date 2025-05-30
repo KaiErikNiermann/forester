@@ -19,21 +19,21 @@ type node =
   | Subtree of string option * t
   | Let of
     Trie.path
-    * Trie.path binding list
+    * string binding list
     * t
   | Open of Trie.path
   | Scope of t
   | Put of Trie.path * t
   | Default of Trie.path * t
   | Get of Trie.path
-  | Fun of Trie.path binding list * t
+  | Fun of string binding list * t
   | Object of t _object
   | Patch of t patch
   | Call of t * string
   | Import of visibility * string
   | Def of
     Trie.path
-    * Trie.path binding list
+    * string binding list
     * t
   | Decl_xmlns of string * string
   | Alloc of Trie.path
@@ -51,13 +51,14 @@ type node =
 and t = node Range.located list
 
 and 'a _object = {
-  self: Trie.path option;
+  self: string option;
   methods: (string * 'a) list;
 }
 
 and 'a patch = {
   obj: 'a;
-  self: Trie.path option;
+  self: string option;
+  super: string option;
   methods: (string * 'a) list;
 }
 

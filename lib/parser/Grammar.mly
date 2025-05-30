@@ -40,13 +40,13 @@ let squares(p) == delimited(LSQUARE, p, RSQUARE)
 let parens(p) == delimited(LPAREN, p, RPAREN)
 
 let bvar :=
-| x = TEXT; { [x] }
+| x = TEXT; { x }
 
 let bvar_with_strictness :=
 | x = TEXT; {
   match String_util.explode x with
-  | '~' :: chars -> Lazy, [String_util.implode chars]
-  | _ -> Strict, [x]
+  | '~' :: chars -> Lazy, String_util.implode chars
+  | _ -> Strict, x
  }
 
 let binder == list(squares(bvar_with_strictness))
@@ -66,6 +66,11 @@ let textual_node :=
 let code_expr == ws_list(locate(head_node1))
 let textual_expr == list(locate(textual_node))
 
+let patch_bindings :=
+| self = squares(bvar); super = squares(bvar); { Some self, Some super }
+| self = squares(bvar); { Some self, None }
+| { None, None }
+
 let head_node :=
 | DEF; (~,~,~) = fun_spec; <Code.Def>
 | ALLOC; ~ = ident; <Code.Alloc>
@@ -84,7 +89,7 @@ let head_node :=
 | (~,~) = XML_ELT_IDENT; <Code.Xml_ident>
 | ~ = DECL_XMLNS; ~ = txt_arg; <Code.Decl_xmlns>
 | OBJECT; self = option(squares(bvar)); methods = braces(ws_list(method_decl)); { Code.Object {self;  methods } }
-| PATCH; obj = braces(code_expr); self = option(squares(bvar)); methods = braces(ws_list(method_decl)); { Code.Patch {obj; self; methods} }
+| PATCH; obj = braces(code_expr); (self, super) = patch_bindings; methods = braces(ws_list(method_decl)); { Code.Patch {obj; self; super; methods} }
 | CALL; ~ = braces(code_expr); ~ = txt_arg; <Code.Call>
 | DATALOG; LBRACE; list(WHITESPACE); ~ = dx_sequent_node; RBRACE; <>
 | ~ = VERBATIM; <Code.Verbatim>

@@ -116,7 +116,7 @@ let test_object () =
         [
           object_
             {
-              self = (Some ["self"]);
+              self = (Some "self");
               methods = [
                 (
                   "foo",

@@ -10,6 +10,7 @@ open Forester_core
 open struct
   module T = Types
   module Env = Value.Env
+  module Symbol_map = Value.Symbol_map
   type located = Value.t Range.located
 end
 
@@ -73,9 +74,9 @@ type result = {articles: T.content T.article list; jobs: Job.job Range.located l
 
 module Tape = Tape_effect.Make ()
 module Lex_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
-module Dyn_env = Algaeff.Reader.Make(struct type t = Value.t Env.t end)
+module Dyn_env = Algaeff.Reader.Make(struct type t = Value.t Symbol_map.t end)
 module Config_env = Algaeff.Reader.Make(struct type t = Config.t end)
-module Heap = Algaeff.State.Make(struct type t = Value.obj Env.t end)
+module Heap = Algaeff.State.Make(struct type t = Value.obj Symbol_map.t end)
 module Emitted_trees = Algaeff.State.Make(struct type t = T.content T.article list end)
 module Jobs = Algaeff.State.Make(struct type t = Job.job Range.located list end)
 module Frontmatter = Algaeff.State.Make(struct type t = T.content T.frontmatter end)
@@ -89,7 +90,7 @@ let get_current_uri ~loc =
 let get_transclusion_flags ~loc =
   let dynenv = Dyn_env.read () in
   let get_bool key =
-    let@ value = Option.map @~ Env.find_opt key dynenv in
+    let@ value = Option.map @~ Symbol_map.find_opt key dynenv in
     extract_bool @@ Range.locate_opt loc value
   in
   let module S = Expand.Builtins.Transclude in
@@ -185,7 +186,7 @@ and eval_node node : Value.t =
     emit_content_node ~loc @@ T.prim p @@ T.Content content
   | Fun (xs, body) ->
     let env = Lex_env.read () in
-    focus_clo ?loc env xs body
+    focus_clo ?loc env (List.map (fun (info, x) -> info, Some x) xs) body
   | Ref ->
     begin
       match eval_pop_arg ~loc |> extract_uri with
@@ -360,12 +361,12 @@ and eval_node node : Value.t =
       let env = Lex_env.read () in
       let add (name, body) =
         let super = Symbol.fresh () in
-        Value.Method_table.add name Value.{body; self; super; env}
+        Value.Method_table.add name Value.{body; self; super = None; env}
       in
       List.fold_right add methods Value.Method_table.empty
     in
     let sym = Symbol.named ["obj"] in
-    Heap.modify @@ Env.add sym Value.{prototype = None; methods = table};
+    Heap.modify @@ Symbol_map.add sym Value.{prototype = None; methods = table};
     focus ?loc: node.loc @@ Value.Obj sym
   | Patch {obj; self; super; methods} ->
     let obj_ptr = {node with value = obj} |> Range.map eval_tape |> extract_obj_ptr in
@@ -379,7 +380,7 @@ and eval_node node : Value.t =
       List.fold_right add methods Value.Method_table.empty
     in
     let sym = Symbol.named ["obj"] in
-    Heap.modify @@ Env.add sym Value.{prototype = Some obj_ptr; methods = table};
+    Heap.modify @@ Symbol_map.add sym Value.{prototype = Some obj_ptr; methods = table};
     focus ?loc: node.loc @@ Value.Obj sym
   | Group (d, body) ->
     let l, r = delim_to_strings d in
@@ -395,36 +396,42 @@ and eval_node node : Value.t =
       match Value.Method_table.find_opt method_name obj.methods with
       | Some mthd ->
         let env =
-          let env = Env.add mthd.self (Value.Obj sym) mthd.env in
+          let env =
+            match mthd.self with
+            | None -> mthd.env
+            | Some self -> Env.add self (Value.Obj sym) mthd.env
+          in
           match proto_val with
           | None -> env
           | Some proto_val ->
-            Env.add mthd.super proto_val env
+            match mthd.super with
+            | None -> env
+            | Some super -> Env.add super proto_val env
         in
         let@ () = Lex_env.run ~env in
         eval_tape mthd.body
       | None ->
         match obj.prototype with
         | Some proto ->
-          call_method @@ Env.find proto @@ Heap.get ()
+          call_method @@ Symbol_map.find proto @@ Heap.get ()
         | None ->
           Reporter.fatal
             ?loc: node.loc
             (Unbound_method (method_name, obj))
     in
-    let result = call_method @@ Env.find sym @@ Heap.get () in
+    let result = call_method @@ Symbol_map.find sym @@ Heap.get () in
     focus ?loc: node.loc result
   | Put (k, v, body) ->
     let k = {node with value = k} |> Range.map eval_tape |> extract_sym in
     let body =
-      let@ () = Dyn_env.scope (Env.add k (eval_tape v)) in
+      let@ () = Dyn_env.scope (Symbol_map.add k (eval_tape v)) in
       eval_tape body
     in
     focus ?loc: node.loc body
   | Default (k, v, body) ->
     let k = {node with value = k} |> Range.map eval_tape |> extract_sym in
     let body =
-      let upd flenv = if Env.mem k flenv then flenv else Env.add k (eval_tape v) flenv in
+      let upd flenv = if Symbol_map.mem k flenv then flenv else Symbol_map.add k (eval_tape v) flenv in
       let@ () = Dyn_env.scope upd in
       eval_tape body
     in
@@ -433,7 +440,7 @@ and eval_node node : Value.t =
     let k = {node with value = k} |> Range.map eval_tape |> extract_sym in
     let env = Dyn_env.read () in
     begin
-      match Env.find_opt k env with
+      match Symbol_map.find_opt k env with
       | None ->
         Reporter.fatal
           ?loc: node.loc
@@ -558,7 +565,7 @@ and eval_node node : Value.t =
   | Current_tree ->
     emit_content_node ~loc: node.loc @@ T.Uri (get_current_uri ~loc: node.loc)
 
-and eval_var ~loc x =
+and eval_var ~loc (x : string) =
   let env = Lex_env.read () in
   match Env.find_opt x env with
   | Some v -> focus ?loc v
@@ -587,7 +594,7 @@ and focus ?loc = function
           ~extra_remarks: [Asai.Diagnostic.loctextf "Expected solitary node but got %a / %a" Value.pp v Value.pp v']
     end
 
-and focus_clo ?loc rho xs body =
+and focus_clo ?loc rho (xs : string option binding list) body =
   match xs with
   | [] ->
     focus ?loc @@
@@ -599,9 +606,9 @@ and focus_clo ?loc rho xs body =
       let yval =
         match info with
         | Strict -> eval_tape arg.value
-        | Lazy -> Clo (Lex_env.read (), [(Strict, Symbol.fresh ())], arg.value)
+        | Lazy -> Clo (Lex_env.read (), [(Strict, None)], arg.value)
       in
-      let rhoy = Env.add y yval rho in
+      let rhoy = match y with Some y -> Env.add y yval rho | None -> rho in
       focus_clo ?loc rhoy ys body
     | None ->
       begin
@@ -662,9 +669,9 @@ let eval_tree
       let@ () = Frontmatter.run ~init: fm in
       let@ () = Emitted_trees.run ~init: [] in
       let@ () = Jobs.run ~init: [] in
-      let@ () = Heap.run ~init: Env.empty in
+      let@ () = Heap.run ~init: Symbol_map.empty in
       let@ () = Lex_env.run ~env: Env.empty in
-      let@ () = Dyn_env.run ~env: Env.empty in
+      let@ () = Dyn_env.run ~env: Symbol_map.empty in
       let@ () = Config_env.run ~env: config in
       let main = eval_tree_inner ~uri tree in
       let side = Emitted_trees.get () in

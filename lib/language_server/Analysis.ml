@@ -30,7 +30,7 @@ let flatten (tree : Code.t) : Code.t =
   List.concat_map Code.children tree
 
 let paths_in_bindings =
-  List.map snd
+  List.map (fun (_, x) -> [x])
 
 (* This function should not descend into the nodes!*)
 let paths : Code.node Range.located -> _ = function
@@ -49,7 +49,7 @@ let paths : Code.node Range.located -> _ = function
       Some (path :: paths_in_bindings bindings, loc)
     | Patch {self; _}
     | Object {self; _;} ->
-      Option.map (fun path -> [path], loc) self
+      Option.map (fun x -> [[x]], loc) self
     | Fun (bindings, _) -> Some (paths_in_bindings bindings, loc)
     | Subtree _
     | Group _

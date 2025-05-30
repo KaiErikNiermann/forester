@@ -9,14 +9,15 @@ open Base
 open struct module T = Types end
 
 type 'a _object = {
-  self: Trie.path option;
+  self: string option;
   methods: (string * 'a) list
 }
 [@@deriving show, repr]
 
 type 'a patch = {
   obj: 'a;
-  self: Trie.path option;
+  self: string option;
+  super: string option;
   methods: (string * 'a) list
 }
 [@@deriving show, repr]
@@ -30,18 +31,18 @@ type node =
   | Hash_ident of string
   | Xml_ident of string option * string
   | Subtree of string option * t
-  | Let of Trie.path * Trie.path binding list * t
+  | Let of Trie.path * string binding list * t
   | Open of Trie.path
   | Scope of t
   | Put of Trie.path * t
   | Default of Trie.path * t
   | Get of Trie.path
-  | Fun of Trie.path binding list * t
+  | Fun of string binding list * t
   | Object of t _object
   | Patch of t patch
   | Call of t * string
   | Import of visibility * string
-  | Def of Trie.path * Trie.path binding list * t
+  | Def of Trie.path * string binding list * t
   | Decl_xmlns of string * string
   | Alloc of Trie.path
   | Namespace of Trie.path * t
@@ -94,7 +95,7 @@ let map f node =
   | Fun (b, t) -> Fun (b, f t)
   | Call (t, s) -> Call (f t, s)
   | Object {self; methods} -> Object {self; methods = List.map (fun (s, t) -> (s, f t)) methods}
-  | Patch {obj; self; methods} -> Patch {obj = f obj; self; methods = List.map (fun (s, t) -> (s, f t)) methods}
+  | Patch {obj; self; super; methods} -> Patch {obj = f obj; self; super; methods = List.map (fun (s, t) -> (s, f t)) methods}
   | Text _
   | Verbatim _
   | Ident _
