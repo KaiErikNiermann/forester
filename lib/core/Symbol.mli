@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
-type t = (Trie.path [@repr Repr.(list string)]) * int
+type t
 
 val pp : Format.formatter -> t -> unit
 val show : t -> string
