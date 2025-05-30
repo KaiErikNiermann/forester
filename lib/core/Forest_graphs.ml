@@ -18,7 +18,7 @@ end
 
 let init (db : Dl.db) : (module S) =
 (module struct
-  let dl_db = Dl.db_create ()
+  let dl_db = db
 
   let register_uri uri =
     let vtx : Vertex.t = T.Uri_vertex uri in
