@@ -6,9 +6,6 @@
  (module theme_site)
  (sites forester))
 
-(cram
- (deps %{bin:forester}))
-
 (install
  (section
   (site
