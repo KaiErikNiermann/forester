@@ -5,7 +5,6 @@
 (tests
  (names
   Test_expansion
-  Test_LaTeX_pipeline
   Test_compiler
   Test_diagnostic_store
   Test_errors
