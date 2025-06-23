@@ -101,5 +101,4 @@
   spelll
   (odoc
    (>= 2.4.4 :with-doc))
-  alcotest
-  ppx_blob))
+  alcotest))

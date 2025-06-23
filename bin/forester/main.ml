@@ -37,8 +37,7 @@ let version =
     | None -> "n/a"
     | Some v -> Build_info.V1.Version.to_string v
   in
-  let commit = String.trim [%blob "version.txt"] in
-  Format.asprintf "%s %s" major commit
+  Format.asprintf "%s" major
 
 let build ~env _ config_filename dev no_theme =
   Reporter.easy_run @@ fun () ->
