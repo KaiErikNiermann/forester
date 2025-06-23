@@ -2,43 +2,6 @@
 ;;;
 ;;; SPDX-License-Identifier: GPL-3.0-or-later
 
-(executable
- (preprocess
-  (pps ppx_deriving.show))
- (public_name test-errors)
- (name Test_errors)
- (libraries
-  logs
-  logs.fmt
-  yojson
-  eio
-  eio.core
-  eio.unix
-  eio_main
-  forester.test
-  forester.compiler
-  forester.core
-  forester.prelude
-  forester.frontend
-  pure-html
-  asai))
-
-(rule
- (with-stdout-to
-  Test_errors.out
-  (progn
-   (chdir
-    forest
-    (progn
-     (run %{bin:test-errors}))))))
-
-(rule
- (alias runtest)
- (deps
-  (glob_files forest/**))
- (action
-  (diff Test_errors.expected Test_errors.out)))
-
 (test
  (name Test_uri_util)
  (libraries

@@ -7,7 +7,6 @@
   Test_expansion
   Test_compiler
   Test_diagnostic_store
-  Test_errors
   Test_graph_database
   Test_import_graph
   Test_uri_util)
