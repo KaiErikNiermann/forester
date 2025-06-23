@@ -80,7 +80,7 @@ let test_includes_paths ~env () =
         Done
       ]
       history;
-    let uri = (URI.of_string_exn "http://localhost/t8/") in
+    let uri = (URI.of_string_exn "http://forest.local/t8/") in
     let path =
       match forest.@{uri} with
       | Some (Article {frontmatter = {source_path; _}; _}) ->
@@ -136,7 +136,7 @@ let test_omits_paths ~env () =
   let@ () = Reporter.easy_run in
   let forest = Driver.batch_run ~env ~config ~dev: false in
   let path =
-    match forest.@{URI.of_string_exn "http://localhost/t8/"} with
+    match forest.@{URI.of_string_exn "http://forest.local/t8/"} with
     | Some (Article {frontmatter = {source_path; _}; _}) -> source_path
     | Some _ ->
       Alcotest.fail "not an article"

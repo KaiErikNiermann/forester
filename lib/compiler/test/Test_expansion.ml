@@ -74,7 +74,7 @@ let test_subtree ~env () =
     ""
     (
       Ok
-        {|<omitted content>\title {Hello}\taxon {Example}|}
+        {|<omitted content: Hello>|}
     )
     evaluated
 

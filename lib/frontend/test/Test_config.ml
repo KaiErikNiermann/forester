@@ -25,7 +25,7 @@ let test_parsing () =
         {|
         [forest]
         trees = ["trees"]
-        foreign = ["foreign/forest.json"]
+        foreign = [{path = "foreign/forest.json"}]
         url = "https://www.forester-notes.org/"
         home = "index"
         |}
