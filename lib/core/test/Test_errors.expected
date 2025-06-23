@@ -1,0 +1,16 @@
+ ￫ error[import_not_found]
+ ꭍ ￮ when expanding tree http://forest.local/test-1/
+ ￭ /Users/jon/Developer/ocaml-forester/_build/default/lib/core/test/forest/_tmp/d49a14/trees/test-1.tree
+ 1 | \import{nonexistent}
+   ^ http://forest.local/nonexistent/ not found
+
+{"title":"http://forest.local/test-1/","uri":"test-1","taxon":null,"tags":[],"route":"/test-1/","metas":{}}
+{"title":"http://forest.local/test-3/","uri":"test-3","taxon":null,"tags":["nonexistent"],"route":"/test-3/","metas":{}}
+{"title":"Jon Sterling","uri":"jon","taxon":"person","tags":[],"route":"/jon/","metas":{}}
+ ￫ error[duplicate_tree]
+ ꭍ ￮ when loading files from disk
+ ￮ /Users/jon/Developer/ocaml-forester/_build/default/lib/core/test/forest/_tmp/d49a14/_tmp/adb27b/_tmp/ede83f/_tmp/161301/trees2/duplicate.tree
+   and
+   /Users/jon/Developer/ocaml-forester/_build/default/lib/core/test/forest/_tmp/d49a14/_tmp/adb27b/_tmp/ede83f/_tmp/161301/trees1/duplicate.tree
+   use the same URI
+
