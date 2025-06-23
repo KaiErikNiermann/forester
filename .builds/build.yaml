@@ -19,7 +19,6 @@ tasks:
     - setup: |
             nix-env -iA cachix -f https://cachix.org/api/v1/install
             nix-env -iA nixos.jq
-            nix-env -iA nixos.neovim
             cachix use forester
     - build: |
             cd ocaml-forester
