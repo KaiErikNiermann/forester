@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *)
 
+open Forester_prelude
 open Forester_core
 open Spelll
 
@@ -21,14 +22,10 @@ type t = {
   number_of_docs: int;
 }
 
-let average_doc_length
-  : t -> float
-= fun {number_of_tokens; number_of_docs; _} ->
+let average_doc_length {number_of_tokens; number_of_docs; _} : float =
   Float.of_int number_of_tokens /. Float.of_int number_of_docs
 
-let add_one
-  : T.content T.article -> t -> t
-= fun article ({index; number_of_tokens; number_of_docs;} as t) ->
+let add_one (article : T.content T.article) ({index; number_of_tokens; number_of_docs;} as t) : t =
   if Option.is_none T.(article.frontmatter.uri) then t
   else
     let tokens_in_article = Tokenizer.tokenize_article article in
@@ -36,20 +33,21 @@ let add_one
     let new_tokens = ref 0 in
     let new_index =
       List.fold_left
-        (fun index (ocurrences, token) ->
-          match Index.retrieve_l ~limit: 0 index token with
-          | [] ->
-            (* Unseen token*)
-            (* TODO: add to list of ocurrences*)
-            let ocurrence = Ocurrences.singleton ([ocurrences], uri) in
-            new_tokens := !new_tokens + 1;
-            Index.add index token ocurrence
-          | ids :: [] ->
-            Index.add index token (Ocurrences.add ([ocurrences], uri) ids)
-          | _ ->
-            (* We are using limit=0, so this shouldn't happen*)
-            assert false
-        )
+        begin
+          fun index (ocurrences, token) ->
+            match Index.retrieve_l ~limit: 0 index token with
+            | [] ->
+              (* Unseen token*)
+              (* TODO: add to list of ocurrences*)
+              let ocurrence = Ocurrences.singleton ([ocurrences], uri) in
+              new_tokens := !new_tokens + 1;
+              Index.add index token ocurrence
+            | ids :: [] ->
+              Index.add index token (Ocurrences.add ([ocurrences], uri) ids)
+            | _ ->
+              (* We are using limit=0, so this shouldn't happen*)
+              assert false
+        end
         index
         tokens_in_article
     in
@@ -59,20 +57,13 @@ let add_one
       number_of_tokens = number_of_tokens + !new_tokens
     }
 
-let add
-    : T.content T.article list -> t -> t
-  =
+let add : T.content T.article list -> t -> t =
   List.fold_right add_one
 
-let search
-  : ?fuzz: int -> t -> string -> (int list list * URI.t) list
-= fun ?(fuzz = 0) index term ->
-  Tokenizer.tokenize term
-  |> List.concat_map
-      (fun str ->
-        List.concat_map Ocurrences.to_list @@
-          Index.retrieve_l ~limit: fuzz index.index str
-      )
+let search ?(fuzz = 0) (index : t) (term : string) : (int list list * URI.t) list =
+  let@ str = List.concat_map @~ Tokenizer.tokenize term in
+  List.concat_map Ocurrences.to_list @@
+    Index.retrieve_l ~limit: fuzz index.index str
 
 module BM_25 = struct
   let sum = List.fold_left (+.) 0.
@@ -87,30 +78,25 @@ module BM_25 = struct
     List.length @@
     Tokenizer.tokenize_article d
 
-  let score
-    : T.content T.article -> string -> t -> float
-  = fun d q index ->
+  let score (d : T.content T.article) (q : string) (index : t) : float =
     let tokens = Tokenizer.tokenize q in
     assert (List.length tokens > 0);
     let avg_len = average_doc_length index in
     let k_1 = 1.5 in
     let b = 0.75 in
     sum @@
-      List.map
-        (fun q_i ->
-          let num_occurrences =
-            Float.of_int @@
-            List.length @@ search index q_i
-          in
-          (* Format.printf "num_occurrences: %f" num_occurrences; *)
-          idf q index *.
-            begin
-              (num_occurrences *. k_1 +. 1.) /.
-                (num_occurrences +. k_1 *. (1. -. b +. (b *. doc_length d /. avg_len))) +.
-                1.
-            end
-        )
-        tokens
+      let@ q_i = List.map @~ tokens in
+      let num_occurrences =
+        Float.of_int @@
+        List.length @@ search index q_i
+      in
+      (* Format.printf "num_occurrences: %f" num_occurrences; *)
+      idf q index *.
+        begin
+          (num_occurrences *. k_1 +. 1.) /.
+            (num_occurrences +. k_1 *. (1. -. b +. (b *. doc_length d /. avg_len))) +.
+            1.
+        end
 end
 
 let create articles =
@@ -124,12 +110,10 @@ let create articles =
 
 let marshal (v : t) filename =
   let oc = open_out_bin filename in
-  Fun.protect
-    ~finally: (fun () -> close_out oc)
-    (fun () -> Marshal.to_channel oc v [])
+  let@ () = Fun.protect ~finally: (fun () -> close_out oc) in
+  Marshal.to_channel oc v []
 
 let unmarshal filename : t =
   let ic = open_in_bin filename in
-  Fun.protect
-    ~finally: (fun () -> close_in ic)
-    (fun () -> Marshal.from_channel ic)
+  let@ () = Fun.protect ~finally: (fun () -> close_in ic) in
+  Marshal.from_channel ic

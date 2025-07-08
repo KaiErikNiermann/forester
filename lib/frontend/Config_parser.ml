@@ -23,18 +23,19 @@ end
 let keys (tbl : Toml.Types.value Toml.Types.Table.t) =
   let rec go current keys tbl =
     List.fold_left
-      (fun acc (key, value) ->
-        match value with
-        | Toml.Types.TBool _
-        | TInt _
-        | TFloat _
-        | TString _
-        | TDate _
-        | TArray _ ->
-          (key :: current) :: acc
-        | TTable tbl ->
-          go (key :: current) acc tbl
-      )
+      begin
+        fun acc (key, value) ->
+          match value with
+          | Toml.Types.TBool _
+          | TInt _
+          | TFloat _
+          | TString _
+          | TDate _
+          | TArray _ ->
+            (key :: current) :: acc
+          | TTable tbl ->
+            go (key :: current) acc tbl
+      end
       keys
       (Toml.Types.Table.to_list tbl)
   in

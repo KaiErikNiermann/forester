@@ -26,11 +26,11 @@ let next_uri ~(prefix : string option) ~(mode : [< `Random | `Sequential]) ~(for
   let config = forest.config in
   let keys =
     List.of_seq @@
-    let@ uri = Seq.filter_map @~ addrs in
-    if URI.host config.url = URI.host uri then
-      let@ prefix', key = Option.bind @@ URI_scheme.split_addr uri in
-      if prefix = prefix' then Some key else None
-    else None
+      let@ uri = Seq.filter_map @~ addrs in
+      if URI.host config.url = URI.host uri then
+        let@ prefix', key = Option.bind @@ URI_scheme.split_addr uri in
+        if prefix = prefix' then Some key else None
+      else None
   in
   let next =
     match mode with

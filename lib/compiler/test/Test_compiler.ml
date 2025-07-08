@@ -28,16 +28,16 @@ let raw_trees =
 
 let test_batch_run ~env () =
   let forest, history =
-    with_test_forest
-      ~raw_trees
-      ~env
-      ~config
-      (fun path ->
-        Sys.chdir (Eio.Path.native_exn path);
-        let@ () = Reporter.easy_run in
-        let forest = State.make ~env ~config ~dev: false () in
-        Driver.run_with_history Load_all_configured_dirs forest
-      )
+    let@ path =
+      with_test_forest
+        ~raw_trees
+        ~env
+        ~config
+    in
+    Sys.chdir (Eio.Path.native_exn path);
+    let@ () = Reporter.easy_run in
+    let forest = State.make ~env ~config ~dev: false () in
+    Driver.run_with_history Load_all_configured_dirs forest
   in
   Alcotest.(check @@ list action)
     "all actions have run"

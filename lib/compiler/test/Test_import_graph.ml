@@ -14,7 +14,7 @@ open struct module T = Types end
 
 let config = {(Config.default ()) with trees = ["imports"]}
 
-let mk_vertex v = T.Uri_vertex (URI_scheme.named_uri ~base:config.url v)
+let mk_vertex v = T.Uri_vertex (URI_scheme.named_uri ~base: config.url v)
 
 let has_edge g v w =
   Forest_graph.mem_edge g (mk_vertex v) (mk_vertex w)

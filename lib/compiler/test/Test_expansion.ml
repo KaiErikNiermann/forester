@@ -61,7 +61,8 @@ let test_subtree ~env () =
   let@ () = Reporter.easy_run in
   let forest = State.make ~env ~config ~dev: false () in
   let expanded =
-    expand ~forest
+    expand
+      ~forest
       {|
   \subtree[foo]{
     \title{Hello}
@@ -79,7 +80,7 @@ let test_subtree ~env () =
     evaluated
 
 let test_visible ~env () =
-    let forest = State.make ~env ~config ~dev: false () in
+  let forest = State.make ~env ~config ~dev: false () in
   let code =
     Result.get_ok @@
       parse_string

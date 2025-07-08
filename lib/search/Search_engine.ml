@@ -10,7 +10,6 @@ open Forester_compiler
 open Forester_search
 open Forester_frontend
 
-
 open struct module T = Types end
 
 let ranked_search
