@@ -96,7 +96,7 @@ let test_visible ~env () =
     let@ (path, _) = Option.map @~ Seq.find (fun (p, _) -> p = ["greet"]) result in
     path
   in
-  Alcotest.(check @@ (option path))
+  Alcotest.(check (option path))
     "greet is visible"
     (Some (["greet"]))
     greet

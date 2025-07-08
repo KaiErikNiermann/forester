@@ -106,7 +106,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
       body @ expand_eff ~forest rest
     | Alloc x ->
       let symbol = Symbol.named x in
-      Sc.include_singleton x @@ (Term [Range.locate_opt node.loc (Syn.Sym symbol)], node.loc);
+      Sc.include_singleton x (Term [Range.locate_opt node.loc (Syn.Sym symbol)], node.loc);
       expand_eff ~forest rest
     | Put (k, v) ->
       let k = expand_ident node.loc k in
@@ -147,15 +147,15 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
     | Let (x, ys, def) ->
       let lam = expand_lambda ~forest node.loc (ys, def) in
       let@ () = Sc.section [] in
-      Sc.import_singleton x @@ (Term [lam], node.loc);
+      Sc.import_singleton x (Term [lam], node.loc);
       expand_eff ~forest rest
     | Def (x, ys, def) ->
       let lam = expand_lambda ~forest node.loc (ys, def) in
-      Sc.include_singleton x @@ (Term [lam], node.loc);
+      Sc.include_singleton x (Term [lam], node.loc);
       expand_eff ~forest rest
     | Decl_xmlns (prefix, xmlns) ->
       let path = ["xmlns"; prefix] in
-      Sc.include_singleton path @@ (Xmlns {prefix; xmlns}, node.loc);
+      Sc.include_singleton path (Xmlns {prefix; xmlns}, node.loc);
       expand_eff ~forest rest
     | Object {self; methods} ->
       let methods =
@@ -163,7 +163,7 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
         begin
           let@ self = Option.iter @~ self in
           let var = Range.{value = Syn.Var self; loc = node.loc} in (* TODO: correct the location *)
-          Sc.import_singleton [self] @@ (Term [var], node.loc) (* TODO: correct the location*)
+          Sc.import_singleton [self] (Term [var], node.loc) (* TODO: correct the location*)
         end;
         List.map (expand_method ~forest) methods
       in
@@ -175,10 +175,10 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
         begin
           let@ self = Option.iter @~ self in
           let self_var = Range.locate_opt None @@ Syn.Var self in
-          Sc.import_singleton [self] @@ (Term [self_var], node.loc);
+          Sc.import_singleton [self] (Term [self_var], node.loc);
           let@ super = Option.iter @~ super in
           let super_var = Range.locate_opt None @@ Syn.Var super in
-          Sc.import_singleton [super] @@ (Term [super_var], node.loc)
+          Sc.import_singleton [super] (Term [super_var], node.loc)
         end;
         List.map (expand_method ~forest) methods
       in
@@ -268,7 +268,7 @@ and expand_lambda ~forest loc (xs, body) =
   let xs =
     let@ strategy, x = List.map @~ xs in
     let var = Range.locate_opt None @@ Syn.Var x in
-    Sc.import_singleton [x] @@ (Term [var], loc);
+    Sc.import_singleton [x] (Term [var], loc);
     strategy, x
   in
   Range.{value = Syn.Fun (xs, expand_eff ~forest body); loc}

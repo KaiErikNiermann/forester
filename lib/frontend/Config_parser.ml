@@ -94,7 +94,7 @@ let parse lexbuf filename =
           | Some path -> path
         in
         let route_locally =
-          match get foreign_tbl @@ (key "route_locally" |-- bool) with
+          match get foreign_tbl (key "route_locally" |-- bool) with
           | None -> true
           | Some b -> b
         in
