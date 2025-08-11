@@ -352,14 +352,7 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
             in
             Some (`String content)
           in
-          let insertText =
-            (* TODO if host = current_host insert shortform else insert fully qualified uri*)
-            match triggerCharacter with
-            | Some "{" -> URI_scheme.name uri ^ "}"
-            | Some "(" -> URI_scheme.name uri ^ ")"
-            | Some "[" -> URI_scheme.name uri ^ "]"
-            | _ -> URI_scheme.name uri
-          in
+          let insertText = URI_scheme.name uri in
           let title_text = Option.map render title in
           let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
           L.CompletionItem.create
