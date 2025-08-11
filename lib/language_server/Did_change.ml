@@ -18,7 +18,9 @@ let compute (params : L.DidChangeTextDocumentParams.t) =
   let uri = URI_scheme.lsp_uri_to_uri ~base: forest.config.url lsp_uri in
   let@ tree = Option.iter @~ forest.={uri} in
   match Tree.to_doc tree with
-  | None -> assert false
+  | None ->
+    Logs.debug (fun m -> m "Did_change.compute fatal error, could not find tree with uri %a from LSP uri %s" URI.pp uri (Lsp.Uri.to_string lsp_uri));
+    assert false
   | Some doc ->
     let new_doc = Lsp.Text_document.apply_content_changes doc params.contentChanges in
     forest.={uri} <- Document new_doc;
