@@ -301,12 +301,11 @@ let syntax_completions =
     ("datalog", "datalog");
     ("xmlns", "xmlns");
   ]
-  |> List.map (fun (insertText, label) ->
-      L.CompletionItem.create
-        ~insertText
-        ~label
-        ()
-    )
+  |> List.map @@ fun (insertText, label) ->
+    L.CompletionItem.create
+      ~insertText
+      ~label
+      ()
 
 let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t) =
   Logs.debug (fun m -> m "when computing completions for %s" (Lsp.Uri.to_string uri));
