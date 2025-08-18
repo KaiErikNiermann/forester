@@ -60,7 +60,7 @@ let uri attrs = f_text_tag "uri" attrs
 let display_uri attrs = f_text_tag "display-uri" attrs
 let route attrs = f_text_tag "route" attrs
 let source_path attrs = f_text_tag "source-path" attrs
-let href fmt = uri_attr "href" fmt
+let href fmt = string_attr "href" fmt
 let date = f_std_tag "date"
 let last_changed = f_std_tag "last-changed"
 let year attrs = f_text_tag "year" attrs
@@ -92,7 +92,7 @@ let ref = f_void_tag "ref"
 let number_ fmt = string_attr "number" fmt
 
 let img = html_void_tag "img"
-let src fmt = uri_attr "src" fmt
+let src fmt = string_attr "src" fmt
 
 let resource = f_std_tag "resource"
 let resource_content = f_std_tag "resource-content"

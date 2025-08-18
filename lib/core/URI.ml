@@ -63,14 +63,14 @@ module Basics = struct
     Uri.canonicalize @@
     Uri.with_path (hydrate uri) @@ String.concat "/" xs
 
-  let t = Repr.map Repr.string (Fun.compose dehydrate Uri.of_string) (Fun.compose Uri.to_string hydrate)
-
   let pp (fmt : Format.formatter) (uri : t) =
     Format.fprintf fmt "%s" @@
-    Uri.to_string @@ hydrate uri (* wanted it not pct-encoded, but we'll see*)
+    Uri.pct_decode @@ Uri.to_string @@ hydrate uri
 
   let to_string x =
     Uri.pct_decode @@ Uri.to_string @@ hydrate x
+
+  let t = Repr.map Repr.string (Fun.compose dehydrate Uri.of_string) to_string
 
   let of_string_exn str =
     dehydrate @@ Uri.canonicalize @@ Uri.of_string str
