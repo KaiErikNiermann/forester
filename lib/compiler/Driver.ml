@@ -241,6 +241,7 @@ let language_server ~env ~config =
       go new_action new_state
   in
   let _, state = update Plant_assets init in
+  (* TODO: this ought to implant the foreign trees as well *)
   go Load_all_configured_dirs state
 
 let run_with_history a s =
