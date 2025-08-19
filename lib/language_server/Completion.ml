@@ -21,6 +21,7 @@ type completion =
   | New_addr
   | Assets
   | Visible
+  | Date
 [@@deriving show]
 
 module S = Set.Make(struct
@@ -70,17 +71,30 @@ let asset_completion : completion_kind =
     | Prev (Asai.Range.{value = Code.Ident ["route-asset"]; _}, _)
     | Prev (_, Asai.Range.{value = Code.Ident ["route-asset"]; _}) ->
       Some Assets
-    | Prev (_, _)
-    | Parent _
-    | Top _ ->
-      None
+    | Prev _ | Parent _ | Top _ -> None
   in
   let syn (context : Syn.node Range.located Analysis.Context.t) =
     match context with
-    | (Top {value = Route_asset; _}) -> Some Assets
-    | (Prev (_, {value = Route_asset; _;})) -> Some Assets
+    | Top {value = Route_asset; _} -> Some Assets
+    | Prev (_, {value = Route_asset; _;}) -> Some Assets
     | _ -> None
   in
+  {text; code; syn}
+
+let date_completion : completion_kind =
+  let text word_before =
+    if Str.(string_match (regexp {|.*date.*|}) word_before 0) then
+      Some Date
+    else None
+  in
+  let code (context : _ Analysis.Context.t) =
+    match context with
+    | Prev (Asai.Range.{value = Code.Ident ["date"]; _}, _)
+    | Prev (_, Asai.Range.{value = Code.Ident ["date"]; _}) ->
+      Some Date
+    | Prev _ | Parent _ | Top _ -> None
+  in
+  let syn (_context : Syn.node Range.located Analysis.Context.t) = None in
   {text; code; syn}
 
 let uri_completion : completion_kind =
@@ -91,17 +105,8 @@ let uri_completion : completion_kind =
       Some Addrs
     else None
   in
-  let code (context : _ Analysis.Context.t) =
-    match context with
-    | Prev (_, _)
-    | Parent _
-    | Top _ ->
-      None
-  in
-  let syn (context : Syn.node Range.located Analysis.Context.t) =
-    match context with
-    | _ -> None
-  in
+  let code (_context : _ Analysis.Context.t) = None in
+  let syn (_context : Syn.node Range.located Analysis.Context.t) = None in
   {text; code; syn}
 
 let new_uri_completion : completion_kind =
@@ -119,6 +124,7 @@ let completion_types (t : Tree.t) ~position =
     asset_completion;
     subtree_completion;
     new_uri_completion;
+    date_completion;
   ]
   in
   let code_opt = Tree.to_code t in
@@ -149,8 +155,7 @@ let completion_types (t : Tree.t) ~position =
                 fun acc a ->
                   match a with
                   | None -> acc
-                  | Some compl ->
-                    S.add compl acc
+                  | Some compl -> S.add compl acc
               end
               S.empty
               [
@@ -211,7 +216,7 @@ let kind
 
 let insert_text path = String.concat "/" path
 
-let asset_completions ~(config : Config.t) () =
+let asset_completions ~(config : Config.t) =
   let asset_dirs = config.assets in
   let paths = List.of_seq @@ Hashtbl.to_seq_keys Asset_router.router in
   let@ asset_path = List.filter_map @~ paths in
@@ -307,6 +312,61 @@ let syntax_completions =
       ~label
       ()
 
+let addr_completions ~(forest : State.t) : L.CompletionItem.t list =
+  List.of_seq @@
+    let@ uri, tree = Seq.map @~ URI.Tbl.to_seq forest.index in
+    let frontmatter = Tree.get_frontmatter tree in
+    let title = Option.map (State.get_expanded_title @~ forest) frontmatter in
+    let render = Plain_text_client.string_of_content ~forest in
+    let documentation =
+      let taxon = Option.bind frontmatter (fun fm -> fm.taxon) in
+      let content =
+        Format.asprintf
+          {|%s\n %s\n |}
+          (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
+          (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
+      in
+      Some (`String content)
+    in
+    let insertText = URI_scheme.name uri in
+    let title_text = Option.map render title in
+    let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
+    L.CompletionItem.create
+      ?documentation
+      ~label: (Format.(asprintf "%a (%s)" (pp_print_option pp_print_string) title_text (URI_scheme.name uri)))
+      ~insertText
+      ~filterText
+      ()
+
+let new_addr_completions ~(forest : State.t) : L.CompletionItem.t list =
+  let next mode = URI_util.next_uri ~prefix: None ~mode ~forest in
+  [
+    L.CompletionItem.create ~label: "random" ~insertText: (next `Random) ();
+    L.CompletionItem.create ~label: "sequential" ~insertText: (next `Sequential) ()
+  ]
+
+let visible_completions ~(forest : State.t) ~(position : L.Position.t) : Tree.code option -> L.CompletionItem.t list = function
+  | None ->
+    List.append syntax_completions @@
+      let@ path, _ = List.map @~ List.of_seq @@ Trie.to_seq Expand.initial_visible_trie in
+      L.CompletionItem.create
+        ~insertText: "todo"
+        ~label: (String.concat "/" path)
+        ()
+  | Some {nodes; _} ->
+    Analysis.get_visible ~position ~forest nodes
+    |> Trie.to_seq
+    |> List.of_seq
+    |> List.filter_map make
+    |> List.append syntax_completions
+
+let date_completions () : L.CompletionItem.t list =
+  let now = Human_datetime.now () in
+  let now_string = Format.asprintf "%a" Human_datetime.pp now in
+  [
+    L.CompletionItem.create ~label: now_string ~insertText: now_string ()
+  ]
+
 let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t) =
   Logs.debug (fun m -> m "when computing completions for %s" (Lsp.Uri.to_string uri));
   let triggerCharacter =
@@ -335,55 +395,11 @@ let compute ({context; position; textDocument = {uri}; _;}: L.CompletionParams.t
     let items =
       let@ completion = List.concat_map @~ S.to_list completion_types in
       match completion with
-      | Addrs ->
-        List.of_seq @@
-          let@ uri, tree = Seq.map @~ URI.Tbl.to_seq forest.index in
-          let frontmatter = Tree.get_frontmatter tree in
-          let title = Option.map (State.get_expanded_title @~ forest) frontmatter in
-          let render = Plain_text_client.string_of_content ~forest in
-          let documentation =
-            let taxon = Option.bind frontmatter (fun fm -> fm.taxon) in
-            let content =
-              Format.asprintf
-                {|%s\n %s\n |}
-                (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
-                (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
-            in
-            Some (`String content)
-          in
-          let insertText = URI_scheme.name uri in
-          let title_text = Option.map render title in
-          let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
-          L.CompletionItem.create
-            ?documentation
-            ~label: (Format.(asprintf "%a (%s)" (pp_print_option pp_print_string) title_text (URI_scheme.name uri)))
-            ~insertText
-            ~filterText
-            ()
-      | New_addr ->
-        let next mode = URI_util.next_uri ~prefix: None ~mode ~forest in
-        [
-          L.CompletionItem.create ~label: "random" ~insertText: (next `Random) ();
-          L.CompletionItem.create ~label: "sequential" ~insertText: (next `Sequential) ()
-        ]
-      | Assets -> asset_completions ~config ()
-      | Visible ->
-        begin
-          match code with
-          | None ->
-            List.append syntax_completions @@
-              let@ path, _ = List.map @~ List.of_seq @@ Trie.to_seq Expand.initial_visible_trie in
-              L.CompletionItem.create
-                ~insertText: "todo"
-                ~label: (String.concat "/" path)
-                ()
-          | Some {nodes; _} ->
-            Analysis.get_visible ~position ~forest nodes
-            |> Trie.to_seq
-            |> List.of_seq
-            |> List.filter_map make
-            |> List.append syntax_completions
-        end
+      | Addrs -> addr_completions ~forest
+      | New_addr -> new_addr_completions ~forest
+      | Assets -> asset_completions ~config
+      | Visible -> visible_completions ~forest ~position code
+      | Date -> date_completions ()
     in
     Logs.debug (fun m -> m "items: %d" (List.length items));
     Option.some @@ `CompletionList (L.CompletionList.create ~isIncomplete: false ~items ())
