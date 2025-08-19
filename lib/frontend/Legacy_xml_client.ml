@@ -66,8 +66,7 @@ end
 
 module Loop_detection = Loop_detection_effect.Make ()
 
-(* It's fine to have a global transclusion cache since URIs fully qualify a tree*)
-let transclusion_cache = Hashtbl.create 1000
+let mainmatter_cache = Hashtbl.create 1000
 
 let render_xml_qname qname =
   let qname = Xmlns.normalise_qname qname in
@@ -91,6 +90,7 @@ let render_section_flags (dict : T.section_flags) = [
   X.optional_ X.toc dict.included_in_toc;
   X.optional_ X.numbered dict.numbered
 ]
+
 let rec render_section forest (section : T.content T.section) : P.node =
   let@ _ = Xmlns.run in
   X.tree
@@ -103,8 +103,19 @@ let rec render_section forest (section : T.content T.section) : P.node =
           [X.info [] [P.txt "Transclusion loop detected, rendering stopped."]]
         else
           let@ () = Loop_detection.add_seen_uri_opt section.frontmatter.uri in
-          render_content forest section.mainmatter
+          render_mainmatter forest section
     ]
+
+and render_mainmatter forest (section : T.content T.section) =
+  match section.frontmatter.uri with
+  | None -> render_content forest section.mainmatter
+  | Some uri ->
+    match Hashtbl.find_opt mainmatter_cache uri with
+    | None ->
+      let nodes = render_content forest section.mainmatter in
+      Hashtbl.add mainmatter_cache uri nodes;
+      nodes
+    | Some nodes -> nodes
 
 and render_frontmatter (forest : State.t) (frontmatter : T.content T.frontmatter) : P.node =
   let result =
@@ -238,16 +249,11 @@ and render_resource_source source =
   X.resource_source [X.type_ "%s" source.type_; X.resource_part "%s" source.part] "<![CDATA[%s]]>" source.source
 
 and render_transclusion (forest : State.t) (transclusion : T.transclusion) : P.node list =
-  match Hashtbl.find_opt transclusion_cache transclusion with
-  | Some nodes -> nodes
+  match State.get_content_of_transclusion transclusion forest with
   | None ->
-    match State.get_content_of_transclusion transclusion forest with
-    | None ->
-      Reporter.fatal (Resource_not_found transclusion.href)
-    | Some content ->
-      let nodes = render_content forest content in
-      Hashtbl.add transclusion_cache transclusion nodes;
-      nodes
+    Reporter.fatal (Resource_not_found transclusion.href)
+  | Some content ->
+    render_content forest content
 
 and render_link (forest : State.t) (link : T.content T.link) : P.node list =
   let article_opt = State.get_article link.href forest in
@@ -350,7 +356,7 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
       X.mainmatter [] @@
         begin
           let@ () = Loop_detection.add_seen_uri_opt article.frontmatter.uri in
-          render_content forest article.mainmatter
+          render_mainmatter forest @@ T.article_to_section article
         end;
       X.backmatter [] @@
         let@ () = In_backmatter.run ~env: true in
