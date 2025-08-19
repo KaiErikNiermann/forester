@@ -313,30 +313,34 @@ let syntax_completions =
       ()
 
 let addr_completions ~(forest : State.t) : L.CompletionItem.t list =
-  List.of_seq @@
-    let@ uri, tree = Seq.map @~ URI.Tbl.to_seq forest.index in
-    let frontmatter = Tree.get_frontmatter tree in
-    let title = Option.map (State.get_expanded_title @~ forest) frontmatter in
-    let render = Plain_text_client.string_of_content ~forest in
-    let documentation =
-      let taxon = Option.bind frontmatter (fun fm -> fm.taxon) in
-      let content =
-        Format.asprintf
-          {|%s\n %s\n |}
-          (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "# %s" (render s)) title)
-          (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
-      in
-      Some (`String content)
+  let articles = List.of_seq @@ State.get_all_articles forest in
+  let@ article = List.filter_map @~ articles in
+  let frontmatter = article.frontmatter in
+  let@ _ = Option.bind frontmatter.title in
+  let title = State.get_expanded_title frontmatter forest in
+  let render = Plain_text_client.string_of_content ~forest in
+  let documentation =
+    let taxon = frontmatter.taxon in
+    let content =
+      Format.asprintf
+        "# %s\n %s\n "
+        (render title)
+        (Option.fold ~none: "" ~some: (fun s -> Format.asprintf "taxon: %s" (render s)) taxon)
     in
-    let insertText = URI_scheme.name uri in
-    let title_text = Option.map render title in
-    let filterText = Option.fold ~none: insertText ~some: (fun s -> insertText ^ " " ^ s) title_text in
-    L.CompletionItem.create
-      ?documentation
-      ~label: (Format.(asprintf "%a (%s)" (pp_print_option pp_print_string) title_text (URI_scheme.name uri)))
-      ~insertText
-      ~filterText
-      ()
+    Some (`String content)
+  in
+  let@ uri = Option.bind @@ frontmatter.uri in
+  let@ title = Option.bind @@ frontmatter.title in
+  let insertText = URI_scheme.name uri in
+  let title_text = render title in
+  let filterText = insertText ^ " " ^ title_text in
+  Option.some @@
+  L.CompletionItem.create
+    ?documentation
+    ~label: (Format.(asprintf "%a (%s)" pp_print_string title_text (URI_scheme.name uri)))
+    ~insertText
+    ~filterText
+    ()
 
 let new_addr_completions ~(forest : State.t) : L.CompletionItem.t list =
   let next mode = URI_util.next_uri ~prefix: None ~mode ~forest in
