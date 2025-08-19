@@ -107,7 +107,7 @@ let html_redirect uri_string =
                 http_equiv `refresh;
                 content "0;url=%s" uri_string
               ];
-              meta [ charset "utf-8" ]
+            meta [charset "utf-8"]
           ]
       ]
 

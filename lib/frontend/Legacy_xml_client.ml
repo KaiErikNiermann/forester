@@ -266,7 +266,7 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
       ]
     | Some article ->
       [
-        X.href "%s" @@  URI.to_string @@ route forest link.href;
+        X.href "%s" @@ URI.to_string @@ route forest link.href;
         X.title_ "%s" @@
         Plain_text_client.string_of_content ~forest: forest ~router: (route forest) @@
         State.get_expanded_title ?scope: (Scope.read ()) article.frontmatter forest;
