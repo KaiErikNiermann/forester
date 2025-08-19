@@ -330,7 +330,6 @@ let addr_completions ~(forest : State.t) : L.CompletionItem.t list =
     Some (`String content)
   in
   let@ uri = Option.bind @@ frontmatter.uri in
-  let@ title = Option.bind @@ frontmatter.title in
   let insertText = URI_scheme.name uri in
   let title_text = render title in
   let filterText = insertText ^ " " ^ title_text in
