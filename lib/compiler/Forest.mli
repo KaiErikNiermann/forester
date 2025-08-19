@@ -25,39 +25,7 @@ val analyse_resource : (module Forest_graphs.S) -> T.content T.resource -> unit
     - When encountering a {{!Forester_core.Types.Datalog_script}[Datalog_script script]}, it runs the script and records the results in {{!Forester_core.Forest_graphs.S}[graphs]}.
     *)
 
-val get_article :
-  key ->
-  T.content T.resource t ->
-  T.content T.article option
-
 val run_datalog_query :
   (module Forest_graphs.S) ->
   (string, Forester_core.Vertex.t) Dx.query ->
   Forester_core.Vertex_set.t
-
-val get_expanded_title :
-  ?scope: key ->
-  ?flags: T.title_flags ->
-  T.content T.frontmatter ->
-  T.content T.resource t ->
-  T.content
-
-val get_content_of_transclusion :
-  T.transclusion ->
-  T.content T.resource t ->
-  T.content option
-
-val get_title_or_content_of_vertex :
-  ?not_found: (key -> T.content option) ->
-  T.content T.vertex ->
-  T.content T.resource t ->
-  T.content option
-
-val get_all_articles :
-  'a T.resource t -> 'a T.article list
-
-val get_all_assets :
-  'a T.resource t -> T.asset list
-
-val get_all_resources :
-  'a t -> 'a list

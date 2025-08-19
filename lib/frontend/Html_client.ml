@@ -31,7 +31,7 @@ let route uri = URI.to_string uri
 
 let get_expanded_title frontmatter forest =
   let scope = Scope.read () in
-  Forest.get_expanded_title ?scope ~flags: T.{empty_when_untitled = true} frontmatter forest
+  State.get_expanded_title ?scope ~flags: T.{empty_when_untitled = true} frontmatter forest
 
 let render_xml_qname qname =
   let qname = Xmlns.normalise_qname qname in
