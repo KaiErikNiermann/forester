@@ -49,7 +49,6 @@ let rec extract_inlayable_hints ~(config : Config.t) ~(forest : State.t) (nodes 
   let hints = extract_inlayable_hints ~config ~forest rest in
   list_of_option hint_opt @ hints
 
-
 let compute (params : L.InlayHintParams.t) : L.InlayHint.t list option =
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let config = forest.config in

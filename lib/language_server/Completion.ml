@@ -334,12 +334,12 @@ let addr_completions ~(forest : State.t) : L.CompletionItem.t list =
   let title_text = render title in
   let filterText = insertText ^ " " ^ title_text in
   Option.some @@
-  L.CompletionItem.create
-    ?documentation
-    ~label: (Format.(asprintf "%a (%s)" pp_print_string title_text (URI_scheme.name uri)))
-    ~insertText
-    ~filterText
-    ()
+    L.CompletionItem.create
+      ?documentation
+      ~label: (Format.(asprintf "%a (%s)" pp_print_string title_text (URI_scheme.name uri)))
+      ~insertText
+      ~filterText
+      ()
 
 let new_addr_completions ~(forest : State.t) : L.CompletionItem.t list =
   let next mode = URI_util.next_uri ~prefix: None ~mode ~forest in
