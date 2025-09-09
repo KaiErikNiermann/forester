@@ -320,17 +320,32 @@ let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
         ()
       )
 
-let rec source_path_of_uri (uri : URI.t) (forest : t) : string option =
+let rec lsp_uri_of_uri (uri : URI.t) (forest : t) : Lsp.Uri.t option =
   let@ tree = Option.bind @@ find_opt forest uri in
-  source_path_of_origin (Tree.origin tree) forest
+  lsp_uri_of_tree tree forest
 
-and source_path_of_origin (origin : origin) (forest : t) : string option =
+and lsp_uri_of_tree (tree : Tree.t) (forest : t) : Lsp.Uri.t option =
+  match tree with
+  | Document doc -> Some (Lsp.Text_document.documentUri doc)
+  | Parsed code -> lsp_uri_of_origin code.origin forest
+  | Expanded syn -> lsp_uri_of_identity syn.identity forest
+  | Resource evaluated -> lsp_uri_of_resource evaluated.resource forest
+
+and lsp_uri_of_resource (resource : resource) (forest : t) : Lsp.Uri.t option =
+  match resource with
+  | Article article -> Option.map Lsp.Uri.of_string article.frontmatter.source_path
+  | Asset _ | Syndication _ -> None
+
+and lsp_uri_of_origin (origin : origin) (forest : t) : Lsp.Uri.t option =
   match origin with
-  | Physical document ->
-    Option.some @@ Lsp.Uri.to_path @@ Lsp.Text_document.documentUri document
-  | Subtree {parent} -> source_path_of_identity parent forest
+  | Physical document -> Some (Lsp.Text_document.documentUri document)
+  | Subtree {parent} -> lsp_uri_of_identity parent forest
   | Undefined -> None
 
-and source_path_of_identity (identity : identity) (forest : t) : string option =
-  let@ uri = Option.bind @@ identity_to_uri identity in
-  source_path_of_uri uri forest
+and lsp_uri_of_identity (identity : identity) (forest : t) : Lsp.Uri.t option =
+  match identity with
+  | URI uri -> lsp_uri_of_uri uri forest
+  | Anonymous -> None
+
+let source_path_of_uri uri forest =
+  Option.map Lsp.Uri.to_path @@ lsp_uri_of_uri uri forest
