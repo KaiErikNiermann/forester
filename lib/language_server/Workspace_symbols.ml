@@ -89,35 +89,62 @@ let exports_to_symbols (exports : Tree.exports) =
       ~name: (Format.asprintf "%a" Resolver.Scope.pp_path path)
       ()
 
-let compute (_params : L.WorkspaceSymbolParams.t) : _ =
+let contains_substring_case_insensitive ~pattern text =
+  let text = String.lowercase_ascii text
+  and pattern = String.lowercase_ascii pattern
+  in
+  let n = String.length text
+  and m = String.length pattern
+  in
+  let rec search i =
+    if i + m > n then false
+    else if String.sub text i m = pattern then true
+    else search (i + 1)
+  in
+  if m = 0 then true else search 0
+
+let fuzzy_match ~pattern text =
+  let pattern = String.lowercase_ascii pattern in
+  let text = String.lowercase_ascii text in
+  let n = String.length text
+  and m = String.length pattern
+  in
+  if n = 0 then false
+  else
+    let rec aux i j =
+      if j = m then true (* matched entire pattern *)
+      else if i = n then false (* text exhausted first *)
+      else if text.[i] = pattern.[j] then
+        aux (i + 1) (j + 1) (* match, advance both *)
+      else
+        aux (i + 1) j (* skip char in text *)
+    in
+    aux 0 0
+
+(* We no longer show exported functions, as this is really gumming up the editor interfaces. *)
+let compute (params : L.WorkspaceSymbolParams.t) : _ =
+  Logs.debug (fun m -> m "QUERY: %s" params.query);
   let Lsp_state.{forest; _} = Lsp_state.get () in
   let render = Plain_text_client.string_of_content ~forest in
   Option.some @@
-    let@ _, item = List.concat_map @~ List.of_seq @@ State.to_seq forest in
-    let title =
-      match Tree.to_article item with
-      | Some {frontmatter; _} ->
-        render (State.get_expanded_title frontmatter forest)
-      | None -> "untitled"
-    in
-    let units =
-      List.concat @@
+    let@ uri, item = List.concat_map @~ List.of_seq @@ State.to_seq forest in
+    let@ {frontmatter; _} = List.concat_map @~ Option.to_list (Tree.to_article item) in
+    let title = render @@ State.get_expanded_title frontmatter forest in
+    let@ () = List.concat_map @~ if fuzzy_match ~pattern: params.query title then [()] else [] in
+    let@ file_symbol =
+      List.concat_map @~
       Option.to_list @@
-      Option.map exports_to_symbols @@ Tree.get_units item
+      let@ source_path = Option.map @~ State.source_path_of_uri uri forest in
+      let lsp_uri = Lsp.Uri.of_string source_path in
+      let location =
+        L.Location.{
+          range = L.Range.{
+            end_ = {character = 0; line = 0;};
+            start = {character = 0; line = 0;};
+          };
+          uri = lsp_uri;
+        }
+      in
+      L.SymbolInformation.create ~kind: File ~location ~name: title ()
     in
-    let lsp_uri = Option.map Lsp.Text_document.documentUri @@ Tree.to_doc item in
-    let file_symbol =
-      Option.to_list @@
-        let@ uri = Option.map @~ lsp_uri in
-        let location =
-          L.Location.{
-            range = L.Range.{
-              end_ = {character = 0; line = 0;};
-              start = {character = 0; line = 0;};
-            };
-            uri;
-          }
-        in
-        L.SymbolInformation.create ~kind: File ~location ~name: title ()
-    in
-    units @ file_symbol
+    [file_symbol]
