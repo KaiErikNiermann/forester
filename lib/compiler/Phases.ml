@@ -138,11 +138,16 @@ let eval_only (uri : URI.t) (forest : State.t) =
   | Some (Document _) -> assert false
   | Some (Parsed _) | Some (Resource _) -> assert false
   | Some (Expanded expanded) ->
+    let source_path =
+      if forest.dev then
+        URI.Tbl.find_opt forest.resolver uri
+      else None
+    in
     (* NOTE: Not running jobs. *)
     let Eval.{articles; jobs = _}, diagnostics =
       Eval.eval_tree
         ~config: forest.config
-        ~source_path: None
+        ~source_path
         ~uri
         expanded.nodes
     in
