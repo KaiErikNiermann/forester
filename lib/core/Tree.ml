@@ -32,6 +32,7 @@ type syn = {
 type evaluated = {
   resource: T.content T.resource;
   route_locally: bool;
+  include_in_manifest: bool;
   expanded: syn option;
 }
 [@@deriving show]

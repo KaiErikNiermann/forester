@@ -84,8 +84,14 @@ let copy_contents_of_dir ~env ~(forest : State.t) dir =
 
 let json_manifest ~dev ~(forest : State.t) : string =
   let render = Json_manifest_client.render_tree ~forest in
-  forest
-  |> State.get_all_articles
+  let articles =
+    let@ tree = Seq.filter_map @~ Forest.to_seq_values forest.index in
+    let@ evaluated = Option.bind @@ Tree.to_evaluated tree in
+    if evaluated.include_in_manifest
+    then Tree.to_article tree
+    else None
+  in
+  articles
   |> List.of_seq
   |> List.sort (Forest_util.compare_article ~forest)
   |> List.filter_map (fun tree -> render ~dev tree)

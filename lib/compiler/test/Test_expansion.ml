@@ -42,7 +42,7 @@ let render ~forest expanded =
         List.iter
           (fun article ->
             let@ uri = Option.iter @~ T.(article.frontmatter.uri) in
-            forest.={uri} <- Resource {resource = Article article; expanded = None; route_locally = true}
+            forest.={uri} <- Resource {resource = Article article; expanded = None; route_locally = true; include_in_manifest = true}
           )
           articles
       in

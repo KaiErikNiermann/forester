@@ -256,7 +256,7 @@ let suggestion_for_uri uri forest =
       | Some _ -> Ok
       | None -> Not_found {suggestion = URI.Tbl.find_opt forest.suggestions uri}
 
-let plant_resource ?(route_locally = true) resource forest =
+let plant_resource ?(route_locally = true) ?(include_in_manifest = true) resource forest =
   let module Graphs = (val forest.graphs) in
   Forest.analyse_resource forest.graphs resource;
   let@ uri = Option.iter @~ T.uri_for_resource resource in
@@ -272,11 +272,11 @@ let plant_resource ?(route_locally = true) resource forest =
   end;
   match forest.={uri} with
   | None ->
-    forest.={uri} <- Resource {resource; expanded = None; route_locally}
+    forest.={uri} <- Resource {resource; expanded = None; route_locally; include_in_manifest}
   | Some (Tree.Expanded syn) ->
-    forest.={uri} <- Resource {resource; expanded = Some syn; route_locally}
+    forest.={uri} <- Resource {resource; expanded = Some syn; route_locally; include_in_manifest}
   | _ ->
-    forest.={uri} <- Resource {resource; expanded = None; route_locally}
+    forest.={uri} <- Resource {resource; expanded = None; route_locally; include_in_manifest}
 
 let serialize_graphs
   : (module Forest_graphs.S) -> 'a

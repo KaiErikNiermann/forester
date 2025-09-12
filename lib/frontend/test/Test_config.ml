@@ -17,7 +17,7 @@ let test_parsing () =
       assets = [];
       url = URI.of_string_exn "https://www.forester-notes.org/";
       home = URI.of_string_exn "https://www.forester-notes.org/index/";
-      foreign = [{path = "foreign/forest.json"; route_locally = true}];
+      foreign = [{path = "foreign/forest.json"; route_locally = true; include_in_manifest = true}];
     }
     begin
       Forester_core.Reporter.easy_run @@ fun () ->

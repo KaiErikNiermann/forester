@@ -174,7 +174,7 @@ let implant_foreign (state : State.t) : State.t * _ =
     match Repr.of_json_string (T.forest_t T.content_t) blob with
     | Ok foreign_forest ->
       let@ r = List.iter @~ foreign_forest in
-      State.plant_resource ~route_locally: foreign.route_locally r state
+      State.plant_resource ~route_locally: foreign.route_locally ~include_in_manifest: foreign.include_in_manifest r state
     | Error (`Msg err) ->
       Reporter.fatal Parse_error ~extra_remarks: [Asai.Diagnostic.loctextf "Could not parse foreign forest blob: %s" err]
     | exception exn ->

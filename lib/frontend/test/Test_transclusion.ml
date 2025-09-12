@@ -54,7 +54,8 @@ let () =
             backmatter = Content []
           };
         expanded = None;
-        route_locally = true
+        route_locally = true;
+        include_in_manifest = true;
       };
   let forest = {(State.make ~env ~config ~dev: false ()) with index} in
   let print_transclusion : T.transclusion -> unit = fun t ->

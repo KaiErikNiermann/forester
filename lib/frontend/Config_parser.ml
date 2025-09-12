@@ -99,7 +99,12 @@ let parse lexbuf filename =
           | None -> true
           | Some b -> b
         in
-        Config.{path; route_locally}
+        let include_in_manifest =
+          match get foreign_tbl (key "include_in_manifest" |-- bool) with
+          | None -> true
+          | Some b -> b
+        in
+        Config.{path; route_locally; include_in_manifest}
     in
     let assets =
       with_default

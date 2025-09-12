@@ -6,7 +6,8 @@
 
 type foreign = {
   path: string;
-  route_locally: bool
+  route_locally: bool;
+  include_in_manifest: bool
 }
 [@@deriving show]
 
