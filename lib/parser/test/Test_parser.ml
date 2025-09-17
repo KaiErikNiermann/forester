@@ -108,6 +108,12 @@ let test_math () =
     )
     (parse_string_no_loc {|##{a^2 + b^2 = c^2}|})
 
+let test_hashtag () =
+  Alcotest.(check @@ result code diagnostic)
+    "same nodes"
+    (Ok [hash_ident "abc"])
+    (parse_string_no_loc {|#abc|})
+
 let test_object () =
   Alcotest.(check @@ result code diagnostic)
     "same nodes"
@@ -144,5 +150,6 @@ let () =
       "text", [test_case "text" `Quick test_prim];
       "verbatim", [test_case "verbatim" `Quick test_verbatim];
       "math", [test_case "math" `Quick test_math];
+      "hashtag", [test_case "hashtag" `Quick test_hashtag];
       "object", [test_case "object" `Quick test_object];
     ]

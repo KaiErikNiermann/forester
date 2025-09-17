@@ -41,7 +41,9 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
   | node :: rest ->
     entered_range node.loc;
     match node.value with
-    | Hash_ident x | Text x ->
+    | Hash_ident x ->
+      {node with value = Text ("#" ^ x)} :: expand_eff ~forest rest
+    | Text x ->
       {node with value = Text x} :: expand_eff ~forest rest
     | Verbatim x ->
       {node with value = Verbatim x} :: expand_eff ~forest rest

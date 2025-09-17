@@ -96,6 +96,7 @@ module Code = struct
   let braces = Fun.compose (locate_opt None) @@ Code.braces
 
   let ident i = locate_opt None @@ Ident i
+  let hash_ident str = locate_opt None @@ Hash_ident str
 
   let ul = ident ["ul"]
   let li = ident ["li"]
