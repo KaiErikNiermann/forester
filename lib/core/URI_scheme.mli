@@ -24,4 +24,4 @@ val path_to_uri :
   URI.t
 
 val last_segment : string -> string
-val name : URI.t -> string
+val name : URI.t -> string option

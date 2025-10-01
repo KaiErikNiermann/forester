@@ -248,10 +248,11 @@ let asset_completions ~(config : Config.t) =
 
 let make (path, (data, _): Yuujinchou.Trie.path * (Resolver.P.data * Asai.Range.t option)) =
   match data with
-  | Term syn ->
+  | Term [] -> None
+  | Term (node :: _) ->
     (* NOTE: Eventually we want to analyse the syntax so that, for example,
        you can tab through the snippet for a function of arity n*)
-    let kind = kind (List.hd syn).value in
+    let kind = kind node.value in
     let insertText = insert_text path in
     Some
       (
@@ -330,15 +331,14 @@ let addr_completions ~(forest : State.t) : L.CompletionItem.t list =
     Some (`String content)
   in
   let@ uri = Option.bind @@ frontmatter.uri in
-  let insertText = URI_scheme.name uri in
+  let@ uri_name = Option.bind @@ URI_scheme.name uri in
   let title_text = render title in
-  let filterText = insertText ^ " " ^ title_text in
   Option.some @@
     L.CompletionItem.create
       ?documentation
-      ~label: (Format.(asprintf "%a (%s)" pp_print_string title_text (URI_scheme.name uri)))
-      ~insertText
-      ~filterText
+      ~label: (Format.(asprintf "%a (%s)" pp_print_string title_text uri_name))
+      ~insertText: uri_name
+      ~filterText: (uri_name ^ " " ^ title_text)
       ()
 
 let new_addr_completions ~(forest : State.t) : L.CompletionItem.t list =

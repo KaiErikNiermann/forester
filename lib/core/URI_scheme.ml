@@ -19,15 +19,15 @@ let last_segment str =
   |> List.rev
   |> List.hd
 
-let name (uri : URI.t) : string =
+let name (uri : URI.t) : string option =
   uri
   |> URI.path_components
   |> List.filter (fun x -> not (x = ""))
   |> List.rev
-  |> List.hd
+  |> (List.nth_opt @~ 0)
 
 let split_addr (uri : URI.t) : (string option * int) option =
-  let name = name uri in
+  let@ name = Option.bind @@ name uri in
   (* primitively check for address of form YYYY-MM-DD *)
   let date_regex = Str.regexp {|^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$|} in
   if Str.string_match date_regex name 0 then None

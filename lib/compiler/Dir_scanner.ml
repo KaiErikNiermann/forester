@@ -59,7 +59,8 @@ let find_tree dirs uri =
   let matches =
     let@ () = S.run in
     let@ fp = List.iter @~ dirs in
-    process_dir (matching_basename (URI_scheme.name uri)) fp
+    let@ name = Option.iter @~ URI_scheme.name uri in
+    process_dir (matching_basename name) fp
   in
   try
     let first_match = List.hd @@ List.of_seq matches in
