@@ -134,7 +134,7 @@ let test_reparsing ~env () =
 
 let test_omits_paths ~env () =
   let@ () = Reporter.easy_run in
-  let forest = Driver.batch_run ~env ~config ~dev: false in
+  let forest = Driver.batch_run ~env ~config ~dev: false () in
   let path =
     match forest.@{URI.of_string_exn "http://forest.local/t8/"} with
     | Some (Article {frontmatter = {source_path; _}; _}) -> source_path
@@ -145,6 +145,22 @@ let test_omits_paths ~env () =
       Alcotest.fail "not found"
   in
   Alcotest.(check bool) "" true @@ Option.is_none path
+
+let test_persist_tex_sources ~env () =
+  let source =
+    Format.asprintf
+      "\\documentclass{article}\n\\begin{document}\nhello-%f\\end{document}\n"
+      (Unix.gettimeofday ())
+  in
+  let hash = Digest.to_hex @@ Digest.string source in
+  let cwd = Eio.Stdenv.cwd env in
+  let path = Eio.Path.(cwd / "build" / "resources" / (hash ^ ".tex")) in
+  Fun.protect
+    ~finally:(fun () -> try Eio.Path.unlink path with _ -> ())
+    (fun () ->
+      Build_latex.persist_source ~env ~hash source;
+      let stored = Eio.Path.load path in
+      Alcotest.(check string) "stores source verbatim" source stored)
 
 let () =
   let@ env = Eio_main.run in
@@ -158,6 +174,7 @@ let () =
       [
         test_case "Batch compilation steps" `Quick (test_batch_run ~env);
         test_case "reparsing" `Quick (test_reparsing ~env);
+        test_case "persists tex sources" `Quick (test_persist_tex_sources ~env);
       ];
       "dev mode",
       [

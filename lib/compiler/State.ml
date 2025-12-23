@@ -15,6 +15,7 @@ type resource = T.content T.resource
 type t = {
   env: Eio_unix.Stdenv.base;
   dev: bool;
+  persist_tex: bool;
   config: Config.t;
   index: Tree.t URI.Tbl.t;
   diagnostics: Reporter.Message.t Asai.Diagnostic.t list URI.Tbl.t;
@@ -33,6 +34,7 @@ let make
   ~(env : Eio_unix.Stdenv.base)
   ~(config : Config.t)
   ~(dev : bool)
+  ?(persist_tex = false)
   ?(graphs = (module Forest_graphs.Make (): Forest_graphs.S))
   ?(import_graph = Forest_graph.create ~size: 1000 ())
   ?(resolver = URI.Tbl.create 1000)
@@ -44,7 +46,7 @@ let make
   ?(hosts = Hashtbl.create 10)
   ?(suggestions = URI.Tbl.create 1000)
   ()
-= {env; dev; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; hosts; suggestions; history = []}
+= {env; dev; persist_tex; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; hosts; suggestions; history = []}
 
 module Syntax = struct
   let (.={}) state uri =

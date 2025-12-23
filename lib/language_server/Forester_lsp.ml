@@ -21,6 +21,7 @@ module Completion = Completion
 module Definitions = Definitions
 module Did_change = Did_change
 module Did_open = Did_open
+module Document_format = Document_format
 module Document_link = Document_link
 module Document_symbols = Document_symbols
 module Highlight = Highlight
@@ -98,6 +99,8 @@ let server_capabilities =
   in
   let workspaceSymbolProvider = `WorkspaceSymbolOptions (L.WorkspaceSymbolOptions.create ()) in
   let documentSymbolProvider = `DocumentSymbolOptions (L.DocumentSymbolOptions.create ()) in
+  let documentFormattingProvider = `DocumentFormattingOptions (L.DocumentFormattingOptions.create ()) in
+  let documentRangeFormattingProvider = `DocumentRangeFormattingOptions (L.DocumentRangeFormattingOptions.create ()) in
   let workspace =
     L.ServerCapabilities.create_workspace
       ~fileOperations: (
@@ -131,6 +134,8 @@ let server_capabilities =
     ~definitionProvider
     ~documentSymbolProvider
     ~documentLinkProvider
+    ~documentFormattingProvider
+    ~documentRangeFormattingProvider
     ~workspaceSymbolProvider
     ~workspace
     ()

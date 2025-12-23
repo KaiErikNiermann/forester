@@ -1,0 +1,36 @@
+[package]
+name = "forester_rust_parser"
+version = "0.1.0"
+edition = "2021"
+description = "Alternative Rust parser for Forester markup language"
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "forester_rust_parser"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[[bin]]
+name = "forester-rust-parser"
+path = "src/main.rs"
+
+[dependencies]
+# Lexer
+logos = "0.14"
+
+# Parser
+chumsky = { version = "1.0.0-alpha.8", features = ["pratt", "either"] }
+
+# Error reporting
+ariadne = "0.4"
+
+# FFI - using a simpler approach with JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+thiserror = "1.0"
+miette = { version = "7.0", features = ["fancy"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

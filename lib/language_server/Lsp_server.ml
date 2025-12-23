@@ -75,6 +75,8 @@ module Request = struct
       | CallHierarchyIncomingCalls params -> Call_hierarchy.incoming params
       | CallHierarchyOutgoingCalls params -> Call_hierarchy.outgoing params
       | TextDocumentCodeLens params -> Code_lens.compute params
+      | TextDocumentFormatting params -> Document_format.compute params
+      | TextDocumentRangeFormatting params -> Document_format.compute_range params
       | SemanticTokensFull params -> Semantic_tokens.on_full_request params
       | SemanticTokensDelta params -> Semantic_tokens.on_delta_request params
       | _ ->

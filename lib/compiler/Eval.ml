@@ -324,7 +324,14 @@ and eval_node node : Value.t =
       let body = pop_content_arg ~loc |> TeX_like.string_of_content in
       preamble, body
     in
-    let source = LaTeX_template.to_string ~preamble ~body in
+    let source =
+      let latex = config.latex in
+      LaTeX_template.to_string
+        ~document_class: latex.document_class
+        ~document_class_options: latex.document_class_options
+        ~preamble
+        ~body
+    in
     let hash = Digest.to_hex @@ Digest.string source in
     let job = Job.{hash; source} in
     let uri = Job.uri_for_latex_to_svg_job ~base: config.url job in

@@ -11,6 +11,8 @@ open Forester_compiler
 open Forester_server
 open Cmdliner
 
+module Rust_parser = Forester_parser.Rust_parser
+
 module EP = Eio.Path
 
 let theme_location : string list = Theme_site.Sites.theme
@@ -39,11 +41,44 @@ let version =
   in
   Format.asprintf "%s" major
 
-let build ~env _ config_filename dev no_theme =
+let override_if_non_empty override fallback =
+  match override with
+  | [] -> fallback
+  | values -> values
+
+let build
+    ~env
+    _
+    config_filename
+    dev
+    no_theme
+    persist_tex
+    latex_document_class
+    latex_document_class_options
+    latex_compile_command
+    latex_dvisvgm_command
+  =
   Reporter.easy_run @@ fun () ->
   let config = Config_parser.parse_forest_config_file config_filename in
   Logs.debug (fun m -> m "Parsed config file %s" config_filename);
-  let forest = Driver.batch_run ~env ~dev ~config in
+  let latex_defaults = config.latex in
+  let latex =
+    let document_class =
+      Option.value ~default: latex_defaults.document_class latex_document_class
+    in
+    let document_class_options =
+      override_if_non_empty latex_document_class_options latex_defaults.document_class_options
+    in
+    let compile_command =
+      override_if_non_empty latex_compile_command latex_defaults.compile_command
+    in
+    let dvisvgm_command =
+      override_if_non_empty latex_dvisvgm_command latex_defaults.dvisvgm_command
+    in
+    Config.{document_class; document_class_options; compile_command; dvisvgm_command}
+  in
+  let config = {config with latex} in
+  let forest = Driver.batch_run ~env ~dev ~config ~persist_tex () in
   forest.diagnostics
   |> URI.Tbl.iter (fun _ d -> List.iter Reporter.Tty.display d);
   begin
@@ -57,7 +92,7 @@ let build ~env _ config_filename dev no_theme =
 let new_tree ~env config_filename dest_dir prefix template random =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
-  let forest = Driver.batch_run ~env ~dev: true ~config in
+  let forest = Driver.batch_run ~env ~dev: true ~config () in
   let mode = if random then `Random else `Sequential in
   let new_tree = Forester.create_tree ~env ~dest_dir ~prefix ~template ~mode ~forest in
   Format.printf "%s" new_tree
@@ -65,14 +100,14 @@ let new_tree ~env config_filename dest_dir prefix template random =
 let complete ~env config_filename title =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
-  let forest = Driver.batch_run ~env ~dev: true ~config in
+  let forest = Driver.batch_run ~env ~dev: true ~config () in
   let@ uri, title = List.iter @~ Forester.complete ~forest title in
   Format.printf "%s, %s\n" uri title
 
 let query_all ~env config_filename =
   let@ () = Reporter.silence in
   let config = Config_parser.parse_forest_config_file config_filename in
-  let forest = Driver.batch_run ~env ~config ~dev: true in
+  let forest = Driver.batch_run ~env ~config ~dev: true () in
   Format.printf "%s" (Forester.json_manifest ~dev: true ~forest)
 
 let default_config_str =
@@ -80,6 +115,22 @@ let default_config_str =
 trees = ["trees" ]  # The directories in which your trees are stored
 assets = ["assets"] # The directories in which your assets are stored
 url = "https://www.my-great-forest.net/" # Replace this with your own domain or web storage. If you don't have one, you can use "http://localhost/"; the URL given here does not matter unless you plan to publish your forest.
+
+[forest.latex]
+# Override these if you prefer a different math rendering toolchain.
+document_class = "standalone"
+document_class_options = ["preview", "border=2pt", "10pt"]
+compile_command = ["latex", "-halt-on-error", "-interaction=nonstopmode"]
+dvisvgm_command = [
+  "dvisvgm",
+  "--exact",
+  "--clipjoin",
+  "--font-format=woff",
+  "--bbox=papersize",
+  "--zoom=1.5",
+  "--stdin",
+  "--stdout"
+]
 |}
 
 let index_tree_str =
@@ -161,6 +212,26 @@ let build_cmd ~env =
     let doc = "Build without copying the theme directory" in
     Arg.value @@ Arg.flag @@ Arg.info ["no-theme"] ~doc
   in
+  let arg_persist_tex =
+    let doc = "Persist standalone LaTeX sources for embedded artefacts inside build/resources" in
+    Arg.value @@ Arg.flag @@ Arg.info ["persist-tex"] ~doc
+  in
+  let arg_latex_document_class =
+    let doc = "Override the LaTeX document class used for embedded TeX" in
+    Arg.value @@ Arg.opt (Arg.some Arg.string) None @@ Arg.info ["latex-document-class"] ~docv: "CLASS" ~doc
+  in
+  let arg_latex_document_class_options =
+    let doc = "Override document class options (repeat flag to add multiple options)" in
+    Arg.value @@ Arg.opt_all Arg.string [] @@ Arg.info ["latex-document-class-option"] ~docv: "OPT" ~doc
+  in
+  let arg_latex_compile_command =
+    let doc = "Override the LaTeX compile command (repeat flag once per argument; first value should be the executable)" in
+    Arg.value @@ Arg.opt_all Arg.string [] @@ Arg.info ["latex-compile-command"] ~docv: "ARG" ~doc
+  in
+  let arg_latex_dvisvgm_command =
+    let doc = "Override the dvisvgm command (repeat flag once per argument; first value should be the executable)" in
+    Arg.value @@ Arg.opt_all Arg.string [] @@ Arg.info ["latex-dvisvgm-command"] ~docv: "ARG" ~doc
+  in
   let doc = "Build the forest" in
   let man = [
     `S Manpage.s_description;
@@ -176,6 +247,11 @@ let build_cmd ~env =
       $ arg_config
       $ arg_dev
       $ arg_no_theme
+      $ arg_persist_tex
+      $ arg_latex_document_class
+      $ arg_latex_document_class_options
+      $ arg_latex_compile_command
+      $ arg_latex_dvisvgm_command
     )
 
 let new_tree_cmd ~env =
@@ -275,8 +351,64 @@ let lsp_cmd ~env =
 
 let server ~env _ port config =
   let config = Config_parser.parse_forest_config_file config in
-  let forest = Driver.batch_run ~env ~config ~dev: true in
+  let forest = Driver.batch_run ~env ~config ~dev: true () in
   Server.run ~env ~port ~forest theme_location
+
+let rust_parser_info ~env _ rust_parser_path test_file =
+  ignore env;
+  Option.iter Rust_parser.set_rust_parser_path rust_parser_path;
+  let available = Rust_parser.is_available () in
+  Format.printf "Rust parser available: %b\n" available;
+  if available then begin
+    match test_file with
+    | Some path ->
+      let content =
+        let ic = open_in path in
+        let n = in_channel_length ic in
+        let s = really_input_string ic n in
+        close_in ic;
+        s
+      in
+      begin match Rust_parser.parse_to_json content with
+      | Ok json -> Format.printf "Parse successful. JSON output:\n%s\n" json
+      | Error msg -> Format.printf "Parse error: %s\n" msg
+      end
+    | None -> ()
+  end
+
+let rust_parser_cmd ~env =
+  let open Cmdliner in
+  let man = [
+    `S Manpage.s_description;
+    `P "Check if the Rust parser is available and optionally test parsing a file.";
+  ]
+  in
+  let arg_rust_parser_path =
+    let doc = "Path to the forester-rust-parser binary" in
+    Arg.(
+      value @@
+      opt (some string) None @@
+      info ["parser-path"] ~docv: "PATH" ~doc
+    )
+  in
+  let arg_test_file =
+    let doc = "A .tree file to test parsing" in
+    Arg.(
+      value @@
+      opt (some file) None @@
+      info ["test"] ~docv: "FILE" ~doc
+    )
+  in
+  let doc = "Check Rust parser status" in
+  let info = Cmd.info "rust-parser-info" ~version ~doc ~man in
+  Cmd.v
+    info
+    Term.(
+      const (rust_parser_info ~env)
+      $ arg_logs
+      $ arg_rust_parser_path
+      $ arg_test_file
+    )
 
 let app_cmd ~env =
   let open Cmdliner in
@@ -327,6 +459,7 @@ let cmd ~env =
       query_cmd ~env;
       lsp_cmd ~env;
       app_cmd ~env;
+      rust_parser_cmd ~env;
     ]
 
 let () =

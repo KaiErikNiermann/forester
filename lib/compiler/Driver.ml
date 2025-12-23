@@ -205,9 +205,9 @@ let any_fatal =
     )
     false
 
-let batch_run ~env ~(config : Config.t) ~dev =
+let batch_run ~env ~(config : Config.t) ~dev ?(persist_tex = false) () =
   let init =
-    State.make ~env ~config ~dev ()
+    State.make ~env ~config ~dev ~persist_tex ()
     |> plant_assets
     |> implant_foreign
   in

@@ -13,6 +13,9 @@ latex
 # screen recordings
 casts
 
+# Rust build artifacts
+rust_parser/target/
+
 # -*- mode: gitignore; -*-
 *.install
 *~

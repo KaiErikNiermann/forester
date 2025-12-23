@@ -10,7 +10,7 @@ type env = Eio_unix.Stdenv.base
 
 let resources_dir cwd = Eio.Path.(cwd / "build" / "resources")
 
-let latex_to_svg ~env ?loc source =
+let latex_to_svg ~env ~settings ?loc source =
   let cwd = Eio.Stdenv.cwd env in
   let hash = Digest.to_hex @@ Digest.string source in
   let name = hash ^ ".svg" in
@@ -22,6 +22,12 @@ let latex_to_svg ~env ?loc source =
   with
     | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) ->
       Reporter.emit Log ~extra_remarks: [Asai.Diagnostic.loctextf "Building %s" (Eio.Path.native_exn svg_path)];
-      let svg_code = LaTeX_pipeline.latex_to_svg ~env ?loc source in
+      let svg_code = LaTeX_pipeline.latex_to_svg ~env ~settings ?loc source in
       Eio.Path.save ~create: (`Or_truncate perm) svg_path svg_code;
       svg_code
+
+let persist_source ~env ~hash source =
+  let cwd = Eio.Stdenv.cwd env in
+  let tex_path = Eio.Path.(resources_dir cwd / (hash ^ ".tex")) in
+  Eio_util.ensure_context_of_path ~perm: 0o755 tex_path;
+  Eio.Path.save ~create: (`Or_truncate 0o644) tex_path source

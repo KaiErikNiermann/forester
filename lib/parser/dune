@@ -25,5 +25,5 @@
   (backend bisect_ppx))
  (preprocess
   (pps ppx_deriving.show ppx_repr))
- (libraries forester.prelude forester.core asai menhirLib)
+ (libraries forester.prelude forester.core asai menhirLib unix)
  (public_name forester.parser))

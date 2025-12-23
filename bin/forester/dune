@@ -27,6 +27,7 @@
   forester.prelude
   forester.core
   forester.frontend
+  forester.parser
   forester.language_server
   forester.server
   forester.compiler

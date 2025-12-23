@@ -8,7 +8,10 @@
 open Forester_prelude
 open Forester_core
 
-open struct module T = Types end
+open struct
+  module T = Types
+  module EP = Eio.Path
+end
 
 open State.Syntax
 
@@ -89,6 +92,10 @@ let expand_all (forest : State.t) =
   Forest_graph.topo_iter task forest.import_graph;
   !diagnostics
 
+let persist_tex_source ~(forest : State.t) (job : Job.latex_to_svg_job) =
+  if forest.persist_tex then
+    Build_latex.persist_source ~env: forest.env ~hash: job.hash job.source
+
 let run_jobs (forest : State.t) jobs =
   Logs.debug (fun m -> m "Running %d jobs" (List.length jobs));
   (* All resources induced by LaTeX jobs must be planted prior to publication export. *)
@@ -97,7 +104,8 @@ let run_jobs (forest : State.t) jobs =
     let@ () = Reporter.easy_run in
     match value with
     | Job.LaTeX_to_svg job ->
-      let svg = Build_latex.latex_to_svg ~env: forest.env ?loc job.source in
+      persist_tex_source ~forest job;
+      let svg = Build_latex.latex_to_svg ~env: forest.env ~settings: forest.config.latex ?loc job.source in
       let uri = Job.uri_for_latex_to_svg_job ~base: forest.config.url job in
       T.Asset {uri; content = svg}
     | Job.Syndicate syndication ->

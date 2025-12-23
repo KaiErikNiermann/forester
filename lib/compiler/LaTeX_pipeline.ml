@@ -7,6 +7,8 @@
 open Forester_prelude
 open Forester_core
 
+module Config = Forester_core.Config
+
 module EP = Eio.Path
 
 type env = Eio_unix.Stdenv.base
@@ -18,7 +20,7 @@ let indent_string string =
   |> String.concat "\n"
 
 (* TODO: When error occurs on stderr, there is nothing informative in the diagnostic*)
-let pipe_latex_dvi ~env ~tex_source ?loc kont =
+let pipe_latex_dvi ~env ~compile_command ~tex_source ?loc kont =
   let mgr = Eio.Stdenv.process_mgr env in
   let@ tmp = Eio_util.with_open_tmp_dir ~env in
   let tex_fn = "job.tex" in
@@ -30,7 +32,7 @@ let pipe_latex_dvi ~env ~tex_source ?loc kont =
     let out_buf = Buffer.create 1000 in
     let stdout = Eio.Flow.buffer_sink out_buf in
     let stderr = Eio_util.null_sink () in
-    let cmd = ["latex"; "-halt-on-error"; "-interaction=nonstopmode"; tex_fn] in
+    let cmd = compile_command @ [tex_fn] in
     try
       Eio.Process.run ~cwd: tmp ~stdout ~stderr mgr cmd
     with
@@ -49,12 +51,12 @@ let pipe_latex_dvi ~env ~tex_source ?loc kont =
   end;
   EP.with_open_in EP.(tmp / "job.dvi") kont
 
-let pipe_dvi_svg ~env ?loc ~dvi_source ~svg_sink () =
+let pipe_dvi_svg ~env ~dvisvgm_command ?loc ~dvi_source ~svg_sink () =
   let cwd = Eio.Stdenv.cwd env in
   let mgr = Eio.Stdenv.process_mgr env in
   let err_buf = Buffer.create 1000 in
   let stderr = Eio.Flow.buffer_sink err_buf in
-  let cmd = ["dvisvgm"; "--exact"; "--clipjoin"; "--font-format=woff"; "--bbox=papersize"; "--zoom=1.5"; "--stdin"; "--stdout"] in
+  let cmd = dvisvgm_command in
   try
     Eio.Process.run ~cwd ~stdin: dvi_source ~stdout: svg_sink ~stderr mgr cmd
   with
@@ -68,13 +70,13 @@ let pipe_dvi_svg ~env ?loc ~dvi_source ~svg_sink () =
             (Buffer.contents err_buf)
         ]
 
-let pipe_latex_svg ~env ?loc ~tex_source ~svg_sink () =
-  let@ dvi_source = pipe_latex_dvi ~env ~tex_source ?loc in
-  pipe_dvi_svg ~env ?loc ~dvi_source ~svg_sink ()
+let pipe_latex_svg ~env ~(settings : Config.latex_settings) ?loc ~tex_source ~svg_sink () =
+  let@ dvi_source = pipe_latex_dvi ~env ~compile_command: settings.compile_command ~tex_source ?loc in
+  pipe_dvi_svg ~env ~dvisvgm_command: settings.dvisvgm_command ?loc ~dvi_source ~svg_sink ()
 
-let latex_to_svg ~env ?loc code =
+let latex_to_svg ~env ~(settings : Config.latex_settings) ?loc code =
   let tex_source = Eio.Flow.string_source code in
   let svg_buf = Buffer.create 1000 in
   let svg_sink = Eio.Flow.buffer_sink svg_buf in
-  pipe_latex_svg ~env ~tex_source ~svg_sink ?loc ();
+  pipe_latex_svg ~env ~settings ~tex_source ~svg_sink ?loc ();
   Buffer.contents svg_buf

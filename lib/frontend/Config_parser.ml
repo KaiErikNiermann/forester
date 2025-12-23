@@ -117,6 +117,51 @@ let parse lexbuf filename =
       URI_scheme.named_uri ~base: url @@
         with_default ~value: "index" k (forest |-- key "home" |-- string)
     in
+    let latex =
+      let latex_table = forest |-- key "latex" |-- table in
+      let defaults = default.latex in
+      let get_string ~k lens ~default_value =
+        with_default ~value: default_value k lens
+      in
+      let get_strings ~k lens ~default_value =
+        with_default ~value: default_value k lens
+      in
+      let ensure_non_empty field value =
+        match value with
+        | [] ->
+          Reporter.fatal
+            Configuration_error
+            ~extra_remarks: [Asai.Diagnostic.loctextf "Configuration option `%s` must contain at least one element." field]
+        | _ -> value
+      in
+      let document_class =
+        get_string
+          ~k: ["forest"; "latex"; "document_class"]
+          ~default_value: defaults.document_class
+          (latex_table |-- key "document_class" |-- string)
+      in
+      let document_class_options =
+        get_strings
+          ~k: ["forest"; "latex"; "document_class_options"]
+          ~default_value: defaults.document_class_options
+          (latex_table |-- key "document_class_options" |-- array |-- strings)
+      in
+      let compile_command =
+        get_strings
+          ~k: ["forest"; "latex"; "compile_command"]
+          ~default_value: defaults.compile_command
+          (latex_table |-- key "compile_command" |-- array |-- strings)
+        |> ensure_non_empty "forest.latex.compile_command"
+      in
+      let dvisvgm_command =
+        get_strings
+          ~k: ["forest"; "latex"; "dvisvgm_command"]
+          ~default_value: defaults.dvisvgm_command
+          (latex_table |-- key "dvisvgm_command" |-- array |-- strings)
+        |> ensure_non_empty "forest.latex.dvisvgm_command"
+      in
+      Config.{document_class; document_class_options; compile_command; dvisvgm_command}
+    in
     begin
       if not (Key_set.is_empty !keys) then
         let keys =
@@ -126,7 +171,7 @@ let parse lexbuf filename =
         in
         Reporter.emit (Uninterpreted_config_options keys);
     end;
-    Config.{url; assets; trees; foreign; home}
+    Config.{url; assets; trees; foreign; home; latex}
 
 let parse_forest_config_string str =
   let lexbuf = Lexing.from_string str in

@@ -1,5 +1,24 @@
 {
   "editor.formatOnSave": false,
   "editor.formatOnPaste": true,
-  "files.trimTrailingWhitespace": true
+  "files.trimTrailingWhitespace": true,
+  "forester.path": "/root/.opam/coq-switch/bin/forester",
+  "forester.useLSP": true,
+  "[forester]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": true
+  },
+  "ltex.enabled": [
+    "bibtex",
+    "context",
+    "context.tex",
+    "html",
+    "latex",
+    "markdown",
+    "org",
+    "restructuredtext",
+    "rsweave",
+    "forester",
+    "plaintext"
+  ]
 }
