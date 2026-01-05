@@ -65,13 +65,27 @@ impl ParseError {
     /// Generate a pretty error report using ariadne
     pub fn report<'a>(&self, filename: &'a str, source: &str) -> String {
         let mut output = Vec::new();
+        let source_len = source.len();
+
+        // Helper to clamp span to source bounds
+        let clamp_span = |span: &std::ops::Range<usize>| -> std::ops::Range<usize> {
+            let start = span.start.min(source_len.saturating_sub(1));
+            let end = span.end.min(source_len);
+            // Ensure we have at least 1 char span for visibility
+            if start >= end && source_len > 0 {
+                start..start.saturating_add(1).min(source_len)
+            } else {
+                start..end
+            }
+        };
 
         let report = match self {
             ParseError::UnexpectedToken { expected, found, span } => {
-                Report::build(ReportKind::Error, filename, span.start)
+                let clamped = clamp_span(span);
+                Report::build(ReportKind::Error, filename, clamped.start)
                     .with_message(format!("Unexpected token"))
                     .with_label(
-                        Label::new((filename, span.clone()))
+                        Label::new((filename, clamped))
                             .with_message(format!("expected {}, found {}", expected, found))
                             .with_color(Color::Red)
                     )
@@ -79,10 +93,12 @@ impl ParseError {
             }
 
             ParseError::UnexpectedEof { expected, span } => {
-                Report::build(ReportKind::Error, filename, span.start)
+                // For EOF, point to the last character of the file
+                let clamped = clamp_span(span);
+                Report::build(ReportKind::Error, filename, clamped.start)
                     .with_message("Unexpected end of input")
                     .with_label(
-                        Label::new((filename, span.clone()))
+                        Label::new((filename, clamped))
                             .with_message(format!("expected {} here", expected))
                             .with_color(Color::Red)
                     )

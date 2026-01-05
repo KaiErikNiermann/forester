@@ -370,7 +370,20 @@ let rust_parser_info ~env _ rust_parser_path test_file =
         s
       in
       begin match Rust_parser.parse_to_json content with
-      | Ok json -> Format.printf "Parse successful. JSON output:\n%s\n" json
+      | Ok json ->
+        Format.printf "Parse successful. JSON output:\n%s\n" json;
+        (* Also test OCaml conversion *)
+        begin match Rust_parser.parse content with
+        | Ok code_t ->
+          Format.printf "\nOCaml Code.t conversion successful!\n";
+          Format.printf "Number of nodes: %d\n" (List.length code_t)
+        | Error errors ->
+          Format.printf "\nOCaml Code.t conversion failed:\n";
+          List.iter (fun (err : Rust_parser.parse_error) ->
+            Format.printf "  - %s\n" err.message;
+            if err.report <> "" then Format.printf "%s\n" err.report
+          ) errors
+        end
       | Error msg -> Format.printf "Parse error: %s\n" msg
       end
     | None -> ()

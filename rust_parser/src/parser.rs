@@ -80,12 +80,65 @@ pub fn parse(input: &str) -> ParseResult<Document> {
         Err(errors) => {
             let parse_errors: Vec<ParseError> = errors
                 .into_iter()
-                .map(|e| ParseError::Custom {
-                    message: format!("{:?}", e),
-                    span: e.span(),
-                })
+                .map(|e| convert_chumsky_error(e))
                 .collect();
             Err(parse_errors)
+        }
+    }
+}
+
+/// Convert a chumsky Simple error to our ParseError type
+fn convert_chumsky_error(e: Simple<Token>) -> ParseError {
+    let span = e.span();
+
+    // Get what was expected
+    let expected: Vec<String> = e.expected()
+        .filter_map(|tok| tok.as_ref().map(|t| format!("'{}'", t)))
+        .collect();
+
+    let expected_str = if expected.is_empty() {
+        "end of input".to_string()
+    } else if expected.len() == 1 {
+        expected[0].clone()
+    } else {
+        let last = expected.last().unwrap().clone();
+        let rest: Vec<_> = expected[..expected.len()-1].to_vec();
+        format!("{} or {}", rest.join(", "), last)
+    };
+
+    // Get what was found
+    let found_str = match e.found() {
+        Some(tok) => format!("'{}'", tok),
+        None => "end of input".to_string(),
+    };
+
+    // Determine error type based on reason
+    match e.reason() {
+        chumsky::error::SimpleReason::Unexpected => {
+            if e.found().is_none() {
+                ParseError::UnexpectedEof {
+                    expected: expected_str,
+                    span,
+                }
+            } else {
+                ParseError::UnexpectedToken {
+                    expected: expected_str,
+                    found: found_str,
+                    span,
+                }
+            }
+        }
+        chumsky::error::SimpleReason::Unclosed { span: open_span, delimiter } => {
+            ParseError::UnclosedDelimiter {
+                delim: format!("{}", delimiter),
+                open_span: open_span.clone(),
+            }
+        }
+        chumsky::error::SimpleReason::Custom(msg) => {
+            ParseError::Custom {
+                message: msg.clone(),
+                span,
+            }
         }
     }
 }
@@ -455,5 +508,42 @@ mod tests {
     fn test_parse_def() {
         let result = parse("\\def\\myMacro[x]{Content with #x}");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_error_unclosed_brace() {
+        let input = "\\title{Hello";
+        let result = parse(input);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(!errors.is_empty());
+        // Check that error reporting works (case-insensitive check)
+        let report = errors[0].report("test.tree", input);
+        assert!(report.to_lowercase().contains("error"));
+    }
+
+    #[test]
+    fn test_parse_error_unexpected_token() {
+        let input = "\\title}";
+        let result = parse(input);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(!errors.is_empty());
+        let report = errors[0].report("test.tree", input);
+        assert!(report.to_lowercase().contains("error"));
+    }
+
+    #[test]
+    fn test_error_display() {
+        let input = "\\def{missing}";
+        let result = parse(input);
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        // Generate ariadne report
+        for err in &errors {
+            let report = err.report("test.tree", input);
+            println!("Error report:\n{}", report);
+            assert!(!report.is_empty());
+        }
     }
 }

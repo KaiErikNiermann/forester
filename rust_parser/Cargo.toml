@@ -18,7 +18,7 @@ path = "src/main.rs"
 logos = "0.14"
 
 # Parser
-chumsky = { version = "1.0.0-alpha.8", features = ["pratt", "either"] }
+chumsky = "0.9"
 
 # Error reporting
 ariadne = "0.4"

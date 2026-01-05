@@ -7,9 +7,11 @@
     written in Rust. The Rust parser is invoked as a subprocess and communicates
     via JSON.
 
-    Note: This is a proof-of-concept integration. The Rust parser binary must
-    be available in the PATH as 'forester-rust-parser'.
+    The Rust parser binary must be available in the PATH as 'forester-rust-parser'
+    or configured via {!set_rust_parser_path}.
 *)
+
+open Forester_core
 
 (** The path to the Rust parser binary *)
 let rust_parser_path = ref "forester-rust-parser"
@@ -33,12 +35,202 @@ let is_available () : bool =
   | Unix.Unix_error _ -> false
   | _ -> false
 
-(** Parse using the Rust parser, returning raw JSON string
+(** {2 JSON to Code.t conversion} *)
 
-    This is a low-level function that invokes the Rust parser and returns
-    the raw JSON output. Use this when you need access to the Rust AST
-    directly rather than converting to OCaml types.
-*)
+module Json = Yojson.Safe
+module Util = Yojson.Safe.Util
+
+(** Convert JSON delim to Code delim *)
+let delim_of_json json =
+  match Util.to_string json with
+  | "braces" -> Braces
+  | "squares" -> Squares
+  | "parens" -> Parens
+  | s -> failwith ("Unknown delimiter: " ^ s)
+
+(** Convert JSON math mode to Code math_mode *)
+let math_mode_of_json json =
+  match Util.to_string json with
+  | "inline" -> Inline
+  | "display" -> Display
+  | s -> failwith ("Unknown math mode: " ^ s)
+
+(** Convert JSON visibility to Code visibility *)
+let visibility_of_json json =
+  match Util.to_string json with
+  | "private" -> Private
+  | "public" -> Public
+  | s -> failwith ("Unknown visibility: " ^ s)
+
+(** Convert JSON binding info to Code binding *)
+let binding_of_json json =
+  let arr = Util.to_list json in
+  match arr with
+  | [strictness_json; name_json] ->
+    let strictness = Util.to_string strictness_json in
+    let name = Util.to_string name_json in
+    let info = match strictness with
+      | "strict" -> Strict
+      | "lazy" -> Lazy
+      | s -> failwith ("Unknown binding info: " ^ s)
+    in
+    (info, name)
+  | _ -> failwith "Invalid binding format"
+
+(* Note: Range conversion not currently supported - would need source file context for Asai.Range *)
+
+(** Convert JSON node to Code.node *)
+let rec node_of_json json : Code.node =
+  let ty = Util.member "type" json |> Util.to_string in
+  match ty with
+  | "text" ->
+    Code.Text (Util.member "content" json |> Util.to_string)
+  | "verbatim" ->
+    Code.Verbatim (Util.member "content" json |> Util.to_string)
+  | "comment" ->
+    Code.Comment (Util.member "content" json |> Util.to_string)
+  | "error" ->
+    Code.Error (Util.member "message" json |> Util.to_string)
+  | "group" ->
+    let delim = Util.member "delim" json |> delim_of_json in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Group (delim, body)
+  | "math" ->
+    let mode = Util.member "mode" json |> math_mode_of_json in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Math (mode, body)
+  | "ident" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    Code.Ident path
+  | "hash_ident" ->
+    let name = Util.member "name" json |> Util.to_string in
+    Code.Hash_ident name
+  | "xml_ident" ->
+    let prefix = Util.member "prefix" json |> Util.to_string_option in
+    let name = Util.member "name" json |> Util.to_string in
+    Code.Xml_ident (prefix, name)
+  | "let" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    let bindings = Util.member "bindings" json |> Util.to_list |> List.map binding_of_json in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Let (path, bindings, body)
+  | "def" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    let bindings = Util.member "bindings" json |> Util.to_list |> List.map binding_of_json in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Def (path, bindings, body)
+  | "fun" ->
+    let bindings = Util.member "bindings" json |> Util.to_list |> List.map binding_of_json in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Fun (bindings, body)
+  | "scope" ->
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Scope body
+  | "namespace" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Namespace (path, body)
+  | "open" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    Code.Open path
+  | "put" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Put (path, body)
+  | "default" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Default (path, body)
+  | "get" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    Code.Get path
+  | "alloc" ->
+    let path = Util.member "path" json |> Util.to_list |> List.map Util.to_string in
+    Code.Alloc path
+  | "object" ->
+    let def = Util.member "def" json in
+    let self = Util.member "self_name" def |> Util.to_string_option in
+    let methods = Util.member "methods" def |> Util.to_list |> List.map (fun m ->
+      let arr = Util.to_list m in
+      match arr with
+      | [name_json; body_json] ->
+        let name = Util.to_string name_json in
+        let body = nodes_of_json body_json in
+        (name, body)
+      | _ -> failwith "Invalid method format"
+    ) in
+    Code.Object { self; methods }
+  | "patch" ->
+    let def = Util.member "def" json in
+    let obj = Util.member "obj" def |> nodes_of_json in
+    let self = Util.member "self_name" def |> Util.to_string_option in
+    let super = Util.member "super_name" def |> Util.to_string_option in
+    let methods = Util.member "methods" def |> Util.to_list |> List.map (fun m ->
+      let arr = Util.to_list m in
+      match arr with
+      | [name_json; body_json] ->
+        let name = Util.to_string name_json in
+        let body = nodes_of_json body_json in
+        (name, body)
+      | _ -> failwith "Invalid method format"
+    ) in
+    Code.Patch { obj; self; super; methods }
+  | "call" ->
+    let target = Util.member "target" json |> nodes_of_json in
+    let method_ = Util.member "method" json |> Util.to_string in
+    Code.Call (target, method_)
+  | "subtree" ->
+    let addr = Util.member "addr" json |> Util.to_string_option in
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Subtree (addr, body)
+  | "import" ->
+    let visibility = Util.member "visibility" json |> visibility_of_json in
+    let target = Util.member "target" json |> Util.to_string in
+    Code.Import (visibility, target)
+  | "decl_xmlns" ->
+    let prefix = Util.member "prefix" json |> Util.to_string in
+    let uri = Util.member "uri" json |> Util.to_string in
+    Code.Decl_xmlns (prefix, uri)
+  | "dx_sequent" ->
+    let conclusion = Util.member "conclusion" json |> nodes_of_json in
+    let premises = Util.member "premises" json |> Util.to_list |> List.map nodes_of_json in
+    Code.Dx_sequent (conclusion, premises)
+  | "dx_query" ->
+    let var = Util.member "var" json |> Util.to_string in
+    let positives = Util.member "positives" json |> Util.to_list |> List.map nodes_of_json in
+    let negatives = Util.member "negatives" json |> Util.to_list |> List.map nodes_of_json in
+    Code.Dx_query (var, positives, negatives)
+  | "dx_prop" ->
+    let relation = Util.member "relation" json |> nodes_of_json in
+    let args = Util.member "args" json |> Util.to_list |> List.map nodes_of_json in
+    Code.Dx_prop (relation, args)
+  | "dx_var" ->
+    let name = Util.member "name" json |> Util.to_string in
+    Code.Dx_var name
+  | "dx_const_content" ->
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Dx_const_content body
+  | "dx_const_uri" ->
+    let body = Util.member "body" json |> nodes_of_json in
+    Code.Dx_const_uri body
+  | _ ->
+    (* Unknown node type - convert to error *)
+    Code.Error ("Unknown Rust AST node type: " ^ ty)
+
+(** Convert JSON located node to Code.t element *)
+and located_node_of_json json : Code.node Range.located =
+  let value_json = Util.member "value" json in
+  let value = node_of_json value_json in
+  (* Note: Range info from Rust parser not currently used - would need source file context *)
+  { loc = None; value }
+
+(** Convert JSON node array to Code.t *)
+and nodes_of_json json : Code.t =
+  Util.to_list json |> List.map located_node_of_json
+
+(** {2 Parsing functions} *)
+
+(** Parse using the Rust parser, returning raw JSON string *)
 let parse_to_json (input : string) : (string, string) result =
   if not (is_available ()) then
     Error "Rust parser not available"
@@ -73,12 +265,55 @@ let parse_to_json (input : string) : (string, string) result =
     with
     | exn -> Error (Printf.sprintf "Error invoking Rust parser: %s" (Printexc.to_string exn))
 
-(** Parse and return error messages from the Rust parser
+(** Error type for parse results *)
+type parse_error = {
+  message: string;
+  start_offset: int;
+  end_offset: int;
+  report: string; (** Pretty-printed ariadne error report *)
+}
 
-    This function parses the input and returns either Ok on success
-    or Error with a list of error messages on failure.
-*)
-let parse_check (input : string) : (unit, string) result =
+(** Parse input and return Code.t or errors *)
+let parse (input : string) : (Code.t, parse_error list) result =
   match parse_to_json input with
+  | Error msg -> Error [{ message = msg; start_offset = 0; end_offset = 0; report = msg }]
+  | Ok json_str ->
+    try
+      let json = Json.from_string json_str in
+      let status = Util.member "status" json |> Util.to_string in
+      match status with
+      | "ok" ->
+        let doc = Util.member "document" json in
+        let nodes = Util.member "nodes" doc |> nodes_of_json in
+        Ok nodes
+      | "error" ->
+        let errors = Util.member "errors" json |> Util.to_list |> List.map (fun e ->
+          {
+            message = Util.member "message" e |> Util.to_string;
+            start_offset = Util.member "start_offset" e |> Util.to_int;
+            end_offset = Util.member "end_offset" e |> Util.to_int;
+            report = (try Util.member "report" e |> Util.to_string with _ -> "");
+          }
+        ) in
+        Error errors
+      | _ -> Error [{ message = "Unknown status: " ^ status; start_offset = 0; end_offset = 0; report = "" }]
+    with
+    | Json.Util.Type_error (msg, _) -> Error [{ message = "JSON type error: " ^ msg; start_offset = 0; end_offset = 0; report = "" }]
+    | Failure msg -> Error [{ message = "Conversion error: " ^ msg; start_offset = 0; end_offset = 0; report = "" }]
+    | exn -> Error [{ message = "Parse error: " ^ Printexc.to_string exn; start_offset = 0; end_offset = 0; report = "" }]
+
+(** Parse and return Code.tree structure *)
+let parse_tree ?(source_path : string option) (input : string) : (Code.tree, parse_error list) result =
+  match parse input with
+  | Error errs -> Error errs
+  | Ok code -> Ok { Code.source_path; uri = None; timestamp = None; code }
+
+(** Parse and validate input (returns unit on success) *)
+let parse_check (input : string) : (unit, string) result =
+  match parse input with
   | Ok _ -> Ok ()
-  | Error msg -> Error msg
+  | Error errs ->
+    let msg = errs |> List.map (fun e ->
+      if e.report <> "" then e.report else e.message
+    ) |> String.concat "\n" in
+    Error msg
