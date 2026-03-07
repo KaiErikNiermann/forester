@@ -16,4 +16,4 @@ pub mod parser;
 pub use ast::*;
 pub use error::ParseError;
 pub use lexer::Token;
-pub use parser::parse;
+pub use parser::{parse, parse_recovery, RecoveryResult};

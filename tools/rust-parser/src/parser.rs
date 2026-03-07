@@ -8,6 +8,7 @@ use crate::error::{ExpectedTokens, ParseError, ParseResult};
 use crate::lexer::{tokenize, Token};
 use chumsky::prelude::*;
 use std::cell::RefCell;
+use std::ops::Range;
 
 thread_local! {
     // Chumsky only gives the parser closures byte ranges, so stash the current
@@ -138,6 +139,96 @@ struct DelimiterFrame {
     open_span: std::ops::Range<usize>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParseMode {
+    Strict,
+    Recovery,
+}
+
+impl ParseMode {
+    fn enables_recovery(self) -> bool {
+        matches!(self, Self::Recovery)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecoveryResult<T> {
+    pub output: Option<T>,
+    pub errors: Vec<ParseError>,
+}
+
+fn recovered_error_node(message: impl Into<String>, span: Range<usize>) -> Located<Node> {
+    Located::new(
+        Node::Error {
+            message: message.into(),
+        },
+        Some(make_span_from_range(span)),
+    )
+}
+
+fn recovered_error_nodes(message: impl Into<String>, span: Range<usize>) -> Nodes {
+    vec![recovered_error_node(message, span)]
+}
+
+fn recover_nested_delimiters<P, O, F, const N: usize>(
+    parser: P,
+    mode: ParseMode,
+    start: Token,
+    end: Token,
+    others: [(Token, Token); N],
+    fallback: F,
+) -> BoxedParser<'static, Token, O, Simple<Token>>
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone + 'static,
+    O: 'static,
+    F: Fn(Range<usize>) -> O + Clone + 'static,
+{
+    if mode.enables_recovery() {
+        parser
+            .recover_with(nested_delimiters(start, end, others, fallback))
+            .boxed()
+    } else {
+        parser.boxed()
+    }
+}
+
+fn recover_until_closing<P, O, F>(
+    parser: P,
+    mode: ParseMode,
+    closing: Token,
+    fallback: F,
+) -> BoxedParser<'static, Token, O, Simple<Token>>
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone + 'static,
+    O: 'static,
+    F: Fn(Range<usize>) -> O + Clone + 'static,
+{
+    if !mode.enables_recovery() {
+        return parser.boxed();
+    }
+
+    let boundary = filter({
+        let closing = closing.clone();
+        move |token: &Token| token == &closing
+    })
+    .rewind()
+    .ignored()
+    .or_not();
+
+    parser
+        .recover_with(skip_parser(
+            filter({
+                let closing = closing.clone();
+                move |token: &Token| token != &closing
+            })
+            .repeated()
+            .at_least(1)
+            .map_with_span(move |_: Vec<Token>, span| fallback(span))
+            .then_ignore(boundary),
+        ))
+        .boxed()
+}
+
 fn quote_delimiter(delimiter: &str) -> String {
     format!("'{}'", delimiter)
 }
@@ -226,15 +317,22 @@ fn delimiter_error_for(
     }
 }
 
-/// Main parse function - entry point
-pub fn parse(input: &str) -> ParseResult<Document> {
+fn parse_with_mode(input: &str, mode: ParseMode) -> RecoveryResult<Document> {
     CURRENT_PARSE_SOURCE.with(|source| {
         *source.borrow_mut() = Some(input.to_string());
     });
     let _guard = ParseSourceGuard;
 
     // Tokenize
-    let spanned_tokens = tokenize(input)?;
+    let spanned_tokens = match tokenize(input) {
+        Ok(tokens) => tokens,
+        Err(errors) => {
+            return RecoveryResult {
+                output: None,
+                errors,
+            };
+        }
+    };
 
     // Convert to format chumsky expects
     let tokens: Vec<(Token, std::ops::Range<usize>)> = spanned_tokens
@@ -246,18 +344,117 @@ pub fn parse(input: &str) -> ParseResult<Document> {
     let len = input.len();
     let stream = chumsky::Stream::from_iter(len..len + 1, tokens.clone().into_iter());
 
-    // Parse
-    let parser = document_parser();
-    match parser.parse(stream) {
-        Ok(nodes) => Ok(Document::new(nodes)),
-        Err(errors) => {
-            let parse_errors: Vec<ParseError> = errors
-                .into_iter()
-                .map(|error| convert_chumsky_error(error, &tokens))
-                .collect();
-            Err(parse_errors)
-        }
+    let parser = document_parser(mode);
+    let (nodes, errors) = match mode {
+        ParseMode::Strict => match parser.parse(stream) {
+            Ok(nodes) => (Some(nodes), Vec::new()),
+            Err(errors) => (None, errors),
+        },
+        ParseMode::Recovery => parser.parse_recovery(stream),
+    };
+
+    let parse_errors = errors
+        .into_iter()
+        .map(|error| convert_chumsky_error(error, &tokens))
+        .collect();
+
+    RecoveryResult {
+        output: nodes.map(Document::new),
+        errors: parse_errors,
     }
+}
+
+/// Main parse function - strict parity-preserving entry point.
+pub fn parse(input: &str) -> ParseResult<Document> {
+    let result = parse_with_mode(input, ParseMode::Strict);
+    match (result.output, result.errors) {
+        (Some(document), errors) if errors.is_empty() => Ok(document),
+        (_, errors) => Err(errors),
+    }
+}
+
+/// Recovery-mode parse entry point that attempts to continue after delimiter/body errors.
+pub fn parse_recovery(input: &str) -> RecoveryResult<Document> {
+    parse_with_mode(input, ParseMode::Recovery)
+}
+
+fn default_recovery_message(context: &str) -> String {
+    format!("recovered malformed {context}")
+}
+
+fn recover_textual_nodes<P>(
+    parser: P,
+    mode: ParseMode,
+    closing: Token,
+    context: &'static str,
+) -> BoxedParser<'static, Token, Nodes, Simple<Token>>
+where
+    P: Parser<Token, Nodes, Error = Simple<Token>> + Clone + 'static,
+{
+    recover_until_closing(parser, mode, closing, move |span| {
+        recovered_error_nodes(default_recovery_message(context), span)
+    })
+}
+
+fn recover_text_arg<P>(
+    parser: P,
+    mode: ParseMode,
+) -> BoxedParser<'static, Token, String, Simple<Token>>
+where
+    P: Parser<Token, String, Error = Simple<Token>> + Clone + 'static,
+{
+    recover_until_closing(parser, mode, Token::RBrace, |_| String::new())
+}
+
+fn recover_braced_output<P, O, F>(
+    parser: P,
+    mode: ParseMode,
+    fallback: F,
+) -> BoxedParser<'static, Token, O, Simple<Token>>
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone + 'static,
+    O: 'static,
+    F: Fn(Range<usize>) -> O + Clone + 'static,
+{
+    recover_nested_delimiters(
+        parser,
+        mode,
+        Token::LBrace,
+        Token::RBrace,
+        [
+            (Token::LSquare, Token::RSquare),
+            (Token::LParen, Token::RParen),
+        ],
+        fallback,
+    )
+}
+
+fn recover_to_empty<P, O>(
+    parser: P,
+    mode: ParseMode,
+    closing: Token,
+) -> BoxedParser<'static, Token, Vec<O>, Simple<Token>>
+where
+    P: Parser<Token, Vec<O>, Error = Simple<Token>> + Clone + 'static,
+    O: 'static,
+{
+    recover_until_closing(parser, mode, closing, |_| Vec::new())
+}
+
+fn recover_group_node<P, const N: usize>(
+    parser: P,
+    mode: ParseMode,
+    start: Token,
+    end: Token,
+    others: [(Token, Token); N],
+    context: &'static str,
+) -> BoxedParser<'static, Token, Located<Node>, Simple<Token>>
+where
+    P: Parser<Token, Located<Node>, Error = Simple<Token>> + Clone + 'static,
+{
+    recover_nested_delimiters(parser, mode, start, end, others, move |span| {
+        recovered_error_node(default_recovery_message(context), span)
+    })
 }
 
 /// Convert a chumsky Simple error to our ParseError type
@@ -371,12 +568,12 @@ fn import_parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> +
 }
 
 /// Document parser - parses a sequence of nodes
-fn document_parser() -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
-    ws_list(choice((import_parser(), parser()))).then_ignore(end())
+fn document_parser(mode: ParseMode) -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
+    ws_list(choice((import_parser(), parser(mode)))).then_ignore(end())
 }
 
 /// Single non-import node parser
-fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
+fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
     recursive(|head_node| {
         let plain_text = select! {
             Token::Text(s) => Node::text(s),
@@ -397,8 +594,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         let textual_node = choice((plain_text, head_node1.clone())).boxed();
         let textual_expr = textual_node.clone().repeated();
         let code_expr = ws_list(head_node1.clone()).boxed();
-        let subtree_body =
-            ws_list(head_node.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace));
+        let subtree_body = ws_list(head_node.clone()).boxed();
 
         let wstext = select! {
             Token::Text(s) => s,
@@ -407,16 +603,23 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         .repeated()
         .map(|parts| parts.join(""));
 
-        let txt_arg = wstext.delimited_by(just(Token::LBrace), just(Token::RBrace));
+        let txt_arg = recover_braced_output(
+            recover_text_arg(wstext, mode).delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            mode,
+            |_| String::new(),
+        );
 
         let verbatim = select! {
             Token::Verbatim(s) => Node::verbatim(s),
         }
         .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
 
-        let braces_arg = textual_expr
-            .clone()
-            .delimited_by(just(Token::LBrace), just(Token::RBrace));
+        let braces_arg = recover_braced_output(
+            recover_textual_nodes(textual_expr.clone(), mode, Token::RBrace, "argument body")
+                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            mode,
+            |span| recovered_error_nodes(default_recovery_message("argument body"), span),
+        );
         let arg = choice((
             select! { Token::Verbatim(s) => s }.map_with_span(|content, span| {
                 vec![Located::new(
@@ -438,40 +641,115 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         }
         .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
 
-        let braces = textual_expr
+        let braces = recover_group_node(
+            recover_textual_nodes(
+                textual_expr.clone(),
+                mode,
+                Token::RBrace,
+                "braced group body",
+            )
             .clone()
             .delimited_by(just(Token::LBrace), just(Token::RBrace))
             .map_with_span(|body, span| {
                 Located::new(Node::braces(body), Some(make_span_from_range(span)))
-            });
+            }),
+            mode,
+            Token::LBrace,
+            Token::RBrace,
+            [
+                (Token::LSquare, Token::RSquare),
+                (Token::LParen, Token::RParen),
+            ],
+            "braced group",
+        );
 
-        let squares = textual_expr
+        let squares = recover_group_node(
+            recover_textual_nodes(
+                textual_expr.clone(),
+                mode,
+                Token::RSquare,
+                "square group body",
+            )
             .clone()
             .delimited_by(just(Token::LSquare), just(Token::RSquare))
             .map_with_span(|body, span| {
                 Located::new(Node::squares(body), Some(make_span_from_range(span)))
-            });
+            }),
+            mode,
+            Token::LSquare,
+            Token::RSquare,
+            [
+                (Token::LBrace, Token::RBrace),
+                (Token::LParen, Token::RParen),
+            ],
+            "square group",
+        );
 
-        let parens = textual_expr
+        let parens = recover_group_node(
+            recover_textual_nodes(
+                textual_expr.clone(),
+                mode,
+                Token::RParen,
+                "parenthesized group body",
+            )
             .clone()
             .delimited_by(just(Token::LParen), just(Token::RParen))
             .map_with_span(|body, span| {
                 Located::new(Node::parens(body), Some(make_span_from_range(span)))
-            });
+            }),
+            mode,
+            Token::LParen,
+            Token::RParen,
+            [
+                (Token::LBrace, Token::RBrace),
+                (Token::LSquare, Token::RSquare),
+            ],
+            "parenthesized group",
+        );
 
-        let inline_math = textual_expr
+        let inline_math = recover_group_node(
+            recover_textual_nodes(
+                textual_expr.clone(),
+                mode,
+                Token::RBrace,
+                "inline math body",
+            )
             .clone()
             .delimited_by(just(Token::HashLBrace), just(Token::RBrace))
             .map_with_span(|body, span| {
                 Located::new(Node::inline_math(body), Some(make_span_from_range(span)))
-            });
+            }),
+            mode,
+            Token::HashLBrace,
+            Token::RBrace,
+            [
+                (Token::LSquare, Token::RSquare),
+                (Token::LParen, Token::RParen),
+            ],
+            "inline math",
+        );
 
-        let display_math = textual_expr
+        let display_math = recover_group_node(
+            recover_textual_nodes(
+                textual_expr.clone(),
+                mode,
+                Token::RBrace,
+                "display math body",
+            )
             .clone()
             .delimited_by(just(Token::HashHashLBrace), just(Token::RBrace))
             .map_with_span(|body, span| {
                 Located::new(Node::display_math(body), Some(make_span_from_range(span)))
-            });
+            }),
+            mode,
+            Token::HashHashLBrace,
+            Token::RBrace,
+            [
+                (Token::LSquare, Token::RSquare),
+                (Token::LParen, Token::RParen),
+            ],
+            "display math",
+        );
 
         let ident_path = select! { Token::Ident(s) => s }
             .separated_by(just(Token::Slash))
@@ -501,6 +779,18 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         let bindings = binding.repeated();
         let fun_spec = ident_path.clone().then(bindings.clone()).then(arg.clone());
+        let code_block = recover_braced_output(
+            recover_textual_nodes(code_expr.clone(), mode, Token::RBrace, "code expression")
+                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            mode,
+            |span| recovered_error_nodes(default_recovery_message("code expression"), span),
+        );
+        let method_block = recover_braced_output(
+            recover_to_empty(ws_list(method_decl.clone()), mode, Token::RBrace)
+                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            mode,
+            |_| Vec::new(),
+        );
 
         let def_cmd = just(Token::KwDef)
             .ignore_then(fun_spec.clone())
@@ -535,11 +825,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         let namespace_cmd = just(Token::KwNamespace)
             .ignore_then(ident_path.clone())
-            .then(
-                code_expr
-                    .clone()
-                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .then(code_block.clone())
             .map_with_span(|(path, body), span| {
                 Located::new(
                     Node::Namespace { path, body },
@@ -621,7 +907,12 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                     .delimited_by(just(Token::LSquare), just(Token::RSquare))
                     .or_not(),
             )
-            .then(subtree_body)
+            .then(recover_braced_output(
+                recover_textual_nodes(subtree_body, mode, Token::RBrace, "subtree body")
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+                mode,
+                |span| recovered_error_nodes(default_recovery_message("subtree body"), span),
+            ))
             .map_with_span(|(addr, body), span| {
                 Located::new(
                     Node::Subtree { addr, body },
@@ -631,9 +922,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         let object_cmd = just(Token::KwObject)
             .ignore_then(object_self.clone().or_not())
-            .then(
-                ws_list(method_decl.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .then(method_block.clone())
             .map_with_span(|(self_name, methods), span| {
                 Located::new(
                     Node::Object {
@@ -655,15 +944,9 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         .boxed();
 
         let patch_cmd = just(Token::KwPatch)
-            .ignore_then(
-                code_expr
-                    .clone()
-                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .ignore_then(code_block.clone())
             .then(patch_bindings)
-            .then(
-                ws_list(method_decl.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .then(method_block.clone())
             .map_with_span(|((obj, (self_name, super_name)), methods), span| {
                 Located::new(
                     Node::Patch {
@@ -680,11 +963,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             .boxed();
 
         let call_cmd = just(Token::KwCall)
-            .ignore_then(
-                code_expr
-                    .clone()
-                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .ignore_then(code_block.clone())
             .then(txt_arg.clone())
             .map_with_span(|(target, method), span| {
                 Located::new(
@@ -759,7 +1038,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             .ignore_then(
                 select! { Token::Whitespace(_) => () }
                     .repeated()
-                    .ignore_then(dx_sequent_node)
+                    .ignore_then(recover_until_closing(
+                        dx_sequent_node,
+                        mode,
+                        Token::RBrace,
+                        |_| Node::Error {
+                            message: default_recovery_message("datalog body"),
+                        },
+                    ))
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
             .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))))
@@ -983,6 +1269,82 @@ mod tests {
         ));
         let report = errors[0].report("test.tree", input);
         assert!(report.to_lowercase().contains("error"));
+    }
+
+    #[test]
+    fn test_parse_recovery_reports_multiple_group_body_errors() {
+        let input = "\\p{]}\n\\p{)}\n\\p{ok}";
+        let recovery = parse_recovery(input);
+
+        assert!(recovery.output.is_some());
+        assert!(recovery.errors.len() >= 2);
+
+        let doc = recovery.output.expect("recovered document");
+        assert_eq!(doc.nodes.len(), 6);
+
+        assert!(matches!(&doc.nodes[1].value, Node::Error { .. }));
+        assert!(matches!(&doc.nodes[3].value, Node::Error { .. }));
+
+        let Node::Group {
+            body: third_body, ..
+        } = &doc.nodes[5].value
+        else {
+            panic!("expected third group");
+        };
+        assert!(matches!(
+            third_body.as_slice(),
+            [Located {
+                value: Node::Text { content },
+                ..
+            }] if content == "ok"
+        ));
+    }
+
+    #[test]
+    fn test_parse_recovery_keeps_following_nodes_after_code_block_error() {
+        let input = "\\namespace\\alpha{]}\n\\p{tail}";
+        let recovery = parse_recovery(input);
+
+        assert!(recovery.output.is_some());
+        assert!(!recovery.errors.is_empty());
+
+        let doc = recovery.output.expect("recovered document");
+        assert_eq!(doc.nodes.len(), 3);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Namespace { path, body }
+                if path == &vec!["alpha".to_string()]
+                && matches!(
+                    body.as_slice(),
+                    [Located {
+                        value: Node::Error { .. },
+                        ..
+                    }]
+                )
+        ));
+        assert!(
+            matches!(&doc.nodes[1].value, Node::Ident { path } if path == &vec!["p".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parse_recovery_recovers_nested_delimiter_mismatch() {
+        let input = "\\p{([)]}\n\\p{tail}";
+        let recovery = parse_recovery(input);
+
+        assert!(recovery.output.is_some());
+        assert!(!recovery.errors.is_empty());
+
+        let doc = recovery.output.expect("recovered document");
+        assert_eq!(doc.nodes.len(), 4);
+
+        assert!(matches!(
+            &doc.nodes[1].value,
+            Node::Error { .. } | Node::Group { .. }
+        ));
+        assert!(
+            matches!(&doc.nodes[2].value, Node::Ident { path } if path == &vec!["p".to_string()])
+        );
     }
 
     #[test]
