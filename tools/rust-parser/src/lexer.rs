@@ -47,8 +47,8 @@ pub enum Token {
     Ident(String),
     HashIdent(String),
     DxVar(String),
-    Comment(String),
     Text(String),
+    Whitespace(String),
     Verbatim(String),
 }
 
@@ -88,8 +88,8 @@ impl fmt::Display for Token {
             Token::Ident(s) => write!(f, "ident:{s}"),
             Token::HashIdent(s) => write!(f, "#{s}"),
             Token::DxVar(s) => write!(f, "?{s}"),
-            Token::Comment(s) => write!(f, "%{s}"),
             Token::Text(s) => write!(f, "text:{s}"),
+            Token::Whitespace(s) => write!(f, "ws:{s:?}"),
             Token::Verbatim(s) => write!(f, "verbatim:{s}"),
         }
     }
@@ -209,6 +209,16 @@ fn trim_verbatim(content: &str) -> String {
         .to_string()
 }
 
+fn consume_newline(scanner: &mut Scanner<'_>) -> Range<usize> {
+    let start = scanner.pos;
+    if scanner.starts_with("\r\n") {
+        scanner.advance_bytes(2);
+    } else {
+        let _ = scanner.advance_char();
+    }
+    start..scanner.pos
+}
+
 fn push_token(tokens: &mut Vec<SpannedToken>, token: Token, span: Range<usize>) {
     tokens.push(SpannedToken { token, span });
 }
@@ -238,14 +248,12 @@ fn lex_main(scanner: &mut Scanner<'_>, modes: &mut Vec<Mode>, tokens: &mut Vec<S
             });
         }
         '%' => {
-            let start = scanner.pos;
             scanner.advance_char();
-            let content = scanner.consume_while(|c| c != '\n' && c != '\r');
-            push_token(
-                tokens,
-                Token::Comment(scanner.slice(content).to_string()),
-                start..scanner.pos,
-            );
+            scanner.consume_while(|c| c != '\n' && c != '\r');
+            if !scanner.is_eof() {
+                let _ = consume_newline(scanner);
+                scanner.consume_while(|c| matches!(c, ' ' | '\t'));
+            }
         }
         '#' if scanner.starts_with("##{") => {
             let start = scanner.pos;
@@ -330,8 +338,21 @@ fn lex_main(scanner: &mut Scanner<'_>, modes: &mut Vec<Mode>, tokens: &mut Vec<S
             scanner.advance_bytes(2);
             push_token(tokens, Token::DxEntailed, start..scanner.pos);
         }
-        ' ' | '\t' | '\r' | '\n' => {
-            scanner.consume_while(|c| matches!(c, ' ' | '\t' | '\r' | '\n'));
+        ' ' | '\t' => {
+            let span = scanner.consume_while(|c| matches!(c, ' ' | '\t'));
+            push_token(
+                tokens,
+                Token::Whitespace(scanner.slice(span.clone()).to_string()),
+                span,
+            );
+        }
+        '\r' | '\n' => {
+            let span = consume_newline(scanner);
+            push_token(
+                tokens,
+                Token::Whitespace(scanner.slice(span.clone()).to_string()),
+                span,
+            );
         }
         _ => {
             let start = scanner.pos;
@@ -592,7 +613,7 @@ mod tests {
         let plain = tokenize("scope import def").unwrap();
         assert!(plain
             .iter()
-            .all(|token| matches!(token.token, Token::Text(_))));
+            .all(|token| matches!(token.token, Token::Text(_) | Token::Whitespace(_))));
 
         let command = tokenize("\\scope{\\def\\name{body}}").unwrap();
         assert!(command.iter().any(|token| token.token == Token::KwScope));
@@ -611,6 +632,7 @@ mod tests {
                 Token::Ident("alpha".to_string()),
                 Token::Slash,
                 Token::Ident("beta".to_string()),
+                Token::Whitespace(" ".to_string()),
                 Token::Text("gamma/delta".to_string()),
             ]
         );
@@ -619,7 +641,55 @@ mod tests {
     #[test]
     fn test_comment() {
         let tokens = tokenize("% this is a comment").unwrap();
-        assert!(matches!(tokens[0].token, Token::Comment(_)));
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn test_comment_consumes_newline_and_indent() {
+        let tokens = tokenize("alpha% comment\n  beta").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                Token::Text("alpha".to_string()),
+                Token::Text("beta".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_comment_leaves_following_blank_line() {
+        let tokens = tokenize("% comment\n\nbeta").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                Token::Whitespace("\n".to_string()),
+                Token::Text("beta".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_whitespace_tokens_preserve_newlines() {
+        let tokens = tokenize("alpha  \n\tbeta").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                Token::Text("alpha".to_string()),
+                Token::Whitespace("  ".to_string()),
+                Token::Whitespace("\n".to_string()),
+                Token::Whitespace("\t".to_string()),
+                Token::Text("beta".to_string()),
+            ]
+        );
     }
 
     #[test]
@@ -632,9 +702,13 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 Token::Text("%".to_string()),
+                Token::Whitespace(" ".to_string()),
                 Token::Ident("{".to_string()),
+                Token::Whitespace(" ".to_string()),
                 Token::Ident("_".to_string()),
+                Token::Whitespace(" ".to_string()),
                 Token::Ident("|".to_string()),
+                Token::Whitespace(" ".to_string()),
                 Token::Ident(" ".to_string()),
             ]
         );

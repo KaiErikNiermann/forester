@@ -154,7 +154,10 @@ pub fn parse_file(path: &std::path::Path) -> ParseResult<Document> {
 
 /// Document parser - parses a sequence of nodes
 fn document_parser() -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
-    parser().repeated().then_ignore(end())
+    choice((select! { Token::Whitespace(_) => None }, parser().map(Some)))
+        .repeated()
+        .then_ignore(end())
+        .map(|nodes| nodes.into_iter().flatten().collect())
 }
 
 /// Single node parser
@@ -165,17 +168,12 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         // Text nodes in textual positions.
         let text = select! {
             Token::Text(s) => Node::text(s),
+            Token::Whitespace(s) => Node::text(s),
             Token::AtSign => Node::text("@"),
             Token::Tick => Node::text("'"),
             Token::Hash => Node::text("#"),
             Token::DxEntailed => Node::text("-:"),
             Token::DxVar(s) => Node::text(format!("?{s}")),
-        }
-        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
-
-        // Comment node
-        let comment = select! {
-            Token::Comment(s) => Node::Comment { content: s },
         }
         .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
 
@@ -349,9 +347,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         // \import{target}
         let import_cmd = just(Token::KwImport)
             .ignore_then(
-                select! { Token::Text(s) => s, Token::Ident(s) => s }
+                select! { Token::Text(s) => s, Token::Ident(s) => s, Token::Whitespace(s) => s }
                     .repeated()
-                    .at_least(1)
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
             .map_with_span(|parts, span| {
@@ -368,9 +365,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         // \export{target}
         let export_cmd = just(Token::KwExport)
             .ignore_then(
-                select! { Token::Text(s) => s, Token::Ident(s) => s }
+                select! { Token::Text(s) => s, Token::Ident(s) => s, Token::Whitespace(s) => s }
                     .repeated()
-                    .at_least(1)
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
             .map_with_span(|parts, span| {
@@ -387,8 +383,10 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         // \subtree[addr]{body} or \subtree{body}
         let subtree_cmd = just(Token::KwSubtree)
             .ignore_then(
-                select! { Token::Ident(s) => s, Token::Text(s) => s }
+                select! { Token::Ident(s) => s, Token::Text(s) => s, Token::Whitespace(s) => s }
+                    .repeated()
                     .delimited_by(just(Token::LSquare), just(Token::RSquare))
+                    .map(|parts| parts.join(""))
                     .or_not(),
             )
             .then(braced_arg.clone())
@@ -434,7 +432,6 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             verbatim,
             // Simple tokens
             text,
-            comment,
             hash_ident,
         ))
     })
@@ -483,6 +480,17 @@ mod tests {
     fn test_parse_import() {
         let result = parse("\\import{foundation}");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_import_with_whitespace_target() {
+        let result = parse("\\import{foundation / intro}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Import { target, .. } if target == "foundation / intro")
+        );
     }
 
     #[test]
@@ -571,5 +579,56 @@ mod tests {
         let doc = result.unwrap();
         assert_eq!(doc.nodes.len(), 1);
         assert!(matches!(&doc.nodes[0].value, Node::Verbatim { content } if content == "hello"));
+    }
+
+    #[test]
+    fn test_top_level_whitespace_is_dropped() {
+        let result = parse(" \n\t\\title{Hello}\n");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+    }
+
+    #[test]
+    fn test_textual_whitespace_is_preserved() {
+        let result = parse("\\p{alpha  \n\tbeta}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        let Node::Group { body, .. } = &doc.nodes[0].value else {
+            panic!("expected outer group");
+        };
+        let Node::Group { body, .. } = &body[1].value else {
+            panic!("expected braced argument group");
+        };
+        assert_eq!(body.len(), 5);
+        assert!(matches!(&body[0].value, Node::Text { content } if content == "alpha"));
+        assert!(matches!(&body[1].value, Node::Text { content } if content == "  "));
+        assert!(matches!(&body[2].value, Node::Text { content } if content == "\n"));
+        assert!(matches!(&body[3].value, Node::Text { content } if content == "\t"));
+        assert!(matches!(&body[4].value, Node::Text { content } if content == "beta"));
+    }
+
+    #[test]
+    fn test_comments_are_consumed_by_lexer() {
+        let result = parse("% comment\n\\title{Hello}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_swallowing_preserves_following_blank_line() {
+        let result = parse("\\p{alpha% comment\n\nbeta}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        let Node::Group { body, .. } = &doc.nodes[0].value else {
+            panic!("expected outer group");
+        };
+        let Node::Group { body, .. } = &body[1].value else {
+            panic!("expected braced argument group");
+        };
+        assert!(matches!(&body[0].value, Node::Text { content } if content == "alpha"));
+        assert!(matches!(&body[1].value, Node::Text { content } if content == "\n"));
+        assert!(matches!(&body[2].value, Node::Text { content } if content == "beta"));
     }
 }
