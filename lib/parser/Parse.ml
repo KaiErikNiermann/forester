@@ -162,3 +162,14 @@ let parse
               (loctext ~loc Format.(sprintf "syntax error, unexpected %S" lexeme))
           )
         )
+    | Syntax_error.Invalid_syntax lexeme ->
+      let loc = Range.of_lexbuf lexbuf in
+      Error
+        (
+          Asai.Diagnostic.(
+            of_loctext
+              Error
+              Reporter.Message.Parse_error
+              (loctext ~loc Format.(sprintf "syntax error, unexpected %S" lexeme))
+          )
+        )

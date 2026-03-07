@@ -150,6 +150,65 @@ let test_object () =
         }|}
     )
 
+let test_parenthesized_header_binders () =
+  Alcotest.(check @@ result code diagnostic)
+    "def parenthesized binders desugar to same AST"
+    (Ok [def ["macro"] [ (Strict, "x"); (Lazy, "y") ] [text "body"]])
+    (parse_string_no_loc {|\def\macro(x, ~y){body}|});
+  Alcotest.(check @@ result code diagnostic)
+    "def empty parenthesized binders desugar to zero binders"
+    (Ok [def ["macro"] [] [text "body"]])
+    (parse_string_no_loc {|\def\macro(){body}|});
+  Alcotest.(check @@ result code diagnostic)
+    "fun parenthesized binders desugar to same AST"
+    (Ok [({ Range.loc = None; value = Code.Fun ([ (Strict, "x"); (Strict, "y") ], [text "body"]) } : Code.node Range.located)])
+    (parse_string_no_loc {|\fun(x, y){body}|});
+  Alcotest.(check @@ result code diagnostic)
+    "object parenthesized self desugars to same AST"
+    (Ok [object_ { self = Some "self"; methods = [ ("render", []) ] }])
+    (parse_string_no_loc {|\object(self){[render]{}}|});
+  Alcotest.(check @@ result code diagnostic)
+    "patch parenthesized bindings desugar to same AST"
+    (Ok [
+      ({ Range.loc = None; value = Code.Patch {
+          obj = [({ Range.loc = None; value = Code.Get ["base"] } : Code.node Range.located)];
+          self = Some "self";
+          super = Some "super";
+          methods = [ ("render", [text "ok"]) ];
+        } } : Code.node Range.located)
+    ])
+    (parse_string_no_loc {|\patch{\get\base}(self, super){[render]{ok}}|})
+
+let test_parenthesized_header_binders_reject_invalid_forms () =
+  Alcotest.(check bool)
+    "let does not accept parenthesized binders in phase 1"
+    true
+    (Result.is_error (parse_string_no_loc {|\let\macro(x){body}|}));
+  Alcotest.(check bool)
+    "mixed parenthesized and square binders are rejected"
+    true
+    (Result.is_error (parse_string_no_loc {|\def\macro(x)[y]{body}|}));
+  Alcotest.(check bool)
+    "mixed square and parenthesized binders are rejected"
+    true
+    (Result.is_error (parse_string_no_loc {|\def\macro[x](y){body}|}));
+  Alcotest.(check bool)
+    "object requires exactly one parenthesized self binder"
+    true
+    (Result.is_error (parse_string_no_loc {|\object(){[render]{}}|}));
+  Alcotest.(check bool)
+    "patch rejects too many parenthesized binders"
+    true
+    (Result.is_error (parse_string_no_loc {|\patch{\get\base}(self, super, extra){[render]{}}|}));
+  Alcotest.(check bool)
+    "parenthesized binder entries reject empty items"
+    true
+    (Result.is_error (parse_string_no_loc {|\def\macro(x,){body}|}));
+  Alcotest.(check bool)
+    "parenthesized binder entries reject internal whitespace"
+    true
+    (Result.is_error (parse_string_no_loc {|\def\macro(x y){body}|}))
+
 let () =
   let open Alcotest in
   run
@@ -168,4 +227,11 @@ let () =
       "math", [test_case "math" `Quick test_math];
       "hashtag", [test_case "hashtag" `Quick test_hashtag];
       "object", [test_case "object" `Quick test_object];
+      "header-binders",
+      [ test_case "parenthesized binders" `Quick test_parenthesized_header_binders;
+        test_case
+          "parenthesized binders reject invalid forms"
+          `Quick
+          test_parenthesized_header_binders_reject_invalid_forms
+      ];
     ]
