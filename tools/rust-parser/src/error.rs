@@ -25,10 +25,27 @@ pub enum ParseError {
         span: std::ops::Range<usize>,
     },
 
-    #[error("Unclosed delimiter: {delim}")]
+    #[error("Unclosed delimiter: {delim}; expected {expected_close} before end of input")]
     UnclosedDelimiter {
         delim: String,
+        expected_close: String,
         open_span: std::ops::Range<usize>,
+        eof_span: std::ops::Range<usize>,
+    },
+
+    #[error("Mismatched delimiter: {open_delim} opened here, expected {expected_close}, found {found_close}")]
+    MismatchedDelimiter {
+        open_delim: String,
+        expected_close: String,
+        found_close: String,
+        open_span: std::ops::Range<usize>,
+        found_span: std::ops::Range<usize>,
+    },
+
+    #[error("Unexpected closing delimiter: {found_close}")]
+    UnexpectedClosingDelimiter {
+        found_close: String,
+        span: std::ops::Range<usize>,
     },
 
     #[error("Invalid escape sequence: \\{char}")]
@@ -55,7 +72,9 @@ impl ParseError {
         match self {
             ParseError::UnexpectedToken { span, .. } => span.clone(),
             ParseError::UnexpectedEof { span, .. } => span.clone(),
-            ParseError::UnclosedDelimiter { open_span, .. } => open_span.clone(),
+            ParseError::UnclosedDelimiter { eof_span, .. } => eof_span.clone(),
+            ParseError::MismatchedDelimiter { found_span, .. } => found_span.clone(),
+            ParseError::UnexpectedClosingDelimiter { span, .. } => span.clone(),
             ParseError::InvalidEscape { span, .. } => span.clone(),
             ParseError::LexerError { span, .. } => span.clone(),
             ParseError::Custom { span, .. } => span.clone(),
@@ -109,14 +128,83 @@ impl ParseError {
                     .finish()
             }
 
-            ParseError::UnclosedDelimiter { delim, open_span } => {
+            ParseError::UnclosedDelimiter {
+                delim,
+                expected_close,
+                open_span,
+                eof_span,
+            } => {
+                let open_clamped = clamp_span(open_span);
+                let eof_clamped = clamp_span(eof_span);
                 Report::build(ReportKind::Error, filename, open_span.start)
-                    .with_message(format!("Unclosed delimiter: {}", delim))
+                    .with_message(format!(
+                        "Unclosed delimiter: {} never reached {}",
+                        delim, expected_close
+                    ))
                     .with_label(
-                        Label::new((filename, open_span.clone()))
-                            .with_message("opened here but never closed")
+                        Label::new((filename, open_clamped))
+                            .with_message(format!("{} opened here", delim))
+                            .with_color(Color::Yellow),
+                    )
+                    .with_label(
+                        Label::new((filename, eof_clamped))
+                            .with_message(format!(
+                                "expected {} before end of input",
+                                expected_close
+                            ))
                             .with_color(Color::Red),
                     )
+                    .with_note(format!("close {} with {}", delim, expected_close))
+                    .finish()
+            }
+
+            ParseError::MismatchedDelimiter {
+                open_delim,
+                expected_close,
+                found_close,
+                open_span,
+                found_span,
+            } => {
+                let open_clamped = clamp_span(open_span);
+                let found_clamped = clamp_span(found_span);
+                Report::build(ReportKind::Error, filename, found_span.start)
+                    .with_message(format!(
+                        "Mismatched delimiter: expected {}, found {}",
+                        expected_close, found_close
+                    ))
+                    .with_label(
+                        Label::new((filename, open_clamped))
+                            .with_message(format!("{} opened here", open_delim))
+                            .with_color(Color::Yellow),
+                    )
+                    .with_label(
+                        Label::new((filename, found_clamped))
+                            .with_message(format!(
+                                "found {} here, but {} was required to close {}",
+                                found_close, expected_close, open_delim
+                            ))
+                            .with_color(Color::Red),
+                    )
+                    .with_note(format!(
+                        "replace {} with {} or close {} earlier",
+                        found_close, expected_close, open_delim
+                    ))
+                    .finish()
+            }
+
+            ParseError::UnexpectedClosingDelimiter { found_close, span } => {
+                let clamped = clamp_span(span);
+                Report::build(ReportKind::Error, filename, clamped.start)
+                    .with_message(format!("Unexpected closing delimiter: {}", found_close))
+                    .with_label(
+                        Label::new((filename, clamped))
+                            .with_message(format!(
+                                "{} does not match any currently open delimiter",
+                                found_close
+                            ))
+                            .with_color(Color::Red),
+                    )
+                    .with_note("remove the closing delimiter or add the matching opener")
                     .finish()
             }
 

@@ -70,6 +70,162 @@ type ParserInput<'a> = chumsky::stream::Stream<
     >,
 >;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DelimiterKind {
+    Braces,
+    Squares,
+    Parens,
+    InlineMath,
+    DisplayMath,
+}
+
+impl DelimiterKind {
+    fn from_open_token(token: &Token) -> Option<Self> {
+        match token {
+            Token::LBrace => Some(Self::Braces),
+            Token::LSquare => Some(Self::Squares),
+            Token::LParen => Some(Self::Parens),
+            Token::HashLBrace => Some(Self::InlineMath),
+            Token::HashHashLBrace => Some(Self::DisplayMath),
+            _ => None,
+        }
+    }
+
+    fn from_reason_delimiter(delimiter: &str) -> Option<Self> {
+        match delimiter {
+            "{" => Some(Self::Braces),
+            "[" => Some(Self::Squares),
+            "(" => Some(Self::Parens),
+            "#{" => Some(Self::InlineMath),
+            "##{" => Some(Self::DisplayMath),
+            _ => None,
+        }
+    }
+
+    fn open_display(self) -> &'static str {
+        match self {
+            Self::Braces => "{",
+            Self::Squares => "[",
+            Self::Parens => "(",
+            Self::InlineMath => "#{",
+            Self::DisplayMath => "##{",
+        }
+    }
+
+    fn close_display(self) -> &'static str {
+        match self {
+            Self::Braces | Self::InlineMath | Self::DisplayMath => "}",
+            Self::Squares => "]",
+            Self::Parens => ")",
+        }
+    }
+
+    fn matches_close(self, token: &Token) -> bool {
+        matches!(
+            (self, token),
+            (Self::Braces, Token::RBrace)
+                | (Self::Squares, Token::RSquare)
+                | (Self::Parens, Token::RParen)
+                | (Self::InlineMath, Token::RBrace)
+                | (Self::DisplayMath, Token::RBrace)
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DelimiterFrame {
+    kind: DelimiterKind,
+    open_span: std::ops::Range<usize>,
+}
+
+fn quote_delimiter(delimiter: &str) -> String {
+    format!("'{}'", delimiter)
+}
+
+fn closing_delimiter_display(token: &Token) -> Option<&'static str> {
+    match token {
+        Token::RBrace => Some("}"),
+        Token::RSquare => Some("]"),
+        Token::RParen => Some(")"),
+        _ => None,
+    }
+}
+
+fn delimiter_error_for(
+    error: &Simple<Token>,
+    tokens: &[(Token, std::ops::Range<usize>)],
+) -> Option<ParseError> {
+    let target_index = match error.found() {
+        Some(found) => tokens.iter().position(|(token, span)| {
+            token == found && span.start == error.span().start && span.end == error.span().end
+        }),
+        None => None,
+    };
+
+    let mut stack: Vec<DelimiterFrame> = Vec::new();
+
+    for (index, (token, span)) in tokens.iter().enumerate() {
+        if let Some(kind) = DelimiterKind::from_open_token(token) {
+            stack.push(DelimiterFrame {
+                kind,
+                open_span: span.clone(),
+            });
+        } else if let Some(found_close) = closing_delimiter_display(token) {
+            match stack.last() {
+                Some(frame) if frame.kind.matches_close(token) => {
+                    stack.pop();
+                }
+                Some(frame) if target_index.is_none_or(|target| index <= target) => {
+                    return Some(ParseError::MismatchedDelimiter {
+                        open_delim: quote_delimiter(frame.kind.open_display()),
+                        expected_close: quote_delimiter(frame.kind.close_display()),
+                        found_close: quote_delimiter(found_close),
+                        open_span: frame.open_span.clone(),
+                        found_span: span.clone(),
+                    });
+                }
+                None if target_index.is_none_or(|target| index <= target) => {
+                    return Some(ParseError::UnexpectedClosingDelimiter {
+                        found_close: quote_delimiter(found_close),
+                        span: span.clone(),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        if target_index.is_some_and(|target| index >= target) {
+            break;
+        }
+    }
+
+    if error.found().is_none() {
+        if let Some(frame) = stack.last() {
+            return Some(ParseError::UnclosedDelimiter {
+                delim: quote_delimiter(frame.kind.open_display()),
+                expected_close: quote_delimiter(frame.kind.close_display()),
+                open_span: frame.open_span.clone(),
+                eof_span: error.span(),
+            });
+        }
+    }
+
+    match error.reason() {
+        chumsky::error::SimpleReason::Unclosed {
+            span: open_span,
+            delimiter,
+        } => DelimiterKind::from_reason_delimiter(&delimiter.to_string()).map(|kind| {
+            ParseError::UnclosedDelimiter {
+                delim: quote_delimiter(kind.open_display()),
+                expected_close: quote_delimiter(kind.close_display()),
+                open_span: open_span.clone(),
+                eof_span: error.span(),
+            }
+        }),
+        _ => None,
+    }
+}
+
 /// Main parse function - entry point
 pub fn parse(input: &str) -> ParseResult<Document> {
     CURRENT_PARSE_SOURCE.with(|source| {
@@ -88,22 +244,31 @@ pub fn parse(input: &str) -> ParseResult<Document> {
 
     // Create stream
     let len = input.len();
-    let stream = chumsky::Stream::from_iter(len..len + 1, tokens.into_iter());
+    let stream = chumsky::Stream::from_iter(len..len + 1, tokens.clone().into_iter());
 
     // Parse
     let parser = document_parser();
     match parser.parse(stream) {
         Ok(nodes) => Ok(Document::new(nodes)),
         Err(errors) => {
-            let parse_errors: Vec<ParseError> =
-                errors.into_iter().map(convert_chumsky_error).collect();
+            let parse_errors: Vec<ParseError> = errors
+                .into_iter()
+                .map(|error| convert_chumsky_error(error, &tokens))
+                .collect();
             Err(parse_errors)
         }
     }
 }
 
 /// Convert a chumsky Simple error to our ParseError type
-fn convert_chumsky_error(e: Simple<Token>) -> ParseError {
+fn convert_chumsky_error(
+    e: Simple<Token>,
+    tokens: &[(Token, std::ops::Range<usize>)],
+) -> ParseError {
+    if let Some(error) = delimiter_error_for(&e, tokens) {
+        return error;
+    }
+
     let span = e.span();
 
     // Get what was expected
@@ -144,13 +309,14 @@ fn convert_chumsky_error(e: Simple<Token>) -> ParseError {
                 }
             }
         }
-        chumsky::error::SimpleReason::Unclosed {
-            span: open_span,
-            delimiter,
-        } => ParseError::UnclosedDelimiter {
-            delim: format!("{}", delimiter),
-            open_span: open_span.clone(),
-        },
+        chumsky::error::SimpleReason::Unclosed { span, delimiter } => {
+            ParseError::UnclosedDelimiter {
+                delim: quote_delimiter(&delimiter.to_string()),
+                expected_close: "'end of input'".to_string(),
+                open_span: span.clone(),
+                eof_span: e.span(),
+            }
+        }
         chumsky::error::SimpleReason::Custom(msg) => ParseError::Custom {
             message: msg.clone(),
             span,
@@ -797,9 +963,18 @@ mod tests {
         assert!(result.is_err());
         let errors = result.unwrap_err();
         assert!(!errors.is_empty());
-        // Check that error reporting works (case-insensitive check)
+        assert!(matches!(
+            &errors[0],
+            ParseError::UnclosedDelimiter {
+                delim,
+                expected_close,
+                open_span,
+                eof_span,
+            } if delim == "'{'" && expected_close == "'}'" && open_span.start < eof_span.start
+        ));
         let report = errors[0].report("test.tree", input);
-        assert!(report.to_lowercase().contains("error"));
+        assert!(report.contains("opened here"));
+        assert!(report.contains("expected '}' before end of input"));
     }
 
     #[test]
@@ -811,6 +986,68 @@ mod tests {
         assert!(!errors.is_empty());
         let report = errors[0].report("test.tree", input);
         assert!(report.to_lowercase().contains("error"));
+    }
+
+    #[test]
+    fn test_mismatched_delimiter_tracks_opening_delimiter() {
+        let input = "(abc]";
+        let errors = parse(input).expect_err("mismatched delimiter should fail");
+        assert!(matches!(
+            &errors[0],
+            ParseError::MismatchedDelimiter {
+                open_delim,
+                expected_close,
+                found_close,
+                open_span,
+                found_span,
+            } if open_delim == "'('" && expected_close == "')'" && found_close == "']'" && open_span.start == 0 && found_span.start == 4
+        ));
+        let report = errors[0].report("test.tree", input);
+        assert!(report.contains("'(' opened here"));
+        assert!(report.contains("found ']' here, but ')' was required"));
+    }
+
+    #[test]
+    fn test_nested_mismatched_delimiter_reports_innermost_opening() {
+        let input = "([)]";
+        let errors = parse(input).expect_err("nested mismatched delimiter should fail");
+        assert!(matches!(
+            &errors[0],
+            ParseError::MismatchedDelimiter {
+                open_delim,
+                expected_close,
+                found_close,
+                open_span,
+                found_span,
+            } if open_delim == "'['" && expected_close == "']'" && found_close == "')'" && open_span.start == 1 && found_span.start == 2
+        ));
+    }
+
+    #[test]
+    fn test_unexpected_closing_delimiter_is_classified_explicitly() {
+        let input = "]";
+        let errors = parse(input).expect_err("stray closing delimiter should fail");
+        assert!(matches!(
+            &errors[0],
+            ParseError::UnexpectedClosingDelimiter { found_close, span }
+                if found_close == "']'" && span.start == 0 && span.end == 1
+        ));
+        let report = errors[0].report("test.tree", input);
+        assert!(report.contains("does not match any currently open delimiter"));
+    }
+
+    #[test]
+    fn test_unclosed_inline_math_reports_hash_opening() {
+        let input = "#{abc";
+        let errors = parse(input).expect_err("unterminated inline math should fail");
+        assert!(matches!(
+            &errors[0],
+            ParseError::UnclosedDelimiter {
+                delim,
+                expected_close,
+                ..
+            } if delim == "'#{'" && expected_close == "'}'"
+        ));
     }
 
     #[test]
