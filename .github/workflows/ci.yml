@@ -180,6 +180,9 @@ jobs:
       - name: Run Haskell converter tests
         run: just test-haskell
 
+      - name: Benchmark Markdown bridge converter
+        run: just benchmark-markdown-bridge
+
       - name: Run OCaml markdown bridge tests with converter binary
         env:
           FORESTER_PANDOC_PATH: ${{ steps.converter.outputs.path }}

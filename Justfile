@@ -61,6 +61,10 @@ test-markdown-bridge:
   cd ../..; \
   FORESTER_PANDOC_PATH="$converter_path" ./scripts/test-markdown-bridge-ocaml.sh
 
+benchmark-markdown-bridge:
+  export PATH="$HOME/.ghcup/bin:$PATH"; \
+  ./scripts/benchmark-markdown-converter.sh
+
 test:
   just test-ocaml
   just test-rust
