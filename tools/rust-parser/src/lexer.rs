@@ -436,10 +436,13 @@ fn lex_ident_init(
     backslash_start: usize,
 ) -> ParseResult<()> {
     let Some(ch) = scanner.peek_char() else {
-        return Err(vec![unexpected_lexeme_error(
-            scanner,
-            backslash_start + 1..scanner.pos,
-        )]);
+        modes.pop();
+        push_token(
+            tokens,
+            Token::Ident(String::new()),
+            scanner.pos..scanner.pos,
+        );
+        return Ok(());
     };
 
     if ch == '<' {
@@ -678,10 +681,14 @@ pub fn tokenize(input: &str) -> ParseResult<Vec<SpannedToken>> {
     if let Some(mode) = modes.last() {
         match mode {
             Mode::Main => Ok(tokens),
-            Mode::IdentInit { backslash_start } => Err(vec![unexpected_lexeme_error(
-                &scanner,
-                backslash_start + 1..scanner.pos,
-            )]),
+            Mode::IdentInit { .. } => {
+                push_token(
+                    &mut tokens,
+                    Token::Ident(String::new()),
+                    scanner.pos..scanner.pos,
+                );
+                Ok(tokens)
+            }
             Mode::IdentFragments => Err(vec![unexpected_lexeme_error(
                 &scanner,
                 current_lexeme_span(&scanner),
@@ -735,6 +742,18 @@ mod tests {
                 Token::Whitespace(" ".to_string()),
                 Token::Text("gamma/delta".to_string()),
             ]
+        );
+    }
+
+    #[test]
+    fn test_bare_backslash_yields_empty_ident() {
+        let tokens = tokenize("\\").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![Token::Ident(String::new())]
         );
     }
 

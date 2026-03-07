@@ -1497,6 +1497,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_bare_backslash_as_empty_ident() {
+        let result = parse("\\");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec![String::new()])
+        );
+    }
+
+    #[test]
     fn test_parse_verbatim_node() {
         let result = parse("\\startverb\nhello\n\\stopverb");
         assert!(result.is_ok());
