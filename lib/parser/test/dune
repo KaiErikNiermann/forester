@@ -41,3 +41,14 @@
   forester.parser
   forester.core
   asai))
+
+
+(test
+ (name Test_rust_parser_json_conversion)
+ (libraries
+  alcotest
+  forester.test
+  forester.core
+  forester.parser
+  yojson
+  asai))
