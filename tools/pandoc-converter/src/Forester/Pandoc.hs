@@ -30,6 +30,7 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Text as T
 import Text.Pandoc
+import Text.Read (readMaybe)
 
 -- | Top-level command supported by the converter executable.
 data Command
@@ -954,10 +955,12 @@ renderForesterSubset source =
 renderLine :: T.Text -> Maybe T.Text
 renderLine line
   | Just body <- unwrapCommand "\\title{" line = Just ("# " <> body)
+  | Just (levelText, body) <- unwrapTwoArgCommand "\\section{" line =
+      Just (sectionHeading levelText <> body)
   | Just body <- unwrapCommand "\\p{" line = Just body
   | T.isPrefixOf "\\ul{" line = Nothing
   | T.isPrefixOf "\\ol{" line = Nothing
-  | Just body <- unwrapCommand "\\li{" line = Just ("- " <> body)
+  | Just body <- unwrapCommand "\\li{" line = Just (renderListItemMarkdown body)
   | line == "}" = Nothing
   | otherwise = Nothing
 
@@ -965,6 +968,31 @@ unwrapCommand :: T.Text -> T.Text -> Maybe T.Text
 unwrapCommand prefix line = do
   body <- T.stripPrefix prefix line
   T.stripSuffix "}" body
+
+unwrapTwoArgCommand :: T.Text -> T.Text -> Maybe (T.Text, T.Text)
+unwrapTwoArgCommand prefix line = do
+  rest <- T.stripPrefix prefix line
+  let (firstArg, suffix) = T.breakOn "}{" rest
+  secondArg <- T.stripPrefix "}{" suffix
+  finalArg <- T.stripSuffix "}" secondArg
+  pure (firstArg, finalArg)
+
+sectionHeading :: T.Text -> T.Text
+sectionHeading levelText =
+  let clampedLevel =
+        case readMaybe (T.unpack levelText) :: Maybe Int of
+          Just level -> max 1 level
+          Nothing -> 2
+   in T.replicate clampedLevel "#" <> " "
+
+renderListItemMarkdown :: T.Text -> T.Text
+renderListItemMarkdown body =
+  case T.breakOn ". " body of
+    (prefix, suffix)
+      | not (T.null suffix) && T.all (\c -> c >= '0' && c <= '9') prefix ->
+          prefix <> suffix
+    _ ->
+      "- " <> body
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show

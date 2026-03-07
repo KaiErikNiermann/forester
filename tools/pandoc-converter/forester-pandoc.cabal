@@ -31,6 +31,7 @@ executable forester-pandoc
   import:           shared-settings
   main-is:          Main.hs
   hs-source-dirs:   app
+  other-modules:    Forester.Pandoc
   build-depends:
       forester-pandoc
 
@@ -39,5 +40,6 @@ test-suite forester-pandoc-test
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test
+  other-modules:    Forester.Pandoc
   build-depends:
       forester-pandoc

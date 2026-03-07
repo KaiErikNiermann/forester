@@ -50,6 +50,7 @@ main = do
   testBlockQuotePreservesNestedContent
   testStrictDiagnostics
   testUnsupportedTableDiagnostics
+  testRoundTripInvariants
   testFixtureSnapshots
 
 fixturesRoot :: FilePath
@@ -279,6 +280,46 @@ testUnsupportedTableDiagnostics = do
   assertTrue "table fallback emitted" ("\\table-fallback{" `T.isInfixOf` converted)
   assertTrue "table fallback row emitted" ("\\row{a | b}" `T.isInfixOf` converted)
   assertTrue "table-fallback diagnostic emitted" ("table-fallback" `elem` codes)
+
+testRoundTripInvariants :: IO ()
+testRoundTripInvariants =
+  mapM_
+    (\(label, markdownSource) -> assertRoundTripInvariant label markdownSource)
+    [ ( "round-trip basic title paragraph list"
+      , T.unlines
+          [ "# Hello"
+          , ""
+          , "Welcome to Forester."
+          , ""
+          , "- One"
+          , "- Two"
+          ]
+      )
+    , ( "round-trip sections"
+      , T.unlines
+          [ "# Main Title"
+          , ""
+          , "## Section One"
+          , ""
+          , "Paragraph under heading."
+          ]
+      )
+    , ( "round-trip ordered list numbering"
+      , T.unlines
+          [ "# Lists"
+          , ""
+          , "3. third"
+          , "4. fourth"
+          ]
+      )
+    ]
+
+assertRoundTripInvariant :: String -> T.Text -> IO ()
+assertRoundTripInvariant label markdownSource = do
+  firstForester <- expectRight (label <> ": markdown -> forester") (convert MarkdownToForester markdownSource)
+  roundTrippedMarkdown <- expectRight (label <> ": forester -> markdown") (convert ForesterToMarkdown firstForester)
+  secondForester <- expectRight (label <> ": markdown -> forester again") (convert MarkdownToForester roundTrippedMarkdown)
+  assertEqual (label <> ": forester round-trip stays stable") firstForester secondForester
 
 testFixtureSnapshots :: IO ()
 testFixtureSnapshots = do
