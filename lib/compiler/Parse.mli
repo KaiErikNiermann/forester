@@ -12,6 +12,11 @@ val parse_document :
   Lsp.Text_document.t ->
   (Forester_core.Tree.code, Forester_core.Reporter.diagnostic) result
 
+val parse_content :
+  filename: string ->
+  string ->
+  (Forester_core.Code.t, Forester_core.Reporter.diagnostic) result
+
 val parse_file :
   string ->
   (Forester_core.Code.t, Forester_core.Reporter.diagnostic) result

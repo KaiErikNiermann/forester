@@ -1,0 +1,5 @@
+\p{Inline \code{\verb~|x|y~} code.}
+
+\pre{\code-language{rust} \verb~|fn main() {
+  println!("hi|there");
+}~}

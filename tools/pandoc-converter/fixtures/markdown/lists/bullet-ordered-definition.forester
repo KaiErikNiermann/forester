@@ -1,0 +1,14 @@
+\ul{
+  \li{bullet one}
+  \li{bullet two}
+}
+
+\ol{
+  \li{3. third}
+  \li{4. fourth}
+}
+
+\ul{
+  \li{\strong{Term 1}:  definition one}
+  \li{\strong{Term 2}:  definition two}
+}

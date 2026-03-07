@@ -1,0 +1,43 @@
+cabal-version:      3.8
+-- SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+-- SPDX-License-Identifier: GPL-3.0-or-later
+name:               forester-pandoc
+version:            0.1.0.0
+build-type:         Simple
+license:            GPL-3.0-or-later
+license-file:       ../../LICENSES/GPL-3.0-or-later.txt
+author:             The Forester Project Contributors
+maintainer:         The Forester Project Contributors
+synopsis:           Pandoc-backed Markdown and Forester conversion scaffold
+category:           Text
+
+common shared-settings
+  default-language: Haskell2010
+  ghc-options: -Wall
+  hs-source-dirs: src
+  build-depends:
+      base >=4.18 && <5
+    , mtl >=2.3 && <2.4
+    , containers >=0.6 && <0.8
+    , pandoc >=3.1 && <4
+    , pandoc-types >=1.23 && <2
+    , text >=2.0 && <3
+
+library
+  import:           shared-settings
+  exposed-modules:  Forester.Pandoc
+
+executable forester-pandoc
+  import:           shared-settings
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+      forester-pandoc
+
+test-suite forester-pandoc-test
+  import:           shared-settings
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+      forester-pandoc

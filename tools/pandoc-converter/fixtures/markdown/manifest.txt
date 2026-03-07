@@ -1,0 +1,15 @@
+# Relative fixture stems under tools/pandoc-converter/fixtures/markdown
+headings/basic
+paragraphs/emphasis
+links/internal-external
+citations/basic
+images/basic
+code/blocks-and-inline
+code/verbatim-herald-collision
+lists/bullet-ordered-definition
+quotes/nested
+tables/basic
+notes/footnote
+metadata/frontmatter
+nested/mixed
+raw/html

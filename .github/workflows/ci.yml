@@ -1,0 +1,198 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      lint: ${{ steps.filter.outputs.lint }}
+      test: ${{ steps.filter.outputs.test }}
+      haskell: ${{ steps.filter.outputs.haskell }}
+      markdown_bridge: ${{ steps.filter.outputs.markdown_bridge }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ github.token }}
+          base: ${{ github.base_ref || github.ref_name || 'main' }}
+          filters: |
+            lint:
+              - ".github/workflows/ci.yml"
+              - ".github/actions/setup-ci/**"
+              - "Justfile"
+              - ".topiary.toml"
+              - "dune"
+              - "dune-project"
+              - "*.opam"
+              - "scripts/**"
+              - "bin/**"
+              - "lib/**"
+              - "test/**"
+              - "tools/rust-parser/**"
+            test:
+              - ".github/workflows/ci.yml"
+              - ".github/actions/setup-ci/**"
+              - "Justfile"
+              - "dune"
+              - "dune-project"
+              - "*.opam"
+              - "scripts/**"
+              - "bin/**"
+              - "lib/**"
+              - "test/**"
+              - "tools/rust-parser/**"
+            haskell:
+              - ".github/workflows/ci.yml"
+              - "Justfile"
+              - "scripts/test-markdown-converter.sh"
+              - "lib/compiler/Dir_scanner.ml"
+              - "lib/compiler/Parse.ml"
+              - "tools/pandoc-converter/**"
+            markdown_bridge:
+              - ".github/workflows/ci.yml"
+              - "Justfile"
+              - "scripts/test-markdown-converter.sh"
+              - "scripts/test-markdown-bridge-ocaml.sh"
+              - "lib/compiler/Parse.ml"
+              - "lib/compiler/test/Test_markdown_conversion.ml"
+              - "lib/compiler/test/Test_markdown_fixture_conversion.ml"
+              - "lib/compiler/test/dune"
+              - "tools/pandoc-converter/**"
+
+  license:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Install reuse
+        run: |
+          python -m pip install --user reuse
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Validate SPDX and REUSE metadata
+        run: just lint-licenses
+
+  lint:
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up shared CI toolchain
+        uses: ./.github/actions/setup-ci
+        with:
+          rust-components: clippy,rustfmt
+          install-topiary: "true"
+          install-cargo-deny: "true"
+
+      - name: Run format and lint checks
+        run: |
+          just fmt-check
+          just lint
+
+  haskell-converter:
+    needs: changes
+    if: needs.changes.outputs.haskell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Set up GHC and Cabal
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.8.2"
+          cabal-version: "3.12.1.0"
+
+      - name: Update the Cabal index
+        working-directory: tools/pandoc-converter
+        run: cabal update
+
+      - name: Build and test the converter scaffold
+        run: just test-haskell
+
+  markdown-bridge:
+    needs: changes
+    if: needs.changes.outputs.markdown_bridge == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up shared CI toolchain
+        uses: ./.github/actions/setup-ci
+
+      - name: Set up GHC and Cabal
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.8.2"
+          cabal-version: "3.12.1.0"
+
+      - name: Update the Cabal index
+        working-directory: tools/pandoc-converter
+        run: cabal update
+
+      - name: Build converter binary for OCaml integration tests
+        id: converter
+        working-directory: tools/pandoc-converter
+        run: |
+          cabal --project-file=cabal.project build forester-pandoc:exe:forester-pandoc
+          echo "path=$(cabal --project-file=cabal.project list-bin forester-pandoc:exe:forester-pandoc)" >> "$GITHUB_OUTPUT"
+
+      - name: Run Haskell converter tests
+        run: just test-haskell
+
+      - name: Run OCaml markdown bridge tests with converter binary
+        env:
+          FORESTER_PANDOC_PATH: ${{ steps.converter.outputs.path }}
+          FORESTER_PANDOC_REQUIRE_BINARY: "1"
+        run: ./scripts/test-markdown-bridge-ocaml.sh
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.test == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up shared CI toolchain
+        uses: ./.github/actions/setup-ci
+
+      - name: Run test checks
+        run: just test

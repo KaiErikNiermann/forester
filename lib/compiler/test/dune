@@ -4,8 +4,10 @@
 
 (tests
  (names
-  Test_expansion
+ Test_expansion
   Test_compiler
+  Test_markdown_conversion
+  Test_markdown_fixture_conversion
   Test_diagnostic_store
   Test_graph_database
   Test_import_graph

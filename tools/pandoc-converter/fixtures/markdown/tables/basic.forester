@@ -1,0 +1,4 @@
+\table-fallback{
+  \row{a | b}
+  \row{1 | 2}
+}

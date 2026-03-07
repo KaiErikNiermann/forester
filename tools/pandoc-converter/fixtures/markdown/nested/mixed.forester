@@ -1,0 +1,12 @@
+\title{Mixed}
+
+\blockquote{Quote with \code{\verb~|code~} and \ref{alpha}. \ol{
+  \li{1. ordered in quote}
+  \li{2. second}
+}}
+
+\ul{
+  \li{Item with \strong{bold} and #{x^2} \ul{
+  \li{Sub-item with \image{assets/nested.png}{img}}
+}}
+}

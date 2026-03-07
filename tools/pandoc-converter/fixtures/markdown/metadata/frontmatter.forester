@@ -1,0 +1,21 @@
+\title{Metadata Title}
+
+\date{2026-03-07}
+
+\author{Alice}
+
+\author{Bob}
+
+\contributor{Carol}
+
+\tag{parser}
+
+\tag{bridge}
+
+\taxon{docs}
+
+\meta{custom_key}{custom value}
+
+\section{1}{Body Heading}
+
+\p{Paragraph.}
