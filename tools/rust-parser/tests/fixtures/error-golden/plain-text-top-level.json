@@ -1,0 +1,52 @@
+{
+  "status": "error",
+  "mode": "strict",
+  "errors": [
+    {
+      "message": "Unexpected token: expected 'import', 'scope', 'call', '#{', 'subtree', 'let', '##{', 'def', 'datalog', 'export', 'put?', '(', 'get', 'fun', '[', 'open', 'object', 'put', 'alloc', '{', 'namespace' or 'patch', found 'text:hello'",
+      "start_offset": 0,
+      "end_offset": 5,
+      "report": "Error: Unexpected token\n   ╭─[plain-text-top-level.tree:1:1]\n   │\n 1 │ hello\n   │ ──┬──  \n   │   ╰──── found 'text:hello' here\n   │ \n   │ Note: plain text is only valid inside textual bodies; at top level you likely need a command such as \\p{...}\n───╯\n",
+      "details": {
+        "kind": "unexpected_token",
+        "expected": [
+          "'import'",
+          "'scope'",
+          "'call'",
+          "'#{'",
+          "'subtree'",
+          "'let'",
+          "'##{'",
+          "'def'",
+          "'datalog'",
+          "'export'",
+          "'put?'",
+          "'('",
+          "'get'",
+          "'fun'",
+          "'['",
+          "'open'",
+          "'object'",
+          "'put'",
+          "'alloc'",
+          "'{'",
+          "'namespace'",
+          "'patch'"
+        ],
+        "found": "'text:hello'",
+        "labels": [
+          {
+            "kind": "primary",
+            "message": "found 'text:hello' here",
+            "start_offset": 0,
+            "end_offset": 5
+          }
+        ],
+        "notes": [
+          "expected 'import', 'scope', 'call', '#{', 'subtree', 'let', '##{', 'def', 'datalog', 'export', 'put?', '(', 'get', 'fun', '[', 'open', 'object', 'put', 'alloc', '{', 'namespace' or 'patch'",
+          "plain text is only valid inside textual bodies; at top level you likely need a command such as \\p{...}"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "status": "error",
+  "mode": "strict",
+  "errors": [
+    {
+      "message": "Unexpected end of input",
+      "start_offset": 14,
+      "end_offset": 15,
+      "report": "Error: Unexpected end of input\n   ╭─[unexpected-eof-command-body.tree:1:15]\n   │\n 1 │ \\namespace\\foo\n   │              ┬  \n   │              ╰── input ended here\n   │ \n   │ Note: slash-separated identifier paths may continue with '/'\n───╯\n",
+      "details": {
+        "kind": "unexpected_eof",
+        "expected": [
+          "'{'",
+          "'/'"
+        ],
+        "labels": [
+          {
+            "kind": "primary",
+            "message": "input ended here",
+            "start_offset": 14,
+            "end_offset": 15
+          }
+        ],
+        "notes": [
+          "expected '{' or '/'",
+          "this construct requires a braced argument or body at this point",
+          "slash-separated identifier paths may continue with '/'"
+        ]
+      }
+    }
+  ]
+}
