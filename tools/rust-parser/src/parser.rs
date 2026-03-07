@@ -58,7 +58,7 @@ type ParserInput<'a> = chumsky::stream::Stream<
 /// Main parse function - entry point
 pub fn parse(input: &str) -> ParseResult<Document> {
     // Tokenize
-    let spanned_tokens = tokenize(input);
+    let spanned_tokens = tokenize(input)?;
 
     // Convert to format chumsky expects
     let tokens: Vec<(Token, std::ops::Range<usize>)> = spanned_tokens
@@ -162,15 +162,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
     recursive(|node| {
         let _nodes = node.clone().repeated();
 
-        // Text node - both Text and Ident tokens can be plain text
+        // Text nodes in textual positions.
         let text = select! {
             Token::Text(s) => Node::text(s),
-            Token::Ident(s) => Node::text(s),
-            Token::Slash => Node::text("/"),
-            Token::Colon => Node::text(":"),
             Token::AtSign => Node::text("@"),
             Token::Tick => Node::text("'"),
-            Token::Tilde => Node::text("~"),
+            Token::Hash => Node::text("#"),
+            Token::DxEntailed => Node::text("-:"),
+            Token::DxVar(s) => Node::text(format!("?{s}")),
         }
         .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
 
@@ -183,6 +182,12 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         // Hash identifier (#name)
         let hash_ident = select! {
             Token::HashIdent(s) => Node::HashIdent { name: s },
+        }
+        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
+
+        // Verbatim body already resolved by the lexer.
+        let verbatim = select! {
+            Token::Verbatim(s) => Node::verbatim(s),
         }
         .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
 
@@ -245,15 +250,13 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             .delimited_by(just(Token::LBrace), just(Token::RBrace));
 
         // Square bracketed binding: [name] or [~name]
-        let binding = just(Token::Tilde)
-            .or_not()
-            .then(select! { Token::Ident(s) => s, Token::Text(s) => s })
+        let binding = select! { Token::Ident(s) => s, Token::Text(s) => s }
             .delimited_by(just(Token::LSquare), just(Token::RSquare))
-            .map(|(tilde, name)| {
-                let info = if tilde.is_some() {
-                    BindingInfo::Lazy
+            .map(|name| {
+                let (info, name) = if let Some(rest) = name.strip_prefix('~') {
+                    (BindingInfo::Lazy, rest.to_string())
                 } else {
-                    BindingInfo::Strict
+                    (BindingInfo::Strict, name)
                 };
                 (info, name)
             });
@@ -262,8 +265,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         // \title{content} - basic command test
         // Returns the identifier node; argument is consumed but returned as part of command
-        let title_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::Ident("title".to_string())))
+        let title_cmd = just(Token::Ident("title".to_string()))
             .ignore_then(braced_arg.clone())
             .map_with_span(|body, span: std::ops::Range<usize>| {
                 // Create a group containing the title identifier and its braced argument
@@ -288,8 +290,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \p{content} - paragraph command test
-        let p_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::Ident("p".to_string())))
+        let p_cmd = just(Token::Ident("p".to_string()))
             .ignore_then(braced_arg.clone())
             .map_with_span(|body, span: std::ops::Range<usize>| {
                 // Create a group containing the p identifier and its braced argument
@@ -314,9 +315,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \def\name[bindings]{body}
-        let def_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::KwDef))
-            .ignore_then(just(Token::Backslash))
+        let def_cmd = just(Token::KwDef)
             .ignore_then(ident_path.clone())
             .then(bindings.clone())
             .then(braced_arg.clone())
@@ -332,9 +331,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \let\name[bindings]{body}
-        let let_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::KwLet))
-            .ignore_then(just(Token::Backslash))
+        let let_cmd = just(Token::KwLet)
             .ignore_then(ident_path.clone())
             .then(bindings.clone())
             .then(braced_arg.clone())
@@ -350,8 +347,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \import{target}
-        let import_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::KwImport))
+        let import_cmd = just(Token::KwImport)
             .ignore_then(
                 select! { Token::Text(s) => s, Token::Ident(s) => s }
                     .repeated()
@@ -370,8 +366,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \export{target}
-        let export_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::KwExport))
+        let export_cmd = just(Token::KwExport)
             .ignore_then(
                 select! { Token::Text(s) => s, Token::Ident(s) => s }
                     .repeated()
@@ -390,8 +385,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \subtree[addr]{body} or \subtree{body}
-        let subtree_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::KwSubtree))
+        let subtree_cmd = just(Token::KwSubtree)
             .ignore_then(
                 select! { Token::Ident(s) => s, Token::Text(s) => s }
                     .delimited_by(just(Token::LSquare), just(Token::RSquare))
@@ -406,33 +400,17 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \scope{body}
-        let scope_cmd = just(Token::Backslash)
-            .ignore_then(just(Token::KwScope))
+        let scope_cmd = just(Token::KwScope)
             .ignore_then(braced_arg.clone())
             .map_with_span(|body, span| {
                 Located::new(Node::Scope { body }, Some(make_span_from_range(span)))
             });
 
-        // Generic backslash command: \ident
-        let generic_cmd = just(Token::Backslash)
-            .ignore_then(ident_path.clone())
-            .map_with_span(|path, span| {
-                Located::new(Node::Ident { path }, Some(make_span_from_range(span)))
-            });
-
-        // Escaped characters: \{, \}, etc.
-        let escaped = just(Token::Backslash)
-            .ignore_then(select! {
-                Token::LBrace => "{".to_string(),
-                Token::RBrace => "}".to_string(),
-                Token::LSquare => "[".to_string(),
-                Token::RSquare => "]".to_string(),
-                Token::Hash => "#".to_string(),
-            })
-            .or(select! {
-                Token::EscapedText(s) => s,
-            })
-            .map_with_span(|s, span| Located::new(Node::text(s), Some(make_span_from_range(span))));
+        // Generic command identifier: \ident becomes IDENT(/IDENT)* at the
+        // lexer level, so the parser starts directly from the identifier path.
+        let generic_cmd = ident_path.clone().map_with_span(|path, span| {
+            Located::new(Node::Ident { path }, Some(make_span_from_range(span)))
+        });
 
         // Combine all parsers
         choice((
@@ -446,7 +424,6 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             // Then try title and p as special cases
             title_cmd,
             p_cmd,
-            escaped,
             generic_cmd,
             // Groups
             braces,
@@ -454,6 +431,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             parens,
             inline_math,
             display_math,
+            verbatim,
             // Simple tokens
             text,
             comment,
@@ -562,5 +540,36 @@ mod tests {
         let input = r"\p{See \ref{alpha/beta}, \link{alpha/beta}{Internal}, and \link{https://openai.com}{OpenAI}.}";
         let result = parse(input);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_plain_keywords_remain_text() {
+        let result = parse("scope import def");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 3);
+        assert!(matches!(&doc.nodes[0].value, Node::Text { content } if content == "scope"));
+        assert!(matches!(&doc.nodes[1].value, Node::Text { content } if content == "import"));
+        assert!(matches!(&doc.nodes[2].value, Node::Text { content } if content == "def"));
+    }
+
+    #[test]
+    fn test_parse_generic_ident_path_without_backslash_token() {
+        let result = parse(r"\alpha/beta");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec!["alpha".to_string(), "beta".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parse_verbatim_node() {
+        let result = parse("\\startverb\nhello\n\\stopverb");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(&doc.nodes[0].value, Node::Verbatim { content } if content == "hello"));
     }
 }
