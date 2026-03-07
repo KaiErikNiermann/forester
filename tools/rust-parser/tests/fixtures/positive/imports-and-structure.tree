@@ -1,0 +1,4 @@
+\import{foundation / intro}
+\export{public/tree}
+\subtree[appendix / notes]{\title{Appendix}\p{Details}}
+\namespace\docs/api{\title{API} \p{Docs}}

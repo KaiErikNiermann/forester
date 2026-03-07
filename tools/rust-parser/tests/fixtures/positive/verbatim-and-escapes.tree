@@ -1,0 +1,5 @@
+\p{Escaped \% \{ \} \[ \] \# \\ punctuation.}
+\verbEND|inline literalEND
+\startverb
+block literal
+\stopverb

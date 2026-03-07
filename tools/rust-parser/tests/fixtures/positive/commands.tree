@@ -1,0 +1,10 @@
+% command coverage
+\def\macro[~x][y]{\p{#x and #y}}
+\let\value{content}
+\alloc\store/item
+\open\store
+\put\store/item{payload}
+\put?\store/item\verbEND|fallbackEND
+\get\store/item
+\fun[~arg]{\p{body}}
+\scope{alpha \ref{beta}}

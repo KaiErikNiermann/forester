@@ -1,0 +1,3 @@
+\object[self]{[render]{\p{Body}} [raw]\verbEND|literalEND}
+\patch{\object{[render]{base}}}[self][super]{[render]{override}}
+\call{\ref{alpha/beta}}{render html}
