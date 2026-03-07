@@ -249,6 +249,29 @@ fn lexer_error(_position: usize, span: Range<usize>, message: impl Into<String>)
     }
 }
 
+fn current_lexeme_span(scanner: &Scanner<'_>) -> Range<usize> {
+    let start = scanner.pos;
+    if scanner.starts_with("\r\n") {
+        start..start + 2
+    } else if let Some(ch) = scanner.peek_char() {
+        start..start + ch.len_utf8()
+    } else {
+        start..start
+    }
+}
+
+fn unexpected_lexeme_error(scanner: &Scanner<'_>, span: Range<usize>) -> ParseError {
+    let lexeme = scanner.slice(span.clone());
+    ParseError::Custom {
+        message: format!("syntax error, unexpected {lexeme:?}"),
+        span: if span.start == span.end {
+            span.start..span.end.saturating_add(1)
+        } else {
+            span
+        },
+    }
+}
+
 fn lex_main(scanner: &mut Scanner<'_>, modes: &mut Vec<Mode>, tokens: &mut Vec<SpannedToken>) {
     let Some(ch) = scanner.peek_char() else {
         return;
@@ -413,10 +436,9 @@ fn lex_ident_init(
     backslash_start: usize,
 ) -> ParseResult<()> {
     let Some(ch) = scanner.peek_char() else {
-        return Err(vec![lexer_error(
-            backslash_start,
-            backslash_start..scanner.pos,
-            "expected command or identifier after backslash",
+        return Err(vec![unexpected_lexeme_error(
+            scanner,
+            backslash_start + 1..scanner.pos,
         )]);
     };
 
@@ -572,10 +594,9 @@ fn lex_ident_init(
         return Ok(());
     }
 
-    Err(vec![lexer_error(
-        backslash_start,
-        scanner.pos..scanner.pos.saturating_add(ch.len_utf8()),
-        format!("invalid character after backslash: {ch:?}"),
+    Err(vec![unexpected_lexeme_error(
+        scanner,
+        current_lexeme_span(scanner),
     )])
 }
 
@@ -584,14 +605,11 @@ fn lex_ident_fragments(
     modes: &mut Vec<Mode>,
     tokens: &mut Vec<SpannedToken>,
 ) -> ParseResult<()> {
-    let start = scanner.pos;
     let fragment = scanner.consume_while(is_simple_name_char);
     if fragment.start == fragment.end {
-        let span = start..scanner.pos.saturating_add(1).min(scanner.input.len());
-        return Err(vec![lexer_error(
-            start,
-            span,
-            "expected identifier fragment after slash",
+        return Err(vec![unexpected_lexeme_error(
+            scanner,
+            current_lexeme_span(scanner),
         )]);
     }
 
@@ -660,15 +678,13 @@ pub fn tokenize(input: &str) -> ParseResult<Vec<SpannedToken>> {
     if let Some(mode) = modes.last() {
         match mode {
             Mode::Main => Ok(tokens),
-            Mode::IdentInit { backslash_start } => Err(vec![lexer_error(
-                *backslash_start,
-                *backslash_start..scanner.pos,
-                "expected command or identifier after backslash",
+            Mode::IdentInit { backslash_start } => Err(vec![unexpected_lexeme_error(
+                &scanner,
+                backslash_start + 1..scanner.pos,
             )]),
-            Mode::IdentFragments => Err(vec![lexer_error(
-                scanner.pos,
-                scanner.pos..scanner.pos,
-                "expected identifier fragment after slash",
+            Mode::IdentFragments => Err(vec![unexpected_lexeme_error(
+                &scanner,
+                current_lexeme_span(&scanner),
             )]),
             Mode::Verbatim { token_start, .. } => Err(vec![lexer_error(
                 *token_start,
@@ -864,6 +880,27 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![Token::DxVar(String::new())]
         );
+    }
+
+    #[test]
+    fn test_ident_init_newline_error_uses_offending_lexeme() {
+        let errors = tokenize("\\\n").unwrap_err();
+        assert_eq!(errors[0].to_string(), "syntax error, unexpected \"\\n\"");
+        assert_eq!(errors[0].span(), 1..2);
+    }
+
+    #[test]
+    fn test_ident_init_invalid_char_error_uses_offending_lexeme() {
+        let errors = tokenize("\\!").unwrap_err();
+        assert_eq!(errors[0].to_string(), "syntax error, unexpected \"!\"");
+        assert_eq!(errors[0].span(), 1..2);
+    }
+
+    #[test]
+    fn test_ident_fragment_error_uses_offending_lexeme() {
+        let errors = tokenize("\\foo/ ").unwrap_err();
+        assert_eq!(errors[0].to_string(), "syntax error, unexpected \" \"");
+        assert_eq!(errors[0].span(), 5..6);
     }
 
     #[test]

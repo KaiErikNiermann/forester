@@ -617,6 +617,15 @@ mod tests {
     }
 
     #[test]
+    fn test_lexer_error_surfaces_with_ocaml_like_message() {
+        let result = parse("\\!");
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert_eq!(errors[0].to_string(), "syntax error, unexpected \"!\"");
+        assert_eq!(errors[0].span(), 1..2);
+    }
+
+    #[test]
     fn test_parse_xml_ident_node() {
         let result = parse("\\<svg:path>");
         assert!(result.is_ok());
