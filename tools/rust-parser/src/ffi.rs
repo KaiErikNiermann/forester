@@ -10,7 +10,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
 use crate::json::{ErrorInfo, ParseResult};
-use crate::parse;
+use crate::{parse, ParseError};
 
 /// Parse input and return JSON result
 ///
@@ -36,13 +36,12 @@ pub unsafe extern "C" fn rust_parser_parse_with_filename(
     let input_str = match c_str.to_str() {
         Ok(s) => s,
         Err(_) => {
+            let error = ParseError::Custom {
+                message: "Invalid UTF-8 input".to_string(),
+                span: 0..0,
+            };
             let result = ParseResult::Error {
-                errors: vec![ErrorInfo {
-                    message: "Invalid UTF-8 input".to_string(),
-                    start_offset: 0,
-                    end_offset: 0,
-                    report: "Error: Invalid UTF-8 input".to_string(),
-                }],
+                errors: vec![ErrorInfo::from_error(&error, "<input>", "")],
             };
             let json = serde_json::to_string(&result).unwrap();
             return CString::new(json).unwrap().into_raw();

@@ -4,24 +4,106 @@
 //! Error types for the Forester parser
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
+use schemars::JsonSchema;
+use serde::Serialize;
+use std::fmt;
 use thiserror::Error;
 
 #[allow(unused_imports)]
 use crate::ast::Span;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpectedTokens(Vec<String>);
+
+impl ExpectedTokens {
+    pub fn new(values: Vec<String>) -> Self {
+        Self(values)
+    }
+
+    pub fn values(&self) -> &[String] {
+        &self.0
+    }
+}
+
+impl fmt::Display for ExpectedTokens {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.as_slice() {
+            [] => write!(f, "end of input"),
+            [only] => write!(f, "{only}"),
+            [rest @ .., last] => {
+                let joined = rest.join(", ");
+                write!(f, "{joined} or {last}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ParseErrorKind {
+    UnexpectedToken,
+    UnexpectedEof,
+    UnclosedDelimiter,
+    MismatchedDelimiter,
+    UnexpectedClosingDelimiter,
+    InvalidEscape,
+    LexerError,
+    Custom,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ParseErrorLabelKind {
+    Primary,
+    Context,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct ParseErrorLabel {
+    pub kind: ParseErrorLabelKind,
+    pub message: String,
+    pub start_offset: usize,
+    pub end_offset: usize,
+}
+
+impl ParseErrorLabel {
+    fn new(
+        kind: ParseErrorLabelKind,
+        message: impl Into<String>,
+        span: std::ops::Range<usize>,
+    ) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+            start_offset: span.start,
+            end_offset: span.end,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct ParseErrorDetails {
+    pub kind: ParseErrorKind,
+    pub expected: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub found: Option<String>,
+    pub labels: Vec<ParseErrorLabel>,
+    pub notes: Vec<String>,
+}
 
 /// Parse error type
 #[derive(Debug, Clone, Error)]
 pub enum ParseError {
     #[error("Unexpected token: expected {expected}, found {found}")]
     UnexpectedToken {
-        expected: String,
+        expected: ExpectedTokens,
         found: String,
         span: std::ops::Range<usize>,
     },
 
     #[error("Unexpected end of input")]
     UnexpectedEof {
-        expected: String,
+        expected: ExpectedTokens,
         span: std::ops::Range<usize>,
     },
 
@@ -68,6 +150,137 @@ pub enum ParseError {
 }
 
 impl ParseError {
+    pub fn details(&self) -> ParseErrorDetails {
+        match self {
+            ParseError::UnexpectedToken {
+                expected,
+                found,
+                span,
+            } => ParseErrorDetails {
+                kind: ParseErrorKind::UnexpectedToken,
+                expected: expected.values().to_vec(),
+                found: Some(found.clone()),
+                labels: vec![ParseErrorLabel::new(
+                    ParseErrorLabelKind::Primary,
+                    format!("expected {}, found {}", expected, found),
+                    span.clone(),
+                )],
+                notes: vec![],
+            },
+            ParseError::UnexpectedEof { expected, span } => ParseErrorDetails {
+                kind: ParseErrorKind::UnexpectedEof,
+                expected: expected.values().to_vec(),
+                found: None,
+                labels: vec![ParseErrorLabel::new(
+                    ParseErrorLabelKind::Primary,
+                    format!("expected {} here", expected),
+                    span.clone(),
+                )],
+                notes: vec![],
+            },
+            ParseError::UnclosedDelimiter {
+                delim,
+                expected_close,
+                open_span,
+                eof_span,
+            } => ParseErrorDetails {
+                kind: ParseErrorKind::UnclosedDelimiter,
+                expected: vec![expected_close.clone()],
+                found: None,
+                labels: vec![
+                    ParseErrorLabel::new(
+                        ParseErrorLabelKind::Context,
+                        format!("{} opened here", delim),
+                        open_span.clone(),
+                    ),
+                    ParseErrorLabel::new(
+                        ParseErrorLabelKind::Primary,
+                        format!("expected {} before end of input", expected_close),
+                        eof_span.clone(),
+                    ),
+                ],
+                notes: vec![format!("close {} with {}", delim, expected_close)],
+            },
+            ParseError::MismatchedDelimiter {
+                open_delim,
+                expected_close,
+                found_close,
+                open_span,
+                found_span,
+            } => ParseErrorDetails {
+                kind: ParseErrorKind::MismatchedDelimiter,
+                expected: vec![expected_close.clone()],
+                found: Some(found_close.clone()),
+                labels: vec![
+                    ParseErrorLabel::new(
+                        ParseErrorLabelKind::Context,
+                        format!("{} opened here", open_delim),
+                        open_span.clone(),
+                    ),
+                    ParseErrorLabel::new(
+                        ParseErrorLabelKind::Primary,
+                        format!(
+                            "found {} here, but {} was required to close {}",
+                            found_close, expected_close, open_delim
+                        ),
+                        found_span.clone(),
+                    ),
+                ],
+                notes: vec![format!(
+                    "replace {} with {} or close {} earlier",
+                    found_close, expected_close, open_delim
+                )],
+            },
+            ParseError::UnexpectedClosingDelimiter { found_close, span } => ParseErrorDetails {
+                kind: ParseErrorKind::UnexpectedClosingDelimiter,
+                expected: vec![],
+                found: Some(found_close.clone()),
+                labels: vec![ParseErrorLabel::new(
+                    ParseErrorLabelKind::Primary,
+                    format!(
+                        "{} does not match any currently open delimiter",
+                        found_close
+                    ),
+                    span.clone(),
+                )],
+                notes: vec!["remove the closing delimiter or add the matching opener".to_string()],
+            },
+            ParseError::InvalidEscape { char, span } => ParseErrorDetails {
+                kind: ParseErrorKind::InvalidEscape,
+                expected: vec![],
+                found: Some(format!("\\{}", char)),
+                labels: vec![ParseErrorLabel::new(
+                    ParseErrorLabelKind::Primary,
+                    "not a valid escape",
+                    span.clone(),
+                )],
+                notes: vec![],
+            },
+            ParseError::LexerError { span, .. } => ParseErrorDetails {
+                kind: ParseErrorKind::LexerError,
+                expected: vec![],
+                found: None,
+                labels: vec![ParseErrorLabel::new(
+                    ParseErrorLabelKind::Primary,
+                    "unexpected character",
+                    span.clone(),
+                )],
+                notes: vec![],
+            },
+            ParseError::Custom { span, .. } => ParseErrorDetails {
+                kind: ParseErrorKind::Custom,
+                expected: vec![],
+                found: None,
+                labels: vec![ParseErrorLabel::new(
+                    ParseErrorLabelKind::Primary,
+                    "error occurred here",
+                    span.clone(),
+                )],
+                notes: vec![],
+            },
+        }
+    }
+
     pub fn span(&self) -> std::ops::Range<usize> {
         match self {
             ParseError::UnexpectedToken { span, .. } => span.clone(),
@@ -85,6 +298,7 @@ impl ParseError {
     pub fn report(&self, filename: &str, source: &str) -> String {
         let mut output = Vec::new();
         let source_len = source.len();
+        let details = self.details();
 
         // Helper to clamp span to source bounds
         let clamp_span = |span: &std::ops::Range<usize>| -> std::ops::Range<usize> {
@@ -98,149 +312,60 @@ impl ParseError {
             }
         };
 
-        let report = match self {
-            ParseError::UnexpectedToken {
-                expected,
-                found,
-                span,
-            } => {
-                let clamped = clamp_span(span);
-                Report::build(ReportKind::Error, filename, clamped.start)
-                    .with_message("Unexpected token".to_string())
-                    .with_label(
-                        Label::new((filename, clamped))
-                            .with_message(format!("expected {}, found {}", expected, found))
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-            }
-
-            ParseError::UnexpectedEof { expected, span } => {
-                // For EOF, point to the last character of the file
-                let clamped = clamp_span(span);
-                Report::build(ReportKind::Error, filename, clamped.start)
-                    .with_message("Unexpected end of input")
-                    .with_label(
-                        Label::new((filename, clamped))
-                            .with_message(format!("expected {} here", expected))
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-            }
-
+        let headline = match self {
+            ParseError::UnexpectedToken { .. } => "Unexpected token".to_string(),
+            ParseError::UnexpectedEof { .. } => "Unexpected end of input".to_string(),
             ParseError::UnclosedDelimiter {
                 delim,
                 expected_close,
-                open_span,
-                eof_span,
-            } => {
-                let open_clamped = clamp_span(open_span);
-                let eof_clamped = clamp_span(eof_span);
-                Report::build(ReportKind::Error, filename, open_span.start)
-                    .with_message(format!(
-                        "Unclosed delimiter: {} never reached {}",
-                        delim, expected_close
-                    ))
-                    .with_label(
-                        Label::new((filename, open_clamped))
-                            .with_message(format!("{} opened here", delim))
-                            .with_color(Color::Yellow),
-                    )
-                    .with_label(
-                        Label::new((filename, eof_clamped))
-                            .with_message(format!(
-                                "expected {} before end of input",
-                                expected_close
-                            ))
-                            .with_color(Color::Red),
-                    )
-                    .with_note(format!("close {} with {}", delim, expected_close))
-                    .finish()
-            }
-
+                ..
+            } => format!(
+                "Unclosed delimiter: {} never reached {}",
+                delim, expected_close
+            ),
             ParseError::MismatchedDelimiter {
-                open_delim,
                 expected_close,
                 found_close,
-                open_span,
-                found_span,
-            } => {
-                let open_clamped = clamp_span(open_span);
-                let found_clamped = clamp_span(found_span);
-                Report::build(ReportKind::Error, filename, found_span.start)
-                    .with_message(format!(
-                        "Mismatched delimiter: expected {}, found {}",
-                        expected_close, found_close
-                    ))
-                    .with_label(
-                        Label::new((filename, open_clamped))
-                            .with_message(format!("{} opened here", open_delim))
-                            .with_color(Color::Yellow),
-                    )
-                    .with_label(
-                        Label::new((filename, found_clamped))
-                            .with_message(format!(
-                                "found {} here, but {} was required to close {}",
-                                found_close, expected_close, open_delim
-                            ))
-                            .with_color(Color::Red),
-                    )
-                    .with_note(format!(
-                        "replace {} with {} or close {} earlier",
-                        found_close, expected_close, open_delim
-                    ))
-                    .finish()
+                ..
+            } => format!(
+                "Mismatched delimiter: expected {}, found {}",
+                expected_close, found_close
+            ),
+            ParseError::UnexpectedClosingDelimiter { found_close, .. } => {
+                format!("Unexpected closing delimiter: {}", found_close)
             }
-
-            ParseError::UnexpectedClosingDelimiter { found_close, span } => {
-                let clamped = clamp_span(span);
-                Report::build(ReportKind::Error, filename, clamped.start)
-                    .with_message(format!("Unexpected closing delimiter: {}", found_close))
-                    .with_label(
-                        Label::new((filename, clamped))
-                            .with_message(format!(
-                                "{} does not match any currently open delimiter",
-                                found_close
-                            ))
-                            .with_color(Color::Red),
-                    )
-                    .with_note("remove the closing delimiter or add the matching opener")
-                    .finish()
+            ParseError::InvalidEscape { char, .. } => {
+                format!("Invalid escape sequence: \\{}", char)
             }
-
-            ParseError::InvalidEscape { char, span } => {
-                Report::build(ReportKind::Error, filename, span.start)
-                    .with_message(format!("Invalid escape sequence: \\{}", char))
-                    .with_label(
-                        Label::new((filename, span.clone()))
-                            .with_message("not a valid escape")
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-            }
-
-            ParseError::LexerError { position, span } => {
-                Report::build(ReportKind::Error, filename, *position)
-                    .with_message("Lexer error")
-                    .with_label(
-                        Label::new((filename, span.clone()))
-                            .with_message("unexpected character")
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-            }
-
-            ParseError::Custom { message, span } => {
-                Report::build(ReportKind::Error, filename, span.start)
-                    .with_message(message)
-                    .with_label(
-                        Label::new((filename, span.clone()))
-                            .with_message("error occurred here")
-                            .with_color(Color::Red),
-                    )
-                    .finish()
-            }
+            ParseError::LexerError { .. } => "Lexer error".to_string(),
+            ParseError::Custom { message, .. } => message.clone(),
         };
+
+        let anchor = details
+            .labels
+            .first()
+            .map(|label| label.start_offset)
+            .unwrap_or_else(|| self.span().start);
+
+        let mut builder = Report::build(ReportKind::Error, filename, anchor).with_message(headline);
+        for label in &details.labels {
+            let color = match label.kind {
+                ParseErrorLabelKind::Primary => Color::Red,
+                ParseErrorLabelKind::Context => Color::Yellow,
+            };
+            builder = builder.with_label(
+                Label::new((
+                    filename,
+                    clamp_span(&(label.start_offset..label.end_offset)),
+                ))
+                .with_message(label.message.clone())
+                .with_color(color),
+            );
+        }
+        for note in &details.notes {
+            builder = builder.with_note(note.clone());
+        }
+        let report = builder.finish();
 
         report
             .write((filename, Source::from(source)), &mut output)

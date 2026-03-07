@@ -40,6 +40,9 @@
     },
     "ErrorInfo": {
       "properties": {
+        "details": {
+          "$ref": "#/$defs/ParseErrorDetails"
+        },
         "end_offset": {
           "format": "uint",
           "minimum": 0,
@@ -62,7 +65,8 @@
         "message",
         "start_offset",
         "end_offset",
-        "report"
+        "report",
+        "details"
       ],
       "type": "object"
     },
@@ -845,6 +849,91 @@
         "methods"
       ],
       "type": "object"
+    },
+    "ParseErrorDetails": {
+      "properties": {
+        "expected": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "found": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/ParseErrorKind"
+        },
+        "labels": {
+          "items": {
+            "$ref": "#/$defs/ParseErrorLabel"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "expected",
+        "labels",
+        "notes"
+      ],
+      "type": "object"
+    },
+    "ParseErrorKind": {
+      "enum": [
+        "unexpected_token",
+        "unexpected_eof",
+        "unclosed_delimiter",
+        "mismatched_delimiter",
+        "unexpected_closing_delimiter",
+        "invalid_escape",
+        "lexer_error",
+        "custom"
+      ],
+      "type": "string"
+    },
+    "ParseErrorLabel": {
+      "properties": {
+        "end_offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ParseErrorLabelKind"
+        },
+        "message": {
+          "type": "string"
+        },
+        "start_offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "message",
+        "start_offset",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "ParseErrorLabelKind": {
+      "enum": [
+        "primary",
+        "context"
+      ],
+      "type": "string"
     },
     "PatchDef": {
       "description": "Patch (object extension) definition",

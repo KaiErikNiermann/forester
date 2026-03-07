@@ -342,15 +342,65 @@ type parse_error = {
   start_offset : int;
   end_offset : int;
   report : string;  (** Pretty-printed ariadne error report *)
+  details : parse_error_details option;
 }
 (** Error type for parse results *)
+
+and parse_error_details = {
+  kind : string;
+  expected : string list;
+  found : string option;
+  labels : parse_error_label list;
+  notes : string list;
+}
+
+and parse_error_label = {
+  kind : string;
+  message : string;
+  start_offset : int;
+  end_offset : int;
+}
+
+let parse_error_label_of_json json =
+  {
+    kind = Util.member "kind" json |> Util.to_string;
+    message = Util.member "message" json |> Util.to_string;
+    start_offset = Util.member "start_offset" json |> Util.to_int;
+    end_offset = Util.member "end_offset" json |> Util.to_int;
+  }
+
+let parse_error_details_of_json json =
+  {
+    kind = Util.member "kind" json |> Util.to_string;
+    expected =
+      (try
+         Util.member "expected" json |> Util.to_list |> List.map Util.to_string
+       with _ -> []);
+    found = Util.member "found" json |> Util.to_string_option;
+    labels =
+      (try
+         Util.member "labels" json |> Util.to_list
+         |> List.map parse_error_label_of_json
+       with _ -> []);
+    notes =
+      (try Util.member "notes" json |> Util.to_list |> List.map Util.to_string
+       with _ -> []);
+  }
 
 (** Parse input and return Code.t or errors *)
 let parse ?source_path (input : string) : (Code.t, parse_error list) result =
   match parse_to_json input with
   | Error msg ->
       Error
-        [ { message = msg; start_offset = 0; end_offset = 0; report = msg } ]
+        [
+          {
+            message = msg;
+            start_offset = 0;
+            end_offset = 0;
+            report = msg;
+            details = None;
+          };
+        ]
   | Ok json_str -> (
       try
         let json = Json.from_string json_str in
@@ -372,6 +422,11 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
                     report =
                       (try Util.member "report" e |> Util.to_string
                        with _ -> "");
+                    details =
+                      (match Util.member "details" e with
+                      | `Null -> None
+                      | details_json ->
+                          Some (parse_error_details_of_json details_json));
                   })
             in
             Error errors
@@ -383,6 +438,7 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
                   start_offset = 0;
                   end_offset = 0;
                   report = "";
+                  details = None;
                 };
               ]
       with
@@ -394,6 +450,7 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
                 start_offset = 0;
                 end_offset = 0;
                 report = "";
+                details = None;
               };
             ]
       | Failure msg ->
@@ -404,6 +461,7 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
                 start_offset = 0;
                 end_offset = 0;
                 report = "";
+                details = None;
               };
             ]
       | exn ->
@@ -414,6 +472,7 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
                 start_offset = 0;
                 end_offset = 0;
                 report = "";
+                details = None;
               };
             ])
 

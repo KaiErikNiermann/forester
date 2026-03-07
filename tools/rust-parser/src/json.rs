@@ -6,7 +6,7 @@
 use schemars::{schema_for, JsonSchema};
 use serde::Serialize;
 
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorDetails};
 use crate::Document;
 
 /// Result of parsing, returned as JSON to external consumers.
@@ -26,6 +26,7 @@ pub struct ErrorInfo {
     pub end_offset: usize,
     /// Pretty-printed error report using ariadne.
     pub report: String,
+    pub details: ParseErrorDetails,
 }
 
 impl ErrorInfo {
@@ -36,6 +37,7 @@ impl ErrorInfo {
             start_offset: span.start,
             end_offset: span.end,
             report: error.report(filename, source),
+            details: error.details(),
         }
     }
 }
@@ -94,5 +96,20 @@ mod tests {
         let json = serde_json::to_value(result).expect("serialize parse result");
         assert_eq!(json["status"], "ok");
         assert!(json.get("document").is_some());
+    }
+
+    #[test]
+    fn parse_result_serializes_structured_error_details() {
+        let input = "(abc]";
+        let result = ParseResult::from_parse_result(crate::parse(input), "test.tree", input);
+        let json = serde_json::to_value(result).expect("serialize parse result");
+        let details = &json["errors"][0]["details"];
+
+        assert_eq!(details["kind"], "mismatched_delimiter");
+        assert_eq!(details["expected"][0], "')'");
+        assert_eq!(details["found"], "']'");
+        assert_eq!(details["labels"].as_array().expect("labels array").len(), 2);
+        assert_eq!(details["labels"][0]["kind"], "context");
+        assert_eq!(details["labels"][1]["kind"], "primary");
     }
 }

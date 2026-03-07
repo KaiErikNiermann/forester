@@ -11,9 +11,15 @@ Contract surface:
 - Successful parses carry `document`, whose AST shape is derived from the Rust
   types in `src/ast.rs`.
 - Failed parses carry `errors`, each with `message`, `start_offset`,
-  `end_offset`, and `report`.
+  `end_offset`, `report`, and a structured `details` object.
 - Node payloads use the same snake_case variant tags that the OCaml bridge
   decodes today.
+- `details` carries machine-readable diagnostics:
+  - `kind`
+  - `expected`
+  - `found`
+  - labeled span contexts in `labels`
+  - remediation hints in `notes`
 
 Schema artifact:
 

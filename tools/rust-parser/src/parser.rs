@@ -4,7 +4,7 @@
 //! Parser for Forester markup language using Chumsky
 
 use crate::ast::*;
-use crate::error::{ParseError, ParseResult};
+use crate::error::{ExpectedTokens, ParseError, ParseResult};
 use crate::lexer::{tokenize, Token};
 use chumsky::prelude::*;
 use std::cell::RefCell;
@@ -277,15 +277,7 @@ fn convert_chumsky_error(
         .filter_map(|tok| tok.as_ref().map(|t| format!("'{}'", t)))
         .collect();
 
-    let expected_str = if expected.is_empty() {
-        "end of input".to_string()
-    } else if expected.len() == 1 {
-        expected[0].clone()
-    } else {
-        let last = expected.last().unwrap().clone();
-        let rest: Vec<_> = expected[..expected.len() - 1].to_vec();
-        format!("{} or {}", rest.join(", "), last)
-    };
+    let expected_tokens = ExpectedTokens::new(expected);
 
     // Get what was found
     let found_str = match e.found() {
@@ -298,12 +290,12 @@ fn convert_chumsky_error(
         chumsky::error::SimpleReason::Unexpected => {
             if e.found().is_none() {
                 ParseError::UnexpectedEof {
-                    expected: expected_str,
+                    expected: expected_tokens,
                     span,
                 }
             } else {
                 ParseError::UnexpectedToken {
-                    expected: expected_str,
+                    expected: expected_tokens,
                     found: found_str,
                     span,
                 }
@@ -984,6 +976,11 @@ mod tests {
         assert!(result.is_err());
         let errors = result.unwrap_err();
         assert!(!errors.is_empty());
+        assert!(matches!(
+            &errors[0],
+            ParseError::UnexpectedClosingDelimiter { found_close, .. }
+                if found_close == "'}'"
+        ));
         let report = errors[0].report("test.tree", input);
         assert!(report.to_lowercase().contains("error"));
     }

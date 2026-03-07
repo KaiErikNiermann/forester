@@ -294,6 +294,29 @@ let test_rust_bridge_preserves_spans () =
       Alcotest.failf "Expected four top-level nodes in span fixture, got %d"
         (List.length code)
 
+let test_rust_bridge_surfaces_structured_errors () =
+  with_rust_parser_or_skip "rust parser bridge surfaces structured errors"
+  @@ fun _rust_parser_path ->
+  match Rust_parser.parse "(abc]" with
+  | Ok code ->
+      Alcotest.failf "Expected mismatched delimiter parse failure, got %d nodes"
+        (List.length code)
+  | Error [ error ] -> (
+      match error.details with
+      | None ->
+          Alcotest.fail "Expected structured error details from Rust bridge"
+      | Some details ->
+          Alcotest.(check string)
+            "error kind" "mismatched_delimiter" details.kind;
+          Alcotest.(check (list string))
+            "expected delimiters" [ "')'" ] details.expected;
+          Alcotest.(check (option string))
+            "found delimiter" (Some "']'") details.found;
+          Alcotest.(check int) "label count" 2 (List.length details.labels))
+  | Error errors ->
+      Alcotest.failf "Expected single structured error, got %d"
+        (List.length errors)
+
 let () =
   let open Alcotest in
   run "Rust parser parity"
@@ -306,5 +329,7 @@ let () =
             test_negative_fixture_parity;
           test_case "bridge preserves spans" `Quick
             test_rust_bridge_preserves_spans;
+          test_case "bridge surfaces structured errors" `Quick
+            test_rust_bridge_surfaces_structured_errors;
         ] );
     ]
