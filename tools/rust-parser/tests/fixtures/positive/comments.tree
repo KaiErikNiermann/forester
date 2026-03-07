@@ -1,0 +1,5 @@
+% leading comment
+\title{Commented}
+\p{alpha% inline comment
+
+beta}

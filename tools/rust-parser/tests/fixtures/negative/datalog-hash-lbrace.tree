@@ -1,0 +1,1 @@
+\datalog{?related -: {\rel/links-to @{example} ?related}#{\rel/hidden ?related}}

@@ -1,0 +1,6 @@
+\datalog{
+  ? -: {\rel/is-node ?}
+}
+\datalog{
+  ?result -: {\rel/has-tag ?result '{tag}} {\rel/is-node ?result} # {\rel/hidden ?result} {\rel/deleted ?result}
+}
