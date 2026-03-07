@@ -73,6 +73,9 @@ Phase 1 should be gated by the following rules:
 
 Only after a stable Phase 1 should Forester reconsider broader sugar.
 
+The concrete rollout and compatibility rules for that phase live in
+`docs/syntax-sugar/rollout-plan.md`.
+
 ## Policy for Future Sugar Proposals
 
 No future sugar proposal should be accepted unless it ships with all of the following:

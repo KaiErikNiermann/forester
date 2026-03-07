@@ -150,3 +150,6 @@ Phase 1 keeps author-facing sugar and formatter output intentionally distinct.
 - Use the sugar forms when they improve readability while drafting.
 - Expect document formatting to rewrite them into longhand `[]` binders.
 - Use longhand directly when you want formatting to remain a no-op for binder headers.
+
+The release-gating and compatibility policy for this phase is defined in
+`docs/syntax-sugar/rollout-plan.md`.
