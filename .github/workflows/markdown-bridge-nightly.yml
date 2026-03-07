@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: Markdown Bridge Nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  realworld-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up shared CI toolchain
+        uses: ./.github/actions/setup-ci
+
+      - name: Set up GHC and Cabal
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.8.2'
+          cabal-version: '3.12.1.0'
+
+      - name: Update the Cabal index
+        working-directory: tools/pandoc-converter
+        run: cabal update
+
+      - name: Run real-world Markdown corpus validation
+        run: ./scripts/check-markdown-realworld-corpus.sh --report "$RUNNER_TEMP/markdown-realworld-corpus-report.md"
+
+      - name: Upload real-world corpus report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-realworld-corpus-report
+          path: ${{ runner.temp }}/markdown-realworld-corpus-report.md

@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Real-world Markdown corpus used for nightly bridge validation.
+# These are tracked project documents rather than synthetic converter fixtures.
+CONTRIBUTORS.md
+README.md
+README.nix.md
+docs/pandoc-bridge/conversion-policy.md
+docs/pandoc-bridge/examples.md

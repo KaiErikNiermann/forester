@@ -42,3 +42,7 @@
  (name Test_timestamp)
  (public_name test-timestamp)
  (libraries))
+
+(executable
+ (name Validate_forester_cli)
+ (libraries asai forester.compiler forester.core))

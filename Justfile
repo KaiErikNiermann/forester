@@ -61,6 +61,10 @@ test-markdown-bridge:
   cd ../..; \
   FORESTER_PANDOC_PATH="$converter_path" ./scripts/test-markdown-bridge-ocaml.sh
 
+test-markdown-corpus:
+  export PATH="$HOME/.ghcup/bin:$PATH"; \
+  ./scripts/check-markdown-realworld-corpus.sh
+
 benchmark-markdown-bridge:
   export PATH="$HOME/.ghcup/bin:$PATH"; \
   ./scripts/benchmark-markdown-converter.sh
