@@ -7,9 +7,25 @@ use crate::ast::*;
 use crate::error::{ParseError, ParseResult};
 use crate::lexer::{tokenize, Token};
 use chumsky::prelude::*;
+use std::cell::RefCell;
+
+thread_local! {
+    // Chumsky only gives the parser closures byte ranges, so stash the current
+    // source text while a parse is active to build accurate line/column spans.
+    static CURRENT_PARSE_SOURCE: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+struct ParseSourceGuard;
+
+impl Drop for ParseSourceGuard {
+    fn drop(&mut self) {
+        CURRENT_PARSE_SOURCE.with(|source| {
+            source.borrow_mut().take();
+        });
+    }
+}
 
 /// Convert lexer span to AST span
-#[allow(dead_code)]
 fn make_span(input: &str, range: std::ops::Range<usize>) -> Span {
     let start = compute_position(input, range.start);
     let end = compute_position(input, range.end);
@@ -17,7 +33,6 @@ fn make_span(input: &str, range: std::ops::Range<usize>) -> Span {
 }
 
 /// Compute line/column from offset
-#[allow(dead_code)]
 fn compute_position(input: &str, offset: usize) -> Position {
     let mut line = 1;
     let mut col = 1;
@@ -57,6 +72,11 @@ type ParserInput<'a> = chumsky::stream::Stream<
 
 /// Main parse function - entry point
 pub fn parse(input: &str) -> ParseResult<Document> {
+    CURRENT_PARSE_SOURCE.with(|source| {
+        *source.borrow_mut() = Some(input.to_string());
+    });
+    let _guard = ParseSourceGuard;
+
     // Tokenize
     let spanned_tokens = tokenize(input)?;
 
@@ -635,12 +655,17 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
     })
 }
 
-/// Helper to create span from range (placeholder)
 fn make_span_from_range(range: std::ops::Range<usize>) -> Span {
-    Span::new(
-        Position::new(range.start, 1, range.start + 1),
-        Position::new(range.end, 1, range.end + 1),
-    )
+    CURRENT_PARSE_SOURCE.with(|source| {
+        let source = source.borrow();
+        match source.as_deref() {
+            Some(input) => make_span(input, range),
+            None => Span::new(
+                Position::new(range.start, 1, range.start + 1),
+                Position::new(range.end, 1, range.end + 1),
+            ),
+        }
+    })
 }
 
 #[cfg(test)]
@@ -1206,5 +1231,49 @@ mod tests {
                 && matches!(&target[0].value, Node::Ident { path } if path == &vec!["ref".to_string()])
                 && matches!(&target[1].value, Node::Group { .. })
         ));
+    }
+
+    #[test]
+    fn test_node_spans_track_multiline_offsets() {
+        let input = "\\title{Hello}\n\\p{World}";
+        let doc = parse(input).expect("parser should succeed");
+
+        let title_span = doc.nodes[0].span.as_ref().expect("missing title span");
+        assert_eq!(title_span.start.offset, 1);
+        assert_eq!(title_span.start.line, 1);
+        assert_eq!(title_span.start.column, 2);
+        assert_eq!(title_span.end.offset, 6);
+        assert_eq!(title_span.end.line, 1);
+        assert_eq!(title_span.end.column, 7);
+
+        let title_group_span = doc.nodes[1]
+            .span
+            .as_ref()
+            .expect("missing title group span");
+        assert_eq!(title_group_span.start.offset, 6);
+        assert_eq!(title_group_span.start.line, 1);
+        assert_eq!(title_group_span.start.column, 7);
+        assert_eq!(title_group_span.end.offset, 13);
+        assert_eq!(title_group_span.end.line, 1);
+        assert_eq!(title_group_span.end.column, 14);
+
+        let Node::Group { body, .. } = &doc.nodes[1].value else {
+            panic!("expected title group");
+        };
+        let hello_span = body[0].span.as_ref().expect("missing text span");
+        assert_eq!(hello_span.start.offset, 7);
+        assert_eq!(hello_span.start.line, 1);
+        assert_eq!(hello_span.start.column, 8);
+        assert_eq!(hello_span.end.offset, 12);
+        assert_eq!(hello_span.end.line, 1);
+        assert_eq!(hello_span.end.column, 13);
+
+        let paragraph_span = doc.nodes[2].span.as_ref().expect("missing paragraph span");
+        assert_eq!(paragraph_span.start.offset, 15);
+        assert_eq!(paragraph_span.start.line, 2);
+        assert_eq!(paragraph_span.start.column, 2);
+        assert_eq!(paragraph_span.end.offset, 16);
+        assert_eq!(paragraph_span.end.line, 2);
+        assert_eq!(paragraph_span.end.column, 3);
     }
 }
