@@ -64,6 +64,16 @@ let test_verbatim () =
     (Ok [verbatim "asdf"])
     (parse_string_no_loc {|\verb<<|asdf<<|})
 
+let test_verbatim_unterminated_errors () =
+  Alcotest.(check bool)
+    "unterminated inline verbatim returns parse error"
+    true
+    (Result.is_error (parse_string_no_loc {|\verb<||}));
+  Alcotest.(check bool)
+    "unterminated block verbatim returns parse error"
+    true
+    (Result.is_error (parse_string_no_loc {|\startverb|}))
+
 let test_math () =
   Alcotest.(check @@ result code diagnostic)
     "same nodes"
@@ -148,7 +158,14 @@ let () =
       "nodes", [test_case "open" `Quick test_open;];
       "scope", [test_case "scope" `Quick test_scope;];
       "text", [test_case "text" `Quick test_prim];
-      "verbatim", [test_case "verbatim" `Quick test_verbatim];
+      "verbatim",
+      [
+        test_case "verbatim" `Quick test_verbatim;
+        test_case
+          "unterminated verbatim returns error"
+          `Quick
+          test_verbatim_unterminated_errors;
+      ];
       "math", [test_case "math" `Quick test_math];
       "hashtag", [test_case "hashtag" `Quick test_hashtag];
       "object", [test_case "object" `Quick test_object];

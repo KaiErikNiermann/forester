@@ -104,6 +104,11 @@ and verbatim herald buffer = parse
       Buffer.add_string buffer c;
       []
     }
+  | eof
+    {
+      drop_mode ();
+      raise @@ SyntaxError "unterminated verbatim"
+    }
   | _ as c
     {
       Buffer.add_char buffer c;
