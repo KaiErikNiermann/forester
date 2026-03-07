@@ -15,26 +15,156 @@ open Forester_core
 (** The path to the Rust parser binary *)
 let rust_parser_path = ref "forester-rust-parser"
 
+(** Maximum time to wait for a Rust parser subprocess before killing it. *)
+let rust_parser_timeout_seconds = ref 5.0
+
 (** Set the path to the Rust parser binary *)
 let set_rust_parser_path path = rust_parser_path := path
 
+(** Set the Rust parser subprocess timeout. *)
+let set_rust_parser_timeout_seconds seconds =
+  if seconds <= 0. then
+    invalid_arg "Rust_parser.set_rust_parser_timeout_seconds"
+  else
+    rust_parser_timeout_seconds := seconds
+
+type process_capture = {
+  stdout : string;
+  stderr : string;
+  status : Unix.process_status;
+}
+
+type process_run_error =
+  | Spawn_error of (Unix.error * string * string)
+  | Timed_out of float
+
+type stream_capture = {
+  fd : Unix.file_descr;
+  buffer : Buffer.t;
+}
+
+let format_unix_error (error, fn, arg) =
+  let arg_suffix =
+    if String.trim arg = "" then ""
+    else Printf.sprintf " (%s)" arg
+  in
+  Printf.sprintf "%s%s: %s" fn arg_suffix (Unix.error_message error)
+
+let nonempty_output text =
+  let trimmed = String.trim text in
+  if trimmed = "" then None else Some trimmed
+
+let format_process_output ~stdout ~stderr =
+  let sections =
+    [ ("stderr", stderr); ("stdout", stdout) ]
+    |> List.filter_map (fun (label, content) ->
+           Option.map (fun text -> (label, text)) (nonempty_output content))
+  in
+  match sections with
+  | [] -> None
+  | [ label, text ] -> Some (Printf.sprintf "%s:\n%s" label text)
+  | _ ->
+      Some
+        (sections
+        |> List.map (fun (label, text) -> Printf.sprintf "%s:\n%s" label text)
+        |> String.concat "\n\n")
+
+let rec waitpid_with_timeout pid deadline =
+  let remaining = deadline -. Unix.gettimeofday () in
+  if remaining <= 0. then
+    Error (Timed_out 0.)
+  else
+    match Unix.waitpid [ Unix.WNOHANG ] pid with
+    | 0, _ ->
+        Unix.sleepf (min 0.05 remaining);
+        waitpid_with_timeout pid deadline
+    | _, status -> Ok status
+
+let read_streams_with_timeout ~stdout_ic ~stderr_ic ~timeout_seconds =
+  let stdout = Buffer.create 1024 in
+  let stderr = Buffer.create 1024 in
+  let active_streams =
+    ref
+      [
+        { fd = Unix.descr_of_in_channel stdout_ic; buffer = stdout };
+        { fd = Unix.descr_of_in_channel stderr_ic; buffer = stderr };
+      ]
+  in
+  let scratch = Bytes.create 4096 in
+  let deadline = Unix.gettimeofday () +. timeout_seconds in
+  let rec loop () =
+    match !active_streams with
+    | [] -> Ok (Buffer.contents stdout, Buffer.contents stderr, deadline)
+    | streams ->
+        let remaining = deadline -. Unix.gettimeofday () in
+        if remaining <= 0. then
+          Error (Timed_out timeout_seconds)
+        else
+          let ready, _, _ =
+            Unix.select
+              (List.map (fun stream -> stream.fd) streams)
+              [] [] remaining
+          in
+          if ready = [] then
+            Error (Timed_out timeout_seconds)
+          else (
+            active_streams :=
+              List.filter_map
+                (fun stream ->
+                  if List.exists (( = ) stream.fd) ready then
+                    match Unix.read stream.fd scratch 0 (Bytes.length scratch) with
+                    | 0 -> None
+                    | read_count ->
+                        Buffer.add_subbytes stream.buffer scratch 0 read_count;
+                        Some stream
+                  else
+                    Some stream)
+                streams;
+            loop ())
+  in
+  loop ()
+
+let run_process_capture ~program ~args ~timeout_seconds =
+  try
+    let stdout_ic, stdin_oc, stderr_ic =
+      Unix.open_process_args_full program args (Unix.environment ())
+    in
+    let pid = Unix.process_full_pid (stdout_ic, stdin_oc, stderr_ic) in
+    Fun.protect
+      ~finally:(fun () ->
+        close_in_noerr stdout_ic;
+        close_in_noerr stderr_ic;
+        close_out_noerr stdin_oc)
+      @@ fun () ->
+      close_out_noerr stdin_oc;
+      match
+        read_streams_with_timeout ~stdout_ic ~stderr_ic ~timeout_seconds
+      with
+      | Error error ->
+          (try Unix.kill pid Sys.sigkill with Unix.Unix_error _ -> ());
+          (try ignore (Unix.waitpid [] pid) with Unix.Unix_error _ -> ());
+          Error error
+      | Ok (stdout, stderr, deadline) -> (
+          match waitpid_with_timeout pid deadline with
+          | Ok status -> Ok { stdout; stderr; status }
+          | Error error ->
+              (try Unix.kill pid Sys.sigkill with Unix.Unix_error _ -> ());
+              (try ignore (Unix.waitpid [] pid) with Unix.Unix_error _ -> ());
+              Error
+                (match error with
+                | Timed_out 0. -> Timed_out timeout_seconds
+                | _ -> error))
+  with Unix.Unix_error (error, fn, arg) -> Error (Spawn_error (error, fn, arg))
+
 (** Check if the Rust parser is available *)
 let is_available () : bool =
-  try
-    let ic =
-      Unix.open_process_in (!rust_parser_path ^ " --version 2>/dev/null")
-    in
-    let result =
-      try
-        let _ = input_line ic in
-        true
-      with End_of_file -> false
-    in
-    let _ = Unix.close_process_in ic in
-    result
+  let args = [| !rust_parser_path; "--version" |] in
+  match
+    run_process_capture ~program:!rust_parser_path ~args ~timeout_seconds:1.0
   with
-  | Unix.Unix_error _ -> false
-  | _ -> false
+  | Ok { status = Unix.WEXITED 0; _ } -> true
+  | Ok _ -> false
+  | Error _ -> false
 
 (** {2 JSON to Code.t conversion} *)
 
@@ -301,50 +431,69 @@ type parse_mode = Strict | Recovery
 (** Parse using the Rust parser, returning raw JSON string *)
 let parse_to_json ?(mode : parse_mode = Strict) (input : string) :
     (string, string) result =
-  if not (is_available ()) then Error "Rust parser not available"
-  else
-    try
-      (* Create temp file for input *)
-      let tmp_file = Filename.temp_file "forester_rust_" ".tree" in
-      let oc = open_out tmp_file in
+  let tmp_file = Filename.temp_file "forester_rust_" ".tree" in
+  Fun.protect
+    ~finally:(fun () ->
+      if Sys.file_exists tmp_file then
+        Sys.remove tmp_file)
+    @@ fun () ->
+    let oc = open_out_bin tmp_file in
+    Fun.protect
+      ~finally:(fun () -> close_out_noerr oc)
+      @@ fun () ->
       output_string oc input;
       close_out oc;
-
-      (* Run the Rust parser *)
-      let mode_flag =
-        match mode with Strict -> "" | Recovery -> " --recovery"
+      let args =
+        match mode with
+        | Strict -> [| !rust_parser_path; "--json"; tmp_file |]
+        | Recovery ->
+            [| !rust_parser_path; "--json"; "--recovery"; tmp_file |]
       in
-      let cmd =
-        Printf.sprintf "%s%s --json %s 2>&1" !rust_parser_path mode_flag
-          (Filename.quote tmp_file)
-      in
-      let ic = Unix.open_process_in cmd in
-      let buf = Buffer.create 1024 in
-      (try
-         while true do
-           Buffer.add_string buf (input_line ic);
-           Buffer.add_char buf '\n'
-         done
-       with End_of_file -> ());
-      let status = Unix.close_process_in ic in
-
-      (* Cleanup *)
-      Sys.remove tmp_file;
-
-      match status with
-      | Unix.WEXITED 0 -> Ok (Buffer.contents buf)
-      | Unix.WEXITED code ->
+      match
+        run_process_capture ~program:!rust_parser_path ~args
+          ~timeout_seconds:!rust_parser_timeout_seconds
+      with
+      | Ok { stdout; status = Unix.WEXITED 0; _ } -> Ok stdout
+      | Ok { stdout; stderr; status = Unix.WEXITED code } ->
+          let output_suffix =
+            match format_process_output ~stdout ~stderr with
+            | None -> ""
+            | Some output -> "\n" ^ output
+          in
           Error
-            (Printf.sprintf "Rust parser exited with code %d: %s" code
-               (Buffer.contents buf))
-      | Unix.WSIGNALED sig_num ->
-          Error (Printf.sprintf "Rust parser killed by signal %d" sig_num)
-      | Unix.WSTOPPED sig_num ->
-          Error (Printf.sprintf "Rust parser stopped by signal %d" sig_num)
-    with exn ->
-      Error
-        (Printf.sprintf "Error invoking Rust parser: %s"
-           (Printexc.to_string exn))
+            (Printf.sprintf
+               "Rust parser `%s` exited with code %d.%s"
+               !rust_parser_path code output_suffix)
+      | Ok { stdout; stderr; status = Unix.WSIGNALED sig_num } ->
+          let output_suffix =
+            match format_process_output ~stdout ~stderr with
+            | None -> ""
+            | Some output -> "\n" ^ output
+          in
+          Error
+            (Printf.sprintf
+               "Rust parser `%s` was terminated by signal %d.%s"
+               !rust_parser_path sig_num output_suffix)
+      | Ok { stdout; stderr; status = Unix.WSTOPPED sig_num } ->
+          let output_suffix =
+            match format_process_output ~stdout ~stderr with
+            | None -> ""
+            | Some output -> "\n" ^ output
+          in
+          Error
+            (Printf.sprintf
+               "Rust parser `%s` was stopped by signal %d.%s"
+               !rust_parser_path sig_num output_suffix)
+      | Error (Timed_out timeout_seconds) ->
+          Error
+            (Printf.sprintf
+               "Rust parser `%s` timed out after %.2fs."
+               !rust_parser_path timeout_seconds)
+      | Error (Spawn_error unix_error) ->
+          Error
+            (Printf.sprintf
+               "Rust parser `%s` is unavailable: %s"
+               !rust_parser_path (format_unix_error unix_error))
 
 type parse_error = {
   message : string;
