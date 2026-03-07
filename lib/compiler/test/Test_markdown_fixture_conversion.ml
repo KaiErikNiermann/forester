@@ -159,6 +159,20 @@ let run_converter ~converter_path ~markdown_path =
   in
   run_command_capture command
 
+let with_temp_markdown content f =
+  let path = Filename.temp_file "forester_markdown_fuzz_" ".md" in
+  let oc = open_out_bin path in
+  Fun.protect
+    ~finally: (fun () ->
+      close_out_noerr oc;
+      if Sys.file_exists path then
+        Sys.remove path
+    )
+    @@ fun () ->
+    output_string oc content;
+    close_out oc;
+    f path
+
 let parse_forester_or_fail ~fixture output =
   match Parse.parse_content ~filename: (fixture ^ ".tree") output with
   | Ok _ -> ()
@@ -252,6 +266,70 @@ let assert_closed_math_delimiters ~fixture output =
 let assert_no_known_hazards ~fixture output =
   assert_well_formed_verbatim ~fixture output;
   assert_closed_math_delimiters ~fixture output
+
+let next_seed seed =
+  let value =
+    Int64.(
+      add (mul 1103515245L (of_int seed)) 12345L
+      |> rem 2147483647L
+    )
+  in
+  Int64.to_int value
+
+let pick choices seed =
+  choices.(seed mod Array.length choices)
+
+let generate_markdown_case seed =
+  let words = [|"atlas"; "bridge"; "compass"; "delta"; "echo"; "forest"; "glyph"; "harbor"|] in
+  let symbols = [|"{"; "}"; "["; "]"; "#"; "%"; "|"; "~"|] in
+  let seed1 = next_seed seed in
+  let seed2 = next_seed seed1 in
+  let seed3 = next_seed seed2 in
+  let seed4 = next_seed seed3 in
+  let seed5 = next_seed seed4 in
+  let title = String.capitalize_ascii (pick words seed1) in
+  let noun1 = pick words seed2 in
+  let noun2 = pick words seed3 in
+  let symbol = pick symbols seed4 in
+  let base_paragraph =
+    Printf.sprintf
+      "Random *%s* with **%s** and `%s|%s` plus symbol %s."
+      noun1
+      noun2
+      noun1
+      noun2
+      symbol
+  in
+  let list_block =
+    if seed4 mod 2 = 0 then
+      Printf.sprintf
+        "\\n- item %s\\n- item [%s](%s/%s)"
+        noun1
+        noun2
+        noun1
+        noun2
+    else
+      ""
+  in
+  let math_block =
+    if seed5 mod 3 = 0 then
+      "\\n\\nEquation: $x^2 + y^2$."
+    else
+      ""
+  in
+  let footnote_block =
+    if seed3 mod 4 = 0 then
+      "\\n\\nWith note.[^n]\\n\\n[^n]: generated note body"
+    else
+      ""
+  in
+  Printf.sprintf
+    "# %s\\n\\n%s%s%s%s\\n"
+    title
+    base_paragraph
+    list_block
+    math_block
+    footnote_block
 
 let with_converter_or_skip test_name f =
   match resolve_converter_path () with
@@ -363,6 +441,37 @@ let test_fixture_hazards () =
     )
     (load_fixture_cases ())
 
+let test_randomized_markdown_generation () =
+  with_converter_or_skip "randomized markdown generation" @@ fun converter_path ->
+  for seed = 0 to 119 do
+    let markdown = generate_markdown_case seed in
+    with_temp_markdown markdown @@ fun markdown_path ->
+    let status, output = run_converter ~converter_path ~markdown_path in
+    (
+      match status with
+      | Unix.WEXITED 0 -> ()
+      | Unix.WEXITED code ->
+        Alcotest.failf
+          "Fuzz seed %d converter exited with code %d:\\n%s\\nInput:\\n%s"
+          seed
+          code
+          output
+          markdown
+      | Unix.WSIGNALED signal_number ->
+        Alcotest.failf
+          "Fuzz seed %d converter terminated by signal %d"
+          seed
+          signal_number
+      | Unix.WSTOPPED signal_number ->
+        Alcotest.failf
+          "Fuzz seed %d converter stopped by signal %d"
+          seed
+          signal_number
+    );
+    parse_forester_or_fail ~fixture: (Printf.sprintf "fuzz-%d" seed) output;
+    assert_no_known_hazards ~fixture: (Printf.sprintf "fuzz-%d" seed) output
+  done
+
 let () =
   let open Alcotest in
   run
@@ -373,6 +482,7 @@ let () =
         [test_case "golden parity" `Quick test_fixture_goldens;
         test_case "parser validity" `Quick test_fixture_outputs_parse;
         test_case "known hazard checks" `Quick test_fixture_hazards;
+        test_case "randomized markdown generation" `Quick test_randomized_markdown_generation;
         ]
       );
     ]
