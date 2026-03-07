@@ -6,30 +6,10 @@ open Forester_core
 open Testables
 module Rust_parser = Forester_parser.Rust_parser
 module Lsp_shims = Forester_lsp.Lsp_shims
-
-let bool_of_env name =
-  match Sys.getenv_opt name with
-  | Some "1" | Some "true" | Some "yes" | Some "on" -> true
-  | _ -> false
-
-let rec find_repo_root dir =
-  let dune_project = Filename.concat dir "dune-project" in
-  let opam_file = Filename.concat dir "forester.opam" in
-  if Sys.file_exists dune_project && Sys.file_exists opam_file then Some dir
-  else
-    let parent = Filename.dirname dir in
-    if parent = dir then None else find_repo_root parent
-
-let repo_root () =
-  match find_repo_root (Sys.getcwd ()) with
-  | Some root -> root
-  | None ->
-      Alcotest.fail "Unable to locate repository root from current directory"
-
-let read_file path = In_channel.with_open_bin path In_channel.input_all
+module Support = Forester_test.Test_support
 
 let resolve_rust_parser_path () =
-  let root = repo_root () in
+  let root = Support.repo_root () in
   let local_candidates =
     [
       Filename.concat root "tools/rust-parser/target/debug/forester-rust-parser";
@@ -37,16 +17,15 @@ let resolve_rust_parser_path () =
         "tools/rust-parser/target/release/forester-rust-parser";
     ]
   in
-  match Sys.getenv_opt "FORESTER_RUST_PARSER_PATH" with
-  | Some path when String.trim path <> "" && Sys.file_exists path -> Some path
-  | _ -> List.find_opt Sys.file_exists local_candidates
+  Support.resolve_binary ~env_var:"FORESTER_RUST_PARSER_PATH"
+    ~candidates:local_candidates "forester-rust-parser"
 
 let with_rust_parser_or_skip test_name f =
   match resolve_rust_parser_path () with
   | Some rust_parser_path ->
       Rust_parser.set_rust_parser_path rust_parser_path;
       if Rust_parser.is_available () then f rust_parser_path
-      else if bool_of_env "FORESTER_RUST_PARSER_REQUIRE_BINARY" then
+      else if Support.bool_of_env "FORESTER_RUST_PARSER_REQUIRE_BINARY" then
         Alcotest.failf "%s requires rust parser binary at %s" test_name
           rust_parser_path
       else
@@ -54,7 +33,7 @@ let with_rust_parser_or_skip test_name f =
           "%s skipped because rust parser binary is unavailable at %s\n%!"
           test_name rust_parser_path
   | None ->
-      if bool_of_env "FORESTER_RUST_PARSER_REQUIRE_BINARY" then
+      if Support.bool_of_env "FORESTER_RUST_PARSER_REQUIRE_BINARY" then
         Alcotest.failf
           "%s requires rust parser binary; set FORESTER_RUST_PARSER_PATH or \
            build tools/rust-parser"
@@ -65,7 +44,7 @@ let with_rust_parser_or_skip test_name f =
 
 let fixture_paths kind =
   let fixture_dir =
-    repo_root () |> fun root ->
+    Support.repo_root () |> fun root ->
     Filename.concat root "tools/rust-parser/tests/fixtures" |> fun root ->
     Filename.concat root kind
   in
@@ -191,7 +170,7 @@ let test_positive_fixture_parity () =
   fixture_paths "positive"
   |> List.iter (fun path ->
       let fixture = Filename.basename path in
-      let input = read_file path in
+      let input = Support.read_file path in
       match
         ( Result.map strip_code_locations (parse_string_no_loc input),
           Result.map strip_code_locations (Rust_parser.parse input) )
@@ -229,7 +208,7 @@ let test_negative_fixture_parity () =
   fixture_paths "negative"
   |> List.iter (fun path ->
       let fixture = Filename.basename path in
-      let input = read_file path in
+      let input = Support.read_file path in
       match (parse_string_no_loc input, Rust_parser.parse input) with
       | Error _, Error _ -> ()
       | Ok ocaml_code, Error errors ->

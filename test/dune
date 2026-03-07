@@ -25,4 +25,5 @@
   fmt
   lsp
   jsonrpc
+  unix
   yojson))

@@ -6,3 +6,4 @@
 
 include Prelude
 module Testables = Testables
+module Test_support = Test_support

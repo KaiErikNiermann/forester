@@ -2,6 +2,7 @@
 (* SPDX-License-Identifier: GPL-3.0-or-later *)
 
 module Rust_parser = Forester_parser.Rust_parser
+module Support = Forester_test.Test_support
 
 let string_contains ~needle haystack =
   let needle_length = String.length needle in
@@ -17,55 +18,47 @@ let expect_contains ~label ~needle haystack =
   Alcotest.(check bool) label true (string_contains ~needle haystack)
 
 let with_rust_parser_settings ?timeout path f =
-  let previous_path = !(Rust_parser.rust_parser_path) in
-  let previous_timeout = !(Rust_parser.rust_parser_timeout_seconds) in
-  Fun.protect
-    ~finally:(fun () ->
+  let previous_path = !Rust_parser.rust_parser_path in
+  let previous_timeout = !Rust_parser.rust_parser_timeout_seconds in
+  Fun.protect ~finally:(fun () ->
       Rust_parser.set_rust_parser_path previous_path;
       Rust_parser.set_rust_parser_timeout_seconds previous_timeout)
-    @@ fun () ->
-    Rust_parser.set_rust_parser_path path;
-    Option.iter Rust_parser.set_rust_parser_timeout_seconds timeout;
-    f ()
+  @@ fun () ->
+  Rust_parser.set_rust_parser_path path;
+  Option.iter Rust_parser.set_rust_parser_timeout_seconds timeout;
+  f ()
 
-let with_temp_script body f =
-  let path = Filename.temp_file "forester-rust-parser-test-" ".sh" in
-  let oc = open_out_bin path in
-  Fun.protect
-    ~finally:(fun () ->
-      close_out_noerr oc;
-      if Sys.file_exists path then
-        Sys.remove path)
-    @@ fun () ->
-    output_string oc "#!/bin/sh\n";
-    output_string oc body;
-    close_out oc;
-    Unix.chmod path 0o755;
-    f path
+let with_temp_script body =
+  Support.with_temp_script ~prefix:"forester-rust-parser-test-" body
 
 let test_is_available_accepts_exit_zero_without_stdout () =
   with_temp_script "exit 0\n" @@ fun script_path ->
   with_rust_parser_settings script_path @@ fun () ->
   Alcotest.(check bool)
-    "exit-zero parser should count as available"
-    true (Rust_parser.is_available ())
+    "exit-zero parser should count as available" true
+    (Rust_parser.is_available ())
 
 let test_parse_reports_unavailable_binary_predictably () =
-  let missing_path = Filename.concat (Filename.get_temp_dir_name ()) "missing-rust-parser" in
+  let missing_path =
+    Filename.concat (Filename.get_temp_dir_name ()) "missing-rust-parser"
+  in
   with_rust_parser_settings missing_path @@ fun () ->
-  Alcotest.(check bool) "missing parser is unavailable" false
+  Alcotest.(check bool)
+    "missing parser is unavailable" false
     (Rust_parser.is_available ());
   (match Rust_parser.parse "\\title{Hello}" with
-  | Ok _ -> Alcotest.fail "Expected strict parse to fail when parser is unavailable"
+  | Ok _ ->
+      Alcotest.fail "Expected strict parse to fail when parser is unavailable"
   | Error [ error ] ->
       expect_contains ~label:"strict unavailable message"
         ~needle:"is unavailable" error.message;
-      expect_contains ~label:"strict unavailable path"
-        ~needle:missing_path error.message;
-      Alcotest.(check bool) "strict unavailable details" true
-        (error.details = None)
+      expect_contains ~label:"strict unavailable path" ~needle:missing_path
+        error.message;
+      Alcotest.(check bool)
+        "strict unavailable details" true (error.details = None)
   | Error errors ->
-      Alcotest.failf "Expected one unavailable error, got %d" (List.length errors));
+      Alcotest.failf "Expected one unavailable error, got %d"
+        (List.length errors));
   (match Rust_parser.parse_recovery "\\title{Hello}" with
   | Rust_parser.Failed [ error ] ->
       expect_contains ~label:"recovery unavailable message"
@@ -76,7 +69,8 @@ let test_parse_reports_unavailable_binary_predictably () =
       Alcotest.failf "Expected one recovery unavailable error, got %d"
         (List.length errors));
   match Rust_parser.parse_check "\\title{Hello}" with
-  | Ok () -> Alcotest.fail "Expected parse_check to fail when parser is unavailable"
+  | Ok () ->
+      Alcotest.fail "Expected parse_check to fail when parser is unavailable"
   | Error message ->
       expect_contains ~label:"parse_check unavailable message"
         ~needle:"is unavailable" message
@@ -99,7 +93,8 @@ exit 17
         error.message;
       expect_contains ~label:"stdout included" ~needle:"stdout:\ndebug stdout"
         error.message;
-      Alcotest.(check string) "report mirrors message" error.message error.report
+      Alcotest.(check string)
+        "report mirrors message" error.message error.report
   | Error errors ->
       Alcotest.failf "Expected one process-exit error, got %d"
         (List.length errors)
@@ -112,7 +107,8 @@ let test_parse_times_out_and_returns_predictable_error () =
   | Ok _ -> Alcotest.fail "Expected strict parse to fail on timeout"
   | Error [ error ] ->
       let elapsed = Unix.gettimeofday () -. started_at in
-      Alcotest.(check bool) "timeout should trigger promptly" true (elapsed < 2.0);
+      Alcotest.(check bool)
+        "timeout should trigger promptly" true (elapsed < 2.0);
       expect_contains ~label:"timeout message" ~needle:"timed out after 0.10s"
         error.message
   | Error errors ->

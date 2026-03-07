@@ -5,12 +5,12 @@
 
 module Main (main) where
 
-import Data.Char (isSpace)
 import Data.List (find)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Forester.Pandoc
+import SpecSupport
 import System.Exit (exitFailure)
 
 assertEqual :: String -> T.Text -> T.Text -> IO ()
@@ -57,36 +57,6 @@ main = do
   testRoundTripInvariants
   testCoverageBaseline
   testFixtureSnapshots
-
-fixturesRoot :: FilePath
-fixturesRoot = "fixtures/markdown"
-
-(</>) :: FilePath -> FilePath -> FilePath
-left </> right = left <> "/" <> right
-
-fixtureManifestPath :: FilePath
-fixtureManifestPath = fixturesRoot </> "manifest.txt"
-
-loadFixtureStems :: IO [FilePath]
-loadFixtureStems = do
-  manifest <- TIO.readFile fixtureManifestPath
-  pure
-    ( map T.unpack
-        ( filter (not . T.null)
-            ( map stripCommentAndSpace (T.lines manifest)
-            )
-        )
-    )
-  where
-    stripCommentAndSpace line =
-      let withoutComment = T.takeWhile (/= '#') line
-       in T.dropAround isSpace withoutComment
-
-fixtureMarkdownPath :: FilePath -> FilePath
-fixtureMarkdownPath stem = fixturesRoot </> stem <> ".md"
-
-fixtureForesterPath :: FilePath -> FilePath
-fixtureForesterPath stem = fixturesRoot </> stem <> ".forester"
 
 testBasicConversion :: IO ()
 testBasicConversion = do
