@@ -1,5 +1,6 @@
 {
   "status": "error",
+  "mode": "strict",
   "errors": [
     {
       "message": "Mismatched delimiter: '(' opened here, expected ')', found ']'",

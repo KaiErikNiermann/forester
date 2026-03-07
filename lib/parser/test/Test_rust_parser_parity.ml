@@ -317,6 +317,33 @@ let test_rust_bridge_surfaces_structured_errors () =
       Alcotest.failf "Expected single structured error, got %d"
         (List.length errors)
 
+let test_rust_bridge_supports_recovery_mode () =
+  with_rust_parser_or_skip "rust parser bridge supports recovery mode"
+  @@ fun _rust_parser_path ->
+  match Rust_parser.parse_recovery {|\p{]}
+\p{tail}|} with
+  | Rust_parser.Recovered (code, errors) ->
+      Alcotest.(check bool)
+        "recovery reports at least one error" true
+        (List.length errors > 0);
+      Alcotest.(check int) "recovered code node count" 4 (List.length code);
+      Alcotest.(check bool)
+        "first node remains paragraph ident" true
+        (match List.nth_opt code 0 with
+        | Some { Range.value = Code.Ident [ "p" ]; _ } -> true
+        | _ -> false);
+      Alcotest.(check bool)
+        "third node remains following paragraph ident" true
+        (match List.nth_opt code 2 with
+        | Some { Range.value = Code.Ident [ "p" ]; _ } -> true
+        | _ -> false)
+  | Rust_parser.Parsed code ->
+      Alcotest.failf "Expected recovered parse result, got parsed with %d nodes"
+        (List.length code)
+  | Rust_parser.Failed errors ->
+      Alcotest.failf "Expected recovered parse result, got failure:\n%s"
+        (render_rust_errors errors)
+
 let () =
   let open Alcotest in
   run "Rust parser parity"
@@ -331,5 +358,7 @@ let () =
             test_rust_bridge_preserves_spans;
           test_case "bridge surfaces structured errors" `Quick
             test_rust_bridge_surfaces_structured_errors;
+          test_case "bridge supports recovery mode" `Quick
+            test_rust_bridge_supports_recovery_mode;
         ] );
     ]

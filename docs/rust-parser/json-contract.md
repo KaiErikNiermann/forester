@@ -7,10 +7,15 @@ share a single Rust-side contract definition in
 
 Contract surface:
 
-- Top-level envelope is a tagged object with `status = "ok"` or `status = "error"`.
-- Successful parses carry `document`, whose AST shape is derived from the Rust
-  types in `src/ast.rs`.
-- Failed parses carry `errors`, each with `message`, `start_offset`,
+- Top-level envelope is a tagged object with:
+  - `status = "ok"` for strict/recovery parses with no diagnostics
+  - `status = "recovered"` when recovery mode produced both `document` and
+    `errors`
+  - `status = "error"` when no document could be produced
+- Every envelope now carries `mode = "strict"` or `mode = "recovery"`.
+- Successful and recovered parses carry `document`, whose AST shape is derived
+  from the Rust types in `src/ast.rs`.
+- Failed and recovered parses carry `errors`, each with `message`, `start_offset`,
   `end_offset`, `report`, and a structured `details` object.
 - Node payloads use the same snake_case variant tags that the OCaml bridge
   decodes today.

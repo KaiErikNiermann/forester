@@ -1,5 +1,6 @@
 {
   "status": "error",
+  "mode": "strict",
   "errors": [
     {
       "message": "Unclosed delimiter: '#{'; expected '}' before end of input",

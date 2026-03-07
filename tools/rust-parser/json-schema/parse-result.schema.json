@@ -935,6 +935,13 @@
       ],
       "type": "string"
     },
+    "ParseMode": {
+      "enum": [
+        "strict",
+        "recovery"
+      ],
+      "type": "string"
+    },
     "PatchDef": {
       "description": "Patch (object extension) definition",
       "properties": {
@@ -1040,6 +1047,9 @@
         "document": {
           "$ref": "#/$defs/Document"
         },
+        "mode": {
+          "$ref": "#/$defs/ParseMode"
+        },
         "status": {
           "const": "ok",
           "type": "string"
@@ -1047,7 +1057,35 @@
       },
       "required": [
         "status",
+        "mode",
         "document"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/Document"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorInfo"
+          },
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/ParseMode"
+        },
+        "status": {
+          "const": "recovered",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "mode",
+        "document",
+        "errors"
       ],
       "type": "object"
     },
@@ -1059,6 +1097,9 @@
           },
           "type": "array"
         },
+        "mode": {
+          "$ref": "#/$defs/ParseMode"
+        },
         "status": {
           "const": "error",
           "type": "string"
@@ -1066,6 +1107,7 @@
       },
       "required": [
         "status",
+        "mode",
         "errors"
       ],
       "type": "object"

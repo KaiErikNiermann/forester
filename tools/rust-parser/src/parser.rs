@@ -7,8 +7,11 @@ use crate::ast::*;
 use crate::error::{ExpectedTokens, ParseError, ParseResult};
 use crate::lexer::{tokenize, Token};
 use chumsky::prelude::*;
+use schemars::JsonSchema;
+use serde::Serialize;
 use std::cell::RefCell;
 use std::ops::Range;
+use std::str::FromStr;
 
 thread_local! {
     // Chumsky only gives the parser closures byte ranges, so stash the current
@@ -139,15 +142,38 @@ struct DelimiterFrame {
     open_span: std::ops::Range<usize>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ParseMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ParseMode {
+    #[default]
     Strict,
     Recovery,
 }
 
 impl ParseMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Strict => "strict",
+            Self::Recovery => "recovery",
+        }
+    }
+
     fn enables_recovery(self) -> bool {
         matches!(self, Self::Recovery)
+    }
+}
+
+impl FromStr for ParseMode {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "strict" => Ok(Self::Strict),
+            "recovery" => Ok(Self::Recovery),
+            _ => Err(format!(
+                "Unknown parse mode '{value}'; expected 'strict' or 'recovery'"
+            )),
+        }
     }
 }
 
@@ -317,7 +343,7 @@ fn delimiter_error_for(
     }
 }
 
-fn parse_with_mode(input: &str, mode: ParseMode) -> RecoveryResult<Document> {
+pub fn parse_with_mode(input: &str, mode: ParseMode) -> RecoveryResult<Document> {
     CURRENT_PARSE_SOURCE.with(|source| {
         *source.borrow_mut() = Some(input.to_string());
     });

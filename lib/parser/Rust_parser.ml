@@ -296,8 +296,11 @@ and nodes_of_json ~source json : Code.t =
 
 (** {2 Parsing functions} *)
 
+type parse_mode = Strict | Recovery
+
 (** Parse using the Rust parser, returning raw JSON string *)
-let parse_to_json (input : string) : (string, string) result =
+let parse_to_json ?(mode : parse_mode = Strict) (input : string) :
+    (string, string) result =
   if not (is_available ()) then Error "Rust parser not available"
   else
     try
@@ -308,7 +311,13 @@ let parse_to_json (input : string) : (string, string) result =
       close_out oc;
 
       (* Run the Rust parser *)
-      let cmd = Printf.sprintf "%s --json %s 2>&1" !rust_parser_path tmp_file in
+      let mode_flag =
+        match mode with Strict -> "" | Recovery -> " --recovery"
+      in
+      let cmd =
+        Printf.sprintf "%s%s --json %s 2>&1" !rust_parser_path mode_flag
+          (Filename.quote tmp_file)
+      in
       let ic = Unix.open_process_in cmd in
       let buf = Buffer.create 1024 in
       (try
@@ -361,6 +370,11 @@ and parse_error_label = {
   end_offset : int;
 }
 
+type parse_outcome =
+  | Parsed of Code.t
+  | Recovered of Code.t * parse_error list
+  | Failed of parse_error list
+
 let parse_error_label_of_json json =
   {
     kind = Util.member "kind" json |> Util.to_string;
@@ -387,11 +401,53 @@ let parse_error_details_of_json json =
        with _ -> []);
   }
 
-(** Parse input and return Code.t or errors *)
-let parse ?source_path (input : string) : (Code.t, parse_error list) result =
-  match parse_to_json input with
+let parse_errors_of_json json =
+  Util.member "errors" json |> Util.to_list
+  |> List.map (fun e ->
+      {
+        message = Util.member "message" e |> Util.to_string;
+        start_offset = Util.member "start_offset" e |> Util.to_int;
+        end_offset = Util.member "end_offset" e |> Util.to_int;
+        report = (try Util.member "report" e |> Util.to_string with _ -> "");
+        details =
+          (match Util.member "details" e with
+          | `Null -> None
+          | details_json -> Some (parse_error_details_of_json details_json));
+      })
+
+let parse_outcome_of_json ?source_path input json : parse_outcome =
+  let source = source_of_input ?source_path input in
+  let status = Util.member "status" json |> Util.to_string in
+  match status with
+  | "ok" ->
+      let doc = Util.member "document" json in
+      let nodes = Util.member "nodes" doc |> nodes_of_json ~source in
+      Parsed nodes
+  | "recovered" ->
+      let doc = Util.member "document" json in
+      let nodes = Util.member "nodes" doc |> nodes_of_json ~source in
+      let errors = parse_errors_of_json json in
+      Recovered (nodes, errors)
+  | "error" ->
+      let errors = parse_errors_of_json json in
+      Failed errors
+  | _ ->
+      Failed
+        [
+          {
+            message = "Unknown status: " ^ status;
+            start_offset = 0;
+            end_offset = 0;
+            report = "";
+            details = None;
+          };
+        ]
+
+let parse_with_mode ?(mode : parse_mode = Strict) ?source_path (input : string)
+    : parse_outcome =
+  match parse_to_json ~mode input with
   | Error msg ->
-      Error
+      Failed
         [
           {
             message = msg;
@@ -404,46 +460,10 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
   | Ok json_str -> (
       try
         let json = Json.from_string json_str in
-        let source = source_of_input ?source_path input in
-        let status = Util.member "status" json |> Util.to_string in
-        match status with
-        | "ok" ->
-            let doc = Util.member "document" json in
-            let nodes = Util.member "nodes" doc |> nodes_of_json ~source in
-            Ok nodes
-        | "error" ->
-            let errors =
-              Util.member "errors" json |> Util.to_list
-              |> List.map (fun e ->
-                  {
-                    message = Util.member "message" e |> Util.to_string;
-                    start_offset = Util.member "start_offset" e |> Util.to_int;
-                    end_offset = Util.member "end_offset" e |> Util.to_int;
-                    report =
-                      (try Util.member "report" e |> Util.to_string
-                       with _ -> "");
-                    details =
-                      (match Util.member "details" e with
-                      | `Null -> None
-                      | details_json ->
-                          Some (parse_error_details_of_json details_json));
-                  })
-            in
-            Error errors
-        | _ ->
-            Error
-              [
-                {
-                  message = "Unknown status: " ^ status;
-                  start_offset = 0;
-                  end_offset = 0;
-                  report = "";
-                  details = None;
-                };
-              ]
+        parse_outcome_of_json ?source_path input json
       with
       | Json.Util.Type_error (msg, _) ->
-          Error
+          Failed
             [
               {
                 message = "JSON type error: " ^ msg;
@@ -454,7 +474,7 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
               };
             ]
       | Failure msg ->
-          Error
+          Failed
             [
               {
                 message = "Conversion error: " ^ msg;
@@ -465,7 +485,7 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
               };
             ]
       | exn ->
-          Error
+          Failed
             [
               {
                 message = "Parse error: " ^ Printexc.to_string exn;
@@ -475,6 +495,16 @@ let parse ?source_path (input : string) : (Code.t, parse_error list) result =
                 details = None;
               };
             ])
+
+(** Parse input and return Code.t or errors *)
+let parse ?source_path (input : string) : (Code.t, parse_error list) result =
+  match parse_with_mode ?source_path ~mode:Strict input with
+  | Parsed nodes -> Ok nodes
+  | Failed errors -> Error errors
+  | Recovered (_nodes, errors) -> Error errors
+
+let parse_recovery ?source_path (input : string) : parse_outcome =
+  parse_with_mode ?source_path ~mode:Recovery input
 
 (** Parse and return Code.tree structure *)
 let parse_tree ?(source_path : string option) (input : string) :

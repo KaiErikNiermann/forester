@@ -7,16 +7,25 @@ use schemars::{schema_for, JsonSchema};
 use serde::Serialize;
 
 use crate::error::{ParseError, ParseErrorDetails};
-use crate::Document;
+use crate::{Document, ParseMode, RecoveryResult};
 
 /// Result of parsing, returned as JSON to external consumers.
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
 #[serde(tag = "status")]
 pub enum ParseResult {
     #[serde(rename = "ok")]
-    Ok { document: Document },
+    Ok { mode: ParseMode, document: Document },
+    #[serde(rename = "recovered")]
+    Recovered {
+        mode: ParseMode,
+        document: Document,
+        errors: Vec<ErrorInfo>,
+    },
     #[serde(rename = "error")]
-    Error { errors: Vec<ErrorInfo> },
+    Error {
+        mode: ParseMode,
+        errors: Vec<ErrorInfo>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
@@ -43,18 +52,46 @@ impl ErrorInfo {
 }
 
 impl ParseResult {
+    fn error_infos(errors: &[ParseError], filename: &str, source: &str) -> Vec<ErrorInfo> {
+        errors
+            .iter()
+            .map(|error| ErrorInfo::from_error(error, filename, source))
+            .collect()
+    }
+
     pub fn from_parse_result(
         result: Result<Document, Vec<ParseError>>,
         filename: &str,
         source: &str,
     ) -> Self {
         match result {
-            Ok(document) => Self::Ok { document },
+            Ok(document) => Self::Ok {
+                mode: ParseMode::Strict,
+                document,
+            },
             Err(errors) => Self::Error {
-                errors: errors
-                    .iter()
-                    .map(|error| ErrorInfo::from_error(error, filename, source))
-                    .collect(),
+                mode: ParseMode::Strict,
+                errors: Self::error_infos(&errors, filename, source),
+            },
+        }
+    }
+
+    pub fn from_recovery_result(
+        result: RecoveryResult<Document>,
+        mode: ParseMode,
+        filename: &str,
+        source: &str,
+    ) -> Self {
+        match (result.output, result.errors) {
+            (Some(document), errors) if errors.is_empty() => Self::Ok { mode, document },
+            (Some(document), errors) => Self::Recovered {
+                mode,
+                document,
+                errors: Self::error_infos(&errors, filename, source),
+            },
+            (None, errors) => Self::Error {
+                mode,
+                errors: Self::error_infos(&errors, filename, source),
             },
         }
     }
@@ -90,11 +127,13 @@ mod tests {
     #[test]
     fn parse_result_serializes_status_envelope() {
         let result = ParseResult::Ok {
+            mode: ParseMode::Strict,
             document: Document::new(vec![]),
         };
 
         let json = serde_json::to_value(result).expect("serialize parse result");
         assert_eq!(json["status"], "ok");
+        assert_eq!(json["mode"], "strict");
         assert!(json.get("document").is_some());
     }
 
@@ -111,5 +150,23 @@ mod tests {
         assert_eq!(details["labels"].as_array().expect("labels array").len(), 2);
         assert_eq!(details["labels"][0]["kind"], "context");
         assert_eq!(details["labels"][1]["kind"], "primary");
+        assert_eq!(json["mode"], "strict");
+    }
+
+    #[test]
+    fn parse_result_serializes_recovered_documents() {
+        let input = "\\p{]}\n\\p{tail}";
+        let result = ParseResult::from_recovery_result(
+            crate::parse_recovery(input),
+            ParseMode::Recovery,
+            "test.tree",
+            input,
+        );
+        let json = serde_json::to_value(result).expect("serialize parse result");
+
+        assert_eq!(json["status"], "recovered");
+        assert_eq!(json["mode"], "recovery");
+        assert!(json.get("document").is_some());
+        assert!(json.get("errors").is_some());
     }
 }

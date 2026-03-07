@@ -10,7 +10,46 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
 use crate::json::{ErrorInfo, ParseResult};
-use crate::{parse, ParseError};
+use crate::{parse_with_mode, ParseError, ParseMode};
+
+fn parse_result_json(input_str: &str, filename: Option<&str>, mode: ParseMode) -> ParseResult {
+    let filename_str = filename.unwrap_or("<input>");
+    let mut result = parse_with_mode(input_str, mode);
+
+    if let Some(source_path) = filename {
+        if let Some(document) = result.output.take() {
+            result.output = Some(document.with_source_path(source_path.to_string()));
+        }
+    }
+
+    ParseResult::from_recovery_result(result, mode, filename_str, input_str)
+}
+
+fn error_json(message: &str, mode: ParseMode) -> String {
+    let error = ParseError::Custom {
+        message: message.to_string(),
+        span: 0..0,
+    };
+    let result = ParseResult::Error {
+        mode,
+        errors: vec![ErrorInfo::from_error(&error, "<input>", "")],
+    };
+
+    serde_json::to_string(&result).unwrap()
+}
+
+unsafe fn decode_parse_mode(mode: *const c_char) -> Result<ParseMode, String> {
+    if mode.is_null() {
+        return Ok(ParseMode::Strict);
+    }
+
+    let mode_cstr = unsafe { CStr::from_ptr(mode) };
+    let mode_str = mode_cstr
+        .to_str()
+        .map_err(|_| "Invalid UTF-8 parse mode".to_string())?;
+
+    mode_str.parse()
+}
 
 /// Parse input and return JSON result
 ///
@@ -19,7 +58,20 @@ use crate::{parse, ParseError};
 /// - The returned string must be freed with `rust_parser_free_string`
 #[no_mangle]
 pub unsafe extern "C" fn rust_parser_parse(input: *const c_char) -> *mut c_char {
-    rust_parser_parse_with_filename(input, std::ptr::null())
+    unsafe { rust_parser_parse_with_filename_and_mode(input, std::ptr::null(), std::ptr::null()) }
+}
+
+/// Parse input and return JSON result using an explicit parse mode.
+///
+/// # Safety
+/// - `input` and `mode` must be valid null-terminated UTF-8 strings when non-null
+/// - The returned string must be freed with `rust_parser_free_string`
+#[no_mangle]
+pub unsafe extern "C" fn rust_parser_parse_with_mode(
+    input: *const c_char,
+    mode: *const c_char,
+) -> *mut c_char {
+    unsafe { rust_parser_parse_with_filename_and_mode(input, std::ptr::null(), mode) }
 }
 
 /// Parse input and return JSON result (with filename for error reporting)
@@ -32,37 +84,46 @@ pub unsafe extern "C" fn rust_parser_parse_with_filename(
     input: *const c_char,
     filename: *const c_char,
 ) -> *mut c_char {
+    unsafe { rust_parser_parse_with_filename_and_mode(input, filename, std::ptr::null()) }
+}
+
+/// Parse input and return JSON result (with filename and explicit mode).
+///
+/// # Safety
+/// - `input`, `filename`, and `mode` must be valid null-terminated UTF-8 strings when non-null
+/// - The returned string must be freed with `rust_parser_free_string`
+#[no_mangle]
+pub unsafe extern "C" fn rust_parser_parse_with_filename_and_mode(
+    input: *const c_char,
+    filename: *const c_char,
+    mode: *const c_char,
+) -> *mut c_char {
+    let parse_mode = match unsafe { decode_parse_mode(mode) } {
+        Ok(parse_mode) => parse_mode,
+        Err(message) => {
+            return CString::new(error_json(&message, ParseMode::Strict))
+                .unwrap()
+                .into_raw()
+        }
+    };
+
     let c_str = unsafe { CStr::from_ptr(input) };
     let input_str = match c_str.to_str() {
         Ok(s) => s,
         Err(_) => {
-            let error = ParseError::Custom {
-                message: "Invalid UTF-8 input".to_string(),
-                span: 0..0,
-            };
-            let result = ParseResult::Error {
-                errors: vec![ErrorInfo::from_error(&error, "<input>", "")],
-            };
-            let json = serde_json::to_string(&result).unwrap();
+            let json = error_json("Invalid UTF-8 input", parse_mode);
             return CString::new(json).unwrap().into_raw();
         }
     };
 
     let filename_str = if filename.is_null() {
-        "<input>"
+        None
     } else {
         let filename_c = unsafe { CStr::from_ptr(filename) };
-        filename_c.to_str().unwrap_or("<unknown>")
+        Some(filename_c.to_str().unwrap_or("<unknown>"))
     };
 
-    let result = match parse(input_str) {
-        Ok(doc) if filename.is_null() => ParseResult::Ok { document: doc },
-        Ok(doc) => ParseResult::Ok {
-            document: doc.with_source_path(filename_str.to_string()),
-        },
-        Err(errors) => ParseResult::from_parse_result(Err(errors), filename_str, input_str),
-    };
-
+    let result = parse_result_json(input_str, filename_str, parse_mode);
     let json = serde_json::to_string(&result).unwrap();
     CString::new(json).unwrap().into_raw()
 }
@@ -108,7 +169,9 @@ mod tests {
         unsafe {
             let result = rust_parser_parse(input.as_ptr());
             let result_str = CStr::from_ptr(result).to_str().unwrap();
-            assert!(result_str.contains("\"status\":\"ok\""));
+            let json: serde_json::Value = serde_json::from_str(result_str).expect("parse ffi json");
+            assert_eq!(json["status"], "ok");
+            assert_eq!(json["mode"], "strict");
             rust_parser_free_string(result);
         }
     }
@@ -120,8 +183,43 @@ mod tests {
         unsafe {
             let result = rust_parser_parse_with_filename(input.as_ptr(), filename.as_ptr());
             let result_str = CStr::from_ptr(result).to_str().unwrap();
-            assert!(result_str.contains("\"status\":\"error\""));
-            assert!(result_str.contains("\"report\":")); // Contains ariadne report
+            let json: serde_json::Value = serde_json::from_str(result_str).expect("parse ffi json");
+            assert_eq!(json["status"], "error");
+            assert_eq!(json["mode"], "strict");
+            assert!(json["errors"][0].get("report").is_some());
+            rust_parser_free_string(result);
+        }
+    }
+
+    #[test]
+    fn test_ffi_parse_recovery_mode() {
+        let input = CString::new("\\p{]}\n\\p{tail}").unwrap();
+        let mode = CString::new("recovery").unwrap();
+        unsafe {
+            let result = rust_parser_parse_with_mode(input.as_ptr(), mode.as_ptr());
+            let result_str = CStr::from_ptr(result).to_str().unwrap();
+            let json: serde_json::Value = serde_json::from_str(result_str).expect("parse ffi json");
+            assert_eq!(json["status"], "recovered");
+            assert_eq!(json["mode"], "recovery");
+            assert!(json.get("document").is_some());
+            assert!(json.get("errors").is_some());
+            rust_parser_free_string(result);
+        }
+    }
+
+    #[test]
+    fn test_ffi_parse_invalid_mode() {
+        let input = CString::new("\\title{Hello}").unwrap();
+        let mode = CString::new("bogus").unwrap();
+        unsafe {
+            let result = rust_parser_parse_with_mode(input.as_ptr(), mode.as_ptr());
+            let result_str = CStr::from_ptr(result).to_str().unwrap();
+            let json: serde_json::Value = serde_json::from_str(result_str).expect("parse ffi json");
+            assert_eq!(json["status"], "error");
+            assert!(json["errors"][0]["message"]
+                .as_str()
+                .expect("error message")
+                .contains("Unknown parse mode"));
             rust_parser_free_string(result);
         }
     }

@@ -1,5 +1,6 @@
 {
   "status": "error",
+  "mode": "strict",
   "errors": [
     {
       "message": "syntax error, unexpected \"!\"",
