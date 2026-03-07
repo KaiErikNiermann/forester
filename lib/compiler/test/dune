@@ -6,6 +6,7 @@
  (names
  Test_expansion
   Test_compiler
+  Test_dir_scanner
   Test_markdown_conversion
   Test_markdown_fixture_conversion
   Test_diagnostic_store

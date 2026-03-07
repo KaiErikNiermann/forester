@@ -6,42 +6,40 @@
 
 open Forester_prelude
 open Forester_core
-
 module EP = Eio.Path
-module S = Algaeff.Sequencer.Make(struct type t = Eio.Fs.dir_ty EP.t end)
+
+module S = Algaeff.Sequencer.Make (struct
+  type t = Eio.Fs.dir_ty EP.t
+end)
 
 let rec process_file condition fp =
-  if EP.is_directory fp then
-    process_dir condition fp
-  else if condition fp then
-    S.yield fp
+  if EP.is_directory fp then process_dir condition fp
+  else if condition fp then S.yield fp
 
 and process_dir condition dir =
   assert (not @@ Filename.is_relative @@ EP.native_exn dir);
   try
     let@ fp = List.iter @~ EP.read_dir dir in
     process_file condition EP.(dir / fp)
-  with
-    | Eio.Io (Eio.Fs.E (Permission_denied _), _) -> ()
+  with Eio.Io (Eio.Fs.E (Permission_denied _), _) -> ()
 
 let is_tree fp =
   match EP.split fp with
   | None -> false
   | Some (_, basename) ->
-    Filename.extension basename = ".tree" && not @@ String.starts_with ~prefix: "." basename
+      let extension = String.lowercase_ascii (Filename.extension basename) in
+      List.mem extension [ ".tree"; ".md"; ".markdown" ]
+      && (not @@ String.starts_with ~prefix:"." basename)
 
 let is_not_hidden fp =
   match EP.split fp with
   | None -> false
-  | Some (_, basename) ->
-    not @@ String.starts_with ~prefix: "." basename
+  | Some (_, basename) -> not @@ String.starts_with ~prefix:"." basename
 
 let matching_basename str fp =
   match EP.split fp with
   | None -> false
-  | Some (_, basename) ->
-    is_tree fp
-    && Filename.chop_extension basename = str
+  | Some (_, basename) -> is_tree fp && Filename.chop_extension basename = str
 
 let scan_directories dirs =
   let@ () = S.run in
@@ -68,5 +66,5 @@ let find_tree dirs uri =
     if Filename.is_relative native then raise (Is_relative native);
     Some first_match
   with
-    | Is_relative _ -> assert false
-    | Failure _ -> None
+  | Is_relative _ -> assert false
+  | Failure _ -> None
