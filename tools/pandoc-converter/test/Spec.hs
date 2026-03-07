@@ -6,6 +6,7 @@
 module Main (main) where
 
 import Data.Char (isSpace)
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Forester.Pandoc
@@ -51,6 +52,7 @@ main = do
   testStrictDiagnostics
   testUnsupportedTableDiagnostics
   testRoundTripInvariants
+  testCoverageBaseline
   testFixtureSnapshots
 
 fixturesRoot :: FilePath
@@ -320,6 +322,126 @@ assertRoundTripInvariant label markdownSource = do
   roundTrippedMarkdown <- expectRight (label <> ": forester -> markdown") (convert ForesterToMarkdown firstForester)
   secondForester <- expectRight (label <> ": markdown -> forester again") (convert MarkdownToForester roundTrippedMarkdown)
   assertEqual (label <> ": forester round-trip stays stable") firstForester secondForester
+
+testCoverageBaseline :: IO ()
+testCoverageBaseline = do
+  stems <- loadFixtureStems
+  fixtureCoverage <-
+    fmap mconcat $
+      mapM
+        (\stem -> do
+           markdown <- TIO.readFile (fixtureMarkdownPath stem)
+           coverageReport <$> expectRight ("coverage fixture conversion succeeds: " <> stem) (convertMarkdownToForesterWith defaultConversionOptions markdown)
+        )
+        stems
+  syntheticCoverage <-
+    fmap mconcat $
+      mapM
+        (\(label, markdownSource) ->
+           coverageReport <$> expectRight (label <> ": synthetic coverage conversion succeeds") (convertMarkdownToForesterWith defaultConversionOptions markdownSource)
+        )
+        syntheticCoverageSources
+  let totalCoverage = fixtureCoverage <> syntheticCoverage
+  assertCoverageContains
+    "block constructor coverage"
+    blockConstructors
+    [ "Plain"
+    , "Para"
+    , "Header"
+    , "BulletList"
+    , "OrderedList"
+    , "BlockQuote"
+    , "CodeBlock"
+    , "LineBlock"
+    , "DefinitionList"
+    , "Div"
+    , "RawBlock"
+    , "HorizontalRule"
+    , "Table"
+    , "Figure"
+    ]
+    totalCoverage
+  assertCoverageContains
+    "inline constructor coverage"
+    inlineConstructors
+    [ "Str"
+    , "Space"
+    , "SoftBreak"
+    , "LineBreak"
+    , "Emph"
+    , "Strong"
+    , "Strikeout"
+    , "Cite"
+    , "Code"
+    , "Math"
+    , "RawInline"
+    , "Link"
+    , "Image"
+    , "Note"
+    , "Span"
+    ]
+    totalCoverage
+  assertCoverageContains
+    "meta value constructor coverage"
+    metaValueConstructors
+    [ "MetaBool"
+    , "MetaInlines"
+    , "MetaList"
+    , "MetaMap"
+    ]
+    totalCoverage
+
+syntheticCoverageSources :: [(String, T.Text)]
+syntheticCoverageSources =
+  [ ( "coverage linebreak-strikeout-div-horizontal-rule"
+    , T.unlines
+        [ "---"
+        , "published: true"
+        , "nested:"
+        , "  flag: true"
+        , "---"
+        , ""
+        , "First line"
+        , "second line"
+        , ""
+        , "Line with explicit break\\"
+        , "next line"
+        , ""
+        , "~~struck~~ text"
+        , ""
+        , "| line one"
+        , "| line two"
+        , ""
+        , "::: note"
+        , "Div body"
+        , ":::"
+        , ""
+        , "---"
+        ]
+      )
+  , ( "coverage raw-preservation"
+    , T.unlines
+        [ "```{=html}"
+        , "<div class=\"coverage\">raw block</div>"
+        , "```"
+        , ""
+        , "`<span>raw inline</span>`{=html}"
+        ]
+      )
+    ]
+
+assertCoverageContains :: String -> (CoverageReport -> M.Map T.Text Int) -> [T.Text] -> CoverageReport -> IO ()
+assertCoverageContains label accessor expectedConstructors report = do
+  let constructorCounts = accessor report
+      missingConstructors =
+        filter (\name -> M.findWithDefault 0 name constructorCounts <= 0) expectedConstructors
+  if null missingConstructors
+    then pure ()
+    else do
+      putStrLn ("Assertion failed: " <> label)
+      putStrLn ("Missing coverage for: " <> show (map T.unpack missingConstructors))
+      putStrLn ("Observed counts: " <> show (M.mapKeys T.unpack constructorCounts))
+      exitFailure
 
 testFixtureSnapshots :: IO ()
 testFixtureSnapshots = do

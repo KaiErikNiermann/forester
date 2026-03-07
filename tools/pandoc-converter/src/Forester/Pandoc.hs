@@ -6,6 +6,7 @@
 
 module Forester.Pandoc
   ( Command (..)
+  , CoverageReport (..)
   , ConversionDiagnostic (..)
   , ConversionError (..)
   , ConversionInputProfile (..)
@@ -66,11 +67,35 @@ data ConversionOptions = ConversionOptions
   , readerOptions :: ReaderOptions
   }
 
+data CoverageReport = CoverageReport
+  { blockConstructors :: M.Map T.Text Int
+  , inlineConstructors :: M.Map T.Text Int
+  , metaValueConstructors :: M.Map T.Text Int
+  }
+  deriving (Eq, Show)
+
 data ConversionOutput = ConversionOutput
   { convertedText :: T.Text
   , diagnostics :: [ConversionDiagnostic]
+  , coverageReport :: CoverageReport
   }
   deriving (Eq, Show)
+
+instance Semigroup CoverageReport where
+  left <> right =
+    CoverageReport
+      { blockConstructors = mergeCounts (blockConstructors left) (blockConstructors right)
+      , inlineConstructors = mergeCounts (inlineConstructors left) (inlineConstructors right)
+      , metaValueConstructors = mergeCounts (metaValueConstructors left) (metaValueConstructors right)
+      }
+
+instance Monoid CoverageReport where
+  mempty =
+    CoverageReport
+      { blockConstructors = M.empty
+      , inlineConstructors = M.empty
+      , metaValueConstructors = M.empty
+      }
 
 defaultConversionOptions :: ConversionOptions
 defaultConversionOptions =
@@ -125,6 +150,7 @@ convertMarkdownToForester source =
 convertMarkdownToForesterWith :: ConversionOptions -> T.Text -> Either ConversionError ConversionOutput
 convertMarkdownToForesterWith options source = do
   document <- first MarkdownReadFailed (runPure (readMarkdown (readerOptions options) source))
+  let coverage = collectCoverageReport document
   let (normalizedDoc, collectedDiagnostics) = W.runWriter (normalizePandoc document)
   if strictMode options && not (null collectedDiagnostics)
     then Left (StrictModeDiagnostics collectedDiagnostics)
@@ -133,6 +159,7 @@ convertMarkdownToForesterWith options source = do
         ConversionOutput
           { convertedText = renderNormalizedDocument normalizedDoc
           , diagnostics = collectedDiagnostics
+          , coverageReport = coverage
           }
 
 convertForesterToMarkdown :: T.Text -> Either ConversionError T.Text
@@ -183,6 +210,175 @@ data NormalizedMetadata = NormalizedMetadata
   { metadataBlocks :: [NormalizedBlock]
   , hasDocumentTitle :: Bool
   }
+
+mergeCounts :: M.Map T.Text Int -> M.Map T.Text Int -> M.Map T.Text Int
+mergeCounts =
+  M.unionWith (+)
+
+singletonCoverage :: (CoverageReport -> M.Map T.Text Int) -> (M.Map T.Text Int -> CoverageReport -> CoverageReport) -> T.Text -> CoverageReport
+singletonCoverage getter setter name =
+  setter (M.insertWith (+) name 1 (getter mempty)) mempty
+
+withBlockConstructors :: M.Map T.Text Int -> CoverageReport -> CoverageReport
+withBlockConstructors constructors coverageAcc =
+  coverageAcc {blockConstructors = constructors}
+
+withInlineConstructors :: M.Map T.Text Int -> CoverageReport -> CoverageReport
+withInlineConstructors constructors coverageAcc =
+  coverageAcc {inlineConstructors = constructors}
+
+withMetaValueConstructors :: M.Map T.Text Int -> CoverageReport -> CoverageReport
+withMetaValueConstructors constructors coverageAcc =
+  coverageAcc {metaValueConstructors = constructors}
+
+blockCoverage :: T.Text -> CoverageReport
+blockCoverage =
+  singletonCoverage blockConstructors withBlockConstructors
+
+inlineCoverage :: T.Text -> CoverageReport
+inlineCoverage =
+  singletonCoverage inlineConstructors withInlineConstructors
+
+metaValueCoverage :: T.Text -> CoverageReport
+metaValueCoverage =
+  singletonCoverage metaValueConstructors withMetaValueConstructors
+
+collectCoverageReport :: Pandoc -> CoverageReport
+collectCoverageReport (Pandoc meta blocks) =
+  collectMetaCoverage meta <> mconcat (map collectBlockCoverage blocks)
+
+collectMetaCoverage :: Meta -> CoverageReport
+collectMetaCoverage (Meta values) =
+  mconcat (map collectMetaValueCoverage (M.elems values))
+
+collectMetaValueCoverage :: MetaValue -> CoverageReport
+collectMetaValueCoverage = \case
+  MetaBool _ ->
+    metaValueCoverage "MetaBool"
+  MetaString _ ->
+    metaValueCoverage "MetaString"
+  MetaInlines inlines ->
+    metaValueCoverage "MetaInlines" <> mconcat (map collectInlineCoverage inlines)
+  MetaBlocks blocks ->
+    metaValueCoverage "MetaBlocks" <> mconcat (map collectBlockCoverage blocks)
+  MetaList values ->
+    metaValueCoverage "MetaList" <> mconcat (map collectMetaValueCoverage values)
+  MetaMap values ->
+    metaValueCoverage "MetaMap" <> mconcat (map collectMetaValueCoverage (M.elems values))
+
+collectBlockCoverage :: Block -> CoverageReport
+collectBlockCoverage = \case
+  Plain inlines ->
+    blockCoverage "Plain" <> mconcat (map collectInlineCoverage inlines)
+  Para inlines ->
+    blockCoverage "Para" <> mconcat (map collectInlineCoverage inlines)
+  Header _ _ inlines ->
+    blockCoverage "Header" <> mconcat (map collectInlineCoverage inlines)
+  BulletList items ->
+    blockCoverage "BulletList" <> mconcat (map (mconcat . map collectBlockCoverage) items)
+  OrderedList _ items ->
+    blockCoverage "OrderedList" <> mconcat (map (mconcat . map collectBlockCoverage) items)
+  BlockQuote blocks ->
+    blockCoverage "BlockQuote" <> mconcat (map collectBlockCoverage blocks)
+  CodeBlock _ _ ->
+    blockCoverage "CodeBlock"
+  LineBlock linesOfInlines ->
+    blockCoverage "LineBlock" <> mconcat (map (mconcat . map collectInlineCoverage) linesOfInlines)
+  DefinitionList items ->
+    blockCoverage "DefinitionList"
+      <> mconcat
+        ( map
+            (\(term, definitions) ->
+               mconcat (map collectInlineCoverage term)
+                 <> mconcat (map (mconcat . map collectBlockCoverage) definitions)
+            )
+            items
+        )
+  Div _ blocks ->
+    blockCoverage "Div" <> mconcat (map collectBlockCoverage blocks)
+  RawBlock _ _ ->
+    blockCoverage "RawBlock"
+  HorizontalRule ->
+    blockCoverage "HorizontalRule"
+  Table _ caption _ headRows bodies footRows ->
+    blockCoverage "Table"
+      <> collectCaptionCoverage caption
+      <> collectTableHeadCoverage headRows
+      <> mconcat (map collectTableBodyCoverage bodies)
+      <> collectTableFootCoverage footRows
+  Figure _ caption blocks ->
+    blockCoverage "Figure"
+      <> collectCaptionCoverage caption
+      <> mconcat (map collectBlockCoverage blocks)
+
+collectCaptionCoverage :: Caption -> CoverageReport
+collectCaptionCoverage (Caption shortCaption longBlocks) =
+  maybe mempty (mconcat . map collectInlineCoverage) shortCaption
+    <> mconcat (map collectBlockCoverage longBlocks)
+
+collectTableHeadCoverage :: TableHead -> CoverageReport
+collectTableHeadCoverage (TableHead _ rows) =
+  mconcat (map collectRowCoverage rows)
+
+collectTableBodyCoverage :: TableBody -> CoverageReport
+collectTableBodyCoverage (TableBody _ _ headRows bodyRows) =
+  mconcat (map collectRowCoverage headRows)
+    <> mconcat (map collectRowCoverage bodyRows)
+
+collectTableFootCoverage :: TableFoot -> CoverageReport
+collectTableFootCoverage (TableFoot _ rows) =
+  mconcat (map collectRowCoverage rows)
+
+collectRowCoverage :: Row -> CoverageReport
+collectRowCoverage (Row _ cells) =
+  mconcat (map collectCellCoverage cells)
+
+collectCellCoverage :: Cell -> CoverageReport
+collectCellCoverage (Cell _ _ _ _ blocks) =
+  mconcat (map collectBlockCoverage blocks)
+
+collectInlineCoverage :: Inline -> CoverageReport
+collectInlineCoverage = \case
+  Str _ ->
+    inlineCoverage "Str"
+  Space ->
+    inlineCoverage "Space"
+  SoftBreak ->
+    inlineCoverage "SoftBreak"
+  LineBreak ->
+    inlineCoverage "LineBreak"
+  Emph inlines ->
+    inlineCoverage "Emph" <> mconcat (map collectInlineCoverage inlines)
+  Strong inlines ->
+    inlineCoverage "Strong" <> mconcat (map collectInlineCoverage inlines)
+  Underline inlines ->
+    inlineCoverage "Underline" <> mconcat (map collectInlineCoverage inlines)
+  Strikeout inlines ->
+    inlineCoverage "Strikeout" <> mconcat (map collectInlineCoverage inlines)
+  Superscript inlines ->
+    inlineCoverage "Superscript" <> mconcat (map collectInlineCoverage inlines)
+  Subscript inlines ->
+    inlineCoverage "Subscript" <> mconcat (map collectInlineCoverage inlines)
+  SmallCaps inlines ->
+    inlineCoverage "SmallCaps" <> mconcat (map collectInlineCoverage inlines)
+  Quoted _ inlines ->
+    inlineCoverage "Quoted" <> mconcat (map collectInlineCoverage inlines)
+  Cite _ inlines ->
+    inlineCoverage "Cite" <> mconcat (map collectInlineCoverage inlines)
+  Code _ _ ->
+    inlineCoverage "Code"
+  Math _ _ ->
+    inlineCoverage "Math"
+  RawInline _ _ ->
+    inlineCoverage "RawInline"
+  Link _ inlines _ ->
+    inlineCoverage "Link" <> mconcat (map collectInlineCoverage inlines)
+  Image _ inlines _ ->
+    inlineCoverage "Image" <> mconcat (map collectInlineCoverage inlines)
+  Note blocks ->
+    inlineCoverage "Note" <> mconcat (map collectBlockCoverage blocks)
+  Span _ inlines ->
+    inlineCoverage "Span" <> mconcat (map collectInlineCoverage inlines)
 
 normalizePandoc :: Pandoc -> Normalizer NormalizedDocument
 normalizePandoc (Pandoc meta blocks) = do
