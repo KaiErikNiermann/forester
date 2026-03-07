@@ -12,3 +12,14 @@
   forester.core
   forester.parser
   forester.frontend))
+
+(test
+ (name Test_rust_parser_parity)
+ (libraries
+  alcotest
+  forester.test
+  forester.prelude
+  forester.compiler
+  forester.core
+  forester.parser
+  forester.frontend))

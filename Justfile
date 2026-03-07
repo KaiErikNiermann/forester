@@ -44,7 +44,10 @@ lint:
   just lint-rust-deps
 
 test-ocaml:
-  opam exec -- dune runtest
+  ./scripts/test-ocaml.sh
+
+test-parser-sync:
+  ./scripts/test-ocaml.sh lib/parser/test
 
 test-rust:
   cargo test --manifest-path tools/rust-parser/Cargo.toml
