@@ -558,7 +558,7 @@ where
     P: Parser<Token, O, Error = Simple<Token>> + Clone,
 {
     choice((
-        select! { Token::Whitespace(_) => Vec::<O>::new() },
+        select! { Token::Whitespace(s) if is_code_whitespace(&s) => Vec::<O>::new() },
         parser.map(|node| vec![node]),
     ))
 }
@@ -570,6 +570,20 @@ where
     ws_or(parser)
         .repeated()
         .map(|chunks| chunks.into_iter().flatten().collect())
+}
+
+fn is_code_whitespace(s: &str) -> bool {
+    s.chars().all(|ch| matches!(ch, ' ' | '\n' | '\r'))
+}
+
+fn top_level_ws_or<P, O>(parser: P) -> impl Parser<Token, Vec<O>, Error = Simple<Token>> + Clone
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone,
+{
+    choice((
+        select! { Token::Whitespace(s) if is_code_whitespace(&s) => Vec::<O>::new() },
+        parser.map(|node| vec![node]),
+    ))
 }
 
 fn import_parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
@@ -595,7 +609,10 @@ fn import_parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> +
 
 /// Document parser - parses a sequence of nodes
 fn document_parser(mode: ParseMode) -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
-    ws_list(choice((import_parser(), parser(mode)))).then_ignore(end())
+    top_level_ws_or(choice((import_parser(), parser(mode))))
+        .repeated()
+        .map(|chunks| chunks.into_iter().flatten().collect())
+        .then_ignore(end())
 }
 
 /// Single non-import node parser
@@ -1578,7 +1595,7 @@ mod tests {
 
     #[test]
     fn test_top_level_whitespace_is_dropped() {
-        let result = parse(" \n\t\\title{Hello}\n");
+        let result = parse(" \n\\title{Hello}\n");
         assert!(result.is_ok());
         let doc = result.unwrap();
         assert_eq!(doc.nodes.len(), 2);
@@ -1592,6 +1609,12 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn test_top_level_tab_is_rejected() {
+        let result = parse("\t");
+        assert!(result.is_err());
     }
 
     #[test]
