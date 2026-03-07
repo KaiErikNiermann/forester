@@ -183,6 +183,11 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         }
         .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
 
+        let xml_ident = select! {
+            Token::XmlIdent(prefix, name) => Node::XmlIdent { prefix, name },
+        }
+        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
+
         // Verbatim body already resolved by the lexer.
         let verbatim = select! {
             Token::Verbatim(s) => Node::verbatim(s),
@@ -246,6 +251,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             .clone()
             .repeated()
             .delimited_by(just(Token::LBrace), just(Token::RBrace));
+
+        let wstext = select! {
+            Token::Text(s) => s,
+            Token::Ident(s) => s,
+            Token::Whitespace(s) => s,
+        }
+        .repeated()
+        .map(|parts| parts.join(""));
 
         // Square bracketed binding: [name] or [~name]
         let binding = select! { Token::Ident(s) => s, Token::Text(s) => s }
@@ -346,17 +359,12 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         // \import{target}
         let import_cmd = just(Token::KwImport)
-            .ignore_then(
-                select! { Token::Text(s) => s, Token::Ident(s) => s, Token::Whitespace(s) => s }
-                    .repeated()
-                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .ignore_then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
             .map_with_span(|parts, span| {
-                let target = parts.join("");
                 Located::new(
                     Node::Import {
                         visibility: Visibility::Private,
-                        target,
+                        target: parts,
                     },
                     Some(make_span_from_range(span)),
                 )
@@ -364,18 +372,22 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         // \export{target}
         let export_cmd = just(Token::KwExport)
-            .ignore_then(
-                select! { Token::Text(s) => s, Token::Ident(s) => s, Token::Whitespace(s) => s }
-                    .repeated()
-                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
-            )
+            .ignore_then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
             .map_with_span(|parts, span| {
-                let target = parts.join("");
                 Located::new(
                     Node::Import {
                         visibility: Visibility::Public,
-                        target,
+                        target: parts,
                     },
+                    Some(make_span_from_range(span)),
+                )
+            });
+
+        let decl_xmlns_cmd = select! { Token::DeclXmlns(prefix) => prefix }
+            .then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
+            .map_with_span(|(prefix, uri), span| {
+                Located::new(
+                    Node::DeclXmlns { prefix, uri },
                     Some(make_span_from_range(span)),
                 )
             });
@@ -383,10 +395,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         // \subtree[addr]{body} or \subtree{body}
         let subtree_cmd = just(Token::KwSubtree)
             .ignore_then(
-                select! { Token::Ident(s) => s, Token::Text(s) => s, Token::Whitespace(s) => s }
-                    .repeated()
+                wstext
                     .delimited_by(just(Token::LSquare), just(Token::RSquare))
-                    .map(|parts| parts.join(""))
                     .or_not(),
             )
             .then(braced_arg.clone())
@@ -417,12 +427,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             let_cmd,
             import_cmd,
             export_cmd,
+            decl_xmlns_cmd,
             subtree_cmd,
             scope_cmd,
             // Then try title and p as special cases
             title_cmd,
             p_cmd,
             generic_cmd,
+            xml_ident,
             // Groups
             braces,
             squares,
@@ -579,6 +591,28 @@ mod tests {
         let doc = result.unwrap();
         assert_eq!(doc.nodes.len(), 1);
         assert!(matches!(&doc.nodes[0].value, Node::Verbatim { content } if content == "hello"));
+    }
+
+    #[test]
+    fn test_parse_xml_ident_node() {
+        let result = parse("\\<svg:path>");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::XmlIdent { prefix, name } if prefix.as_deref() == Some("svg") && name == "path")
+        );
+    }
+
+    #[test]
+    fn test_parse_decl_xmlns_node() {
+        let result = parse("\\xmlns:svg{https://example.com/svg}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::DeclXmlns { prefix, uri } if prefix == "svg" && uri == "https://example.com/svg")
+        );
     }
 
     #[test]

@@ -44,6 +44,8 @@ pub enum Token {
     KwPatch,
     KwCall,
     KwDatalog,
+    XmlIdent(Option<String>, String),
+    DeclXmlns(String),
     Ident(String),
     HashIdent(String),
     DxVar(String),
@@ -85,6 +87,11 @@ impl fmt::Display for Token {
             Token::KwPatch => write!(f, "patch"),
             Token::KwCall => write!(f, "call"),
             Token::KwDatalog => write!(f, "datalog"),
+            Token::XmlIdent(prefix, name) => match prefix {
+                Some(prefix) => write!(f, "xml-ident:{prefix}:{name}"),
+                None => write!(f, "xml-ident:{name}"),
+            },
+            Token::DeclXmlns(prefix) => write!(f, "xmlns:{prefix}"),
             Token::Ident(s) => write!(f, "ident:{s}"),
             Token::HashIdent(s) => write!(f, "#{s}"),
             Token::DxVar(s) => write!(f, "?{s}"),
@@ -172,6 +179,14 @@ impl<'a> Scanner<'a> {
 
 fn is_simple_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || ch == '-'
+}
+
+fn is_xml_base_ident_start(ch: char) -> bool {
+    ch.is_ascii_alphabetic()
+}
+
+fn is_xml_base_ident_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
 }
 
 fn is_special_name_char(ch: char) -> bool {
@@ -383,6 +398,18 @@ fn try_keyword(
     }
 }
 
+fn consume_xml_base_ident(scanner: &mut Scanner<'_>) -> Option<Range<usize>> {
+    let start = scanner.pos;
+    let ch = scanner.peek_char()?;
+    if !is_xml_base_ident_start(ch) {
+        return None;
+    }
+
+    let _ = scanner.advance_char();
+    let _ = scanner.consume_while(is_xml_base_ident_char);
+    Some(start..scanner.pos)
+}
+
 fn lex_ident_init(
     scanner: &mut Scanner<'_>,
     modes: &mut Vec<Mode>,
@@ -396,6 +423,67 @@ fn lex_ident_init(
             "expected command or identifier after backslash",
         )]);
     };
+
+    if ch == '<' {
+        let start = scanner.pos;
+        let _ = scanner.advance_char();
+
+        let Some(first) = consume_xml_base_ident(scanner) else {
+            return Err(vec![lexer_error(
+                backslash_start,
+                start..scanner.pos,
+                "invalid XML identifier after backslash",
+            )]);
+        };
+
+        let first_ident = scanner.slice(first).to_string();
+        let (prefix, name) = if scanner.peek_char() == Some(':') {
+            let _ = scanner.advance_char();
+            let Some(second) = consume_xml_base_ident(scanner) else {
+                return Err(vec![lexer_error(
+                    backslash_start,
+                    start..scanner.pos,
+                    "invalid qualified XML identifier after backslash",
+                )]);
+            };
+            (Some(first_ident), scanner.slice(second).to_string())
+        } else {
+            (None, first_ident)
+        };
+
+        if scanner.peek_char() != Some('>') {
+            return Err(vec![lexer_error(
+                backslash_start,
+                start..scanner.pos,
+                "unterminated XML identifier after backslash",
+            )]);
+        }
+
+        let _ = scanner.advance_char();
+        modes.pop();
+        push_token(tokens, Token::XmlIdent(prefix, name), start..scanner.pos);
+        return Ok(());
+    }
+
+    if scanner.starts_with("xmlns:") {
+        let start = scanner.pos;
+        scanner.advance_bytes("xmlns:".len());
+        let Some(prefix) = consume_xml_base_ident(scanner) else {
+            return Err(vec![lexer_error(
+                backslash_start,
+                start..scanner.pos,
+                "invalid xmlns prefix after backslash",
+            )]);
+        };
+
+        modes.pop();
+        push_token(
+            tokens,
+            Token::DeclXmlns(scanner.slice(prefix).to_string()),
+            start..scanner.pos,
+        );
+        return Ok(());
+    }
 
     if scanner.starts_with("startverb") {
         scanner.advance_bytes("startverb".len());
@@ -742,5 +830,33 @@ mod tests {
     fn test_unterminated_verbatim_errors() {
         let errors = tokenize("\\startverb\nhello").unwrap_err();
         assert_eq!(errors[0].to_string(), "unterminated verbatim");
+    }
+
+    #[test]
+    fn test_xml_ident_tokens() {
+        let tokens = tokenize("\\<svg:path> \\<article>").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                Token::XmlIdent(Some("svg".to_string()), "path".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::XmlIdent(None, "article".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_xmlns_token() {
+        let tokens = tokenize("\\xmlns:svg").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![Token::DeclXmlns("svg".to_string())]
+        );
     }
 }
