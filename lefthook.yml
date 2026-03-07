@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+pre-push:
+  commands:
+    fmt-check:
+      run: |
+        if command -v topiary >/dev/null 2>&1; then
+          just fmt-check
+        else
+          echo "Skipping OCaml formatting check because topiary is unavailable."
+          cargo fmt --manifest-path tools/rust-parser/Cargo.toml --all --check
+        fi
+    lint:
+      run: just lint
+    test:
+      run: just test
