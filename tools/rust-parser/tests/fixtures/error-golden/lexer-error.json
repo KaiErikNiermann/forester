@@ -3,24 +3,49 @@
   "mode": "strict",
   "errors": [
     {
-      "message": "syntax error, unexpected \"!\"",
+      "message": "Unexpected token: expected 'import', 'scope', '/', 'call', '#{', 'subtree', 'let', '##{', 'def', 'datalog', 'export', 'put?', '(', 'get', 'fun', '[', 'open', 'object', 'put', 'alloc', '{', 'namespace' or 'patch', found 'text:!'",
       "start_offset": 5,
       "end_offset": 6,
-      "report": "Error: syntax error, unexpected \"!\"\n   ╭─[lexer-error.tree:1:6]\n   │\n 1 │ \\foo/!\n   │      ┬  \n   │      ╰── unexpected lexeme here\n   │ \n   │ Note: valid escaped names after a backslash here are %, space, \\\\, ,, \", `, _, ;, #, {, }, [, ], and |\n───╯\n",
+      "report": "Error: Unexpected token\n   ╭─[lexer-error.tree:1:6]\n   │\n 1 │ \\foo/!\n   │      ┬  \n   │      ╰── found 'text:!' here\n   │ \n   │ Note: plain text is only valid inside textual bodies; at top level you likely need a command such as \\p{...}\n───╯\n",
       "details": {
-        "kind": "custom",
-        "expected": [],
+        "kind": "unexpected_token",
+        "expected": [
+          "'import'",
+          "'scope'",
+          "'/'",
+          "'call'",
+          "'#{'",
+          "'subtree'",
+          "'let'",
+          "'##{'",
+          "'def'",
+          "'datalog'",
+          "'export'",
+          "'put?'",
+          "'('",
+          "'get'",
+          "'fun'",
+          "'['",
+          "'open'",
+          "'object'",
+          "'put'",
+          "'alloc'",
+          "'{'",
+          "'namespace'",
+          "'patch'"
+        ],
+        "found": "'text:!'",
         "labels": [
           {
             "kind": "primary",
-            "message": "unexpected lexeme here",
+            "message": "found 'text:!' here",
             "start_offset": 5,
             "end_offset": 6
           }
         ],
         "notes": [
-          "the lexer could not continue from this lexeme",
-          "valid escaped names after a backslash here are %, space, \\\\, ,, \", `, _, ;, #, {, }, [, ], and |"
+          "expected 'import', 'scope', '/', 'call', '#{', 'subtree', 'let', '##{', 'def', 'datalog', 'export', 'put?', '(', 'get', 'fun', '[', 'open', 'object', 'put', 'alloc', '{', 'namespace' or 'patch'",
+          "plain text is only valid inside textual bodies; at top level you likely need a command such as \\p{...}"
         ]
       }
     }
