@@ -9,6 +9,9 @@ build
 output
 latex
 .direnv
+.serena/
+__pycache__/
+*.py[cod]
 
 # screen recordings
 casts
