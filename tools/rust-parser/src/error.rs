@@ -63,7 +63,7 @@ impl ParseError {
     }
 
     /// Generate a pretty error report using ariadne
-    pub fn report<'a>(&self, filename: &'a str, source: &str) -> String {
+    pub fn report(&self, filename: &str, source: &str) -> String {
         let mut output = Vec::new();
         let source_len = source.len();
 
@@ -80,14 +80,18 @@ impl ParseError {
         };
 
         let report = match self {
-            ParseError::UnexpectedToken { expected, found, span } => {
+            ParseError::UnexpectedToken {
+                expected,
+                found,
+                span,
+            } => {
                 let clamped = clamp_span(span);
                 Report::build(ReportKind::Error, filename, clamped.start)
-                    .with_message(format!("Unexpected token"))
+                    .with_message("Unexpected token".to_string())
                     .with_label(
                         Label::new((filename, clamped))
                             .with_message(format!("expected {}, found {}", expected, found))
-                            .with_color(Color::Red)
+                            .with_color(Color::Red),
                     )
                     .finish()
             }
@@ -100,7 +104,7 @@ impl ParseError {
                     .with_label(
                         Label::new((filename, clamped))
                             .with_message(format!("expected {} here", expected))
-                            .with_color(Color::Red)
+                            .with_color(Color::Red),
                     )
                     .finish()
             }
@@ -111,7 +115,7 @@ impl ParseError {
                     .with_label(
                         Label::new((filename, open_span.clone()))
                             .with_message("opened here but never closed")
-                            .with_color(Color::Red)
+                            .with_color(Color::Red),
                     )
                     .finish()
             }
@@ -122,7 +126,7 @@ impl ParseError {
                     .with_label(
                         Label::new((filename, span.clone()))
                             .with_message("not a valid escape")
-                            .with_color(Color::Red)
+                            .with_color(Color::Red),
                     )
                     .finish()
             }
@@ -133,7 +137,7 @@ impl ParseError {
                     .with_label(
                         Label::new((filename, span.clone()))
                             .with_message("unexpected character")
-                            .with_color(Color::Red)
+                            .with_color(Color::Red),
                     )
                     .finish()
             }
@@ -144,13 +148,15 @@ impl ParseError {
                     .with_label(
                         Label::new((filename, span.clone()))
                             .with_message("error occurred here")
-                            .with_color(Color::Red)
+                            .with_color(Color::Red),
                     )
                     .finish()
             }
         };
 
-        report.write((filename, Source::from(source)), &mut output).unwrap();
+        report
+            .write((filename, Source::from(source)), &mut output)
+            .unwrap();
         String::from_utf8(output).unwrap_or_else(|_| self.to_string())
     }
 }

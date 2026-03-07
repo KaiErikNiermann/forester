@@ -3,9 +3,9 @@
 
 //! Forester Rust Parser - CLI tool for testing
 
-use std::io::{self, Read};
-use forester_rust_parser::{parse, Document};
 use forester_rust_parser::error::ParseError;
+use forester_rust_parser::{parse, Document};
+use std::io::{self, Read};
 
 /// Result of parsing, returned as JSON (same format as FFI)
 #[derive(serde::Serialize)]
@@ -60,21 +60,29 @@ fn main() {
             let (input, filename) = if let Some(path) = args.get(2) {
                 if path == "-" {
                     let mut buf = String::new();
-                    io::stdin().read_to_string(&mut buf).expect("Failed to read stdin");
+                    io::stdin()
+                        .read_to_string(&mut buf)
+                        .expect("Failed to read stdin");
                     (buf, "<stdin>".to_string())
                 } else {
-                    (std::fs::read_to_string(path).expect("Failed to read file"), path.clone())
+                    (
+                        std::fs::read_to_string(path).expect("Failed to read file"),
+                        path.clone(),
+                    )
                 }
             } else {
                 let mut buf = String::new();
-                io::stdin().read_to_string(&mut buf).expect("Failed to read stdin");
+                io::stdin()
+                    .read_to_string(&mut buf)
+                    .expect("Failed to read stdin");
                 (buf, "<stdin>".to_string())
             };
 
             let result = match parse(&input) {
                 Ok(doc) => ParseResult::Ok { document: doc },
                 Err(errors) => ParseResult::Error {
-                    errors: errors.iter()
+                    errors: errors
+                        .iter()
                         .map(|e| ErrorInfo::from_error(e, &filename, &input))
                         .collect(),
                 },
@@ -85,7 +93,9 @@ fn main() {
         Some("-") => {
             // Read from stdin
             let mut input = String::new();
-            io::stdin().read_to_string(&mut input).expect("Failed to read stdin");
+            io::stdin()
+                .read_to_string(&mut input)
+                .expect("Failed to read stdin");
             process_input(&input, "<stdin>");
         }
         Some(path) if !path.starts_with('-') => {
@@ -100,7 +110,9 @@ fn main() {
             println!();
 
             let mut input = String::new();
-            io::stdin().read_to_string(&mut input).expect("Failed to read stdin");
+            io::stdin()
+                .read_to_string(&mut input)
+                .expect("Failed to read stdin");
 
             if !input.is_empty() {
                 process_input(&input, "<stdin>");

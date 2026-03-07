@@ -7,12 +7,12 @@
 //! designed to integrate with the OCaml frontend via FFI (JSON serialization).
 
 pub mod ast;
-pub mod lexer;
-pub mod parser;
 pub mod error;
 pub mod ffi;
+pub mod lexer;
+pub mod parser;
 
 pub use ast::*;
+pub use error::ParseError;
 pub use lexer::Token;
 pub use parser::parse;
-pub use error::ParseError;

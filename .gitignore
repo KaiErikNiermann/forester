@@ -14,7 +14,7 @@ latex
 casts
 
 # Rust build artifacts
-rust_parser/target/
+tools/rust-parser/target/
 
 # -*- mode: gitignore; -*-
 *.install

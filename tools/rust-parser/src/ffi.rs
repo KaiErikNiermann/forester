@@ -9,8 +9,8 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-use crate::{parse, Document};
 use crate::error::ParseError;
+use crate::{parse, Document};
 
 /// Result of parsing, returned as JSON
 #[derive(serde::Serialize)]
@@ -95,7 +95,8 @@ pub unsafe extern "C" fn rust_parser_parse_with_filename(
             ParseResult::Ok { document: doc }
         }
         Err(errors) => ParseResult::Error {
-            errors: errors.iter()
+            errors: errors
+                .iter()
                 .map(|e| ErrorInfo::from_error(e, filename_str, input_str))
                 .collect(),
         },
