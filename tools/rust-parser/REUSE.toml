@@ -5,3 +5,16 @@ path = ["Cargo.toml", "Cargo.lock", ".forester-formatter.json", "test.tree"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2024 The Forester Project Contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = [
+  "benchmarks/**",
+  "json-schema/**",
+  "proptest-regressions/**",
+  "src/lexer/tests.rs",
+  "src/parser/tests.rs",
+  "tests/fixtures/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 The Forester Project Contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
