@@ -6,7 +6,7 @@
 
 (** The forester compiler*)
 
-(** {1 Base types }*)
+(** {1 Base types}*)
 
 module Xml_forester = Xml_forester
 (** Definition of the forester XML schema. This is the compilation target.*)
@@ -15,27 +15,32 @@ module Xml_forester = Xml_forester
 
 (** {2 Parsing}
 
-    The lexer and parser are implemented with {{: https://ocaml.org/manual/5.3/lexyacc.html} ocamllex} and {{: https://gallium.inria.fr/~fpottier/menhir/} menhir}*)
+    The lexer and parser are implemented with
+    {{:https://ocaml.org/manual/5.3/lexyacc.html} ocamllex} and
+    {{:https://gallium.inria.fr/~fpottier/menhir/} menhir}*)
 
 module Parse = Parse
 
 module Imports = Imports
-(** Create {{!Forester_core.Forest_graph.t}import and dependency graphs}.
-    *)
+(** Create {{!Forester_core.Forest_graph.t}import and dependency graphs}. *)
 
 module Expand = Expand
-(** Transform {!Code.tree}s into {!Syn.tree}s by {{!Forester_core.Forest_graph.topo_fold}folding} over the {{!Forester_core.Forest_graph}import graph.}*)
+(** Transform {!Code.tree}s into {!Syn.tree}s by
+    {{!Forester_core.Forest_graph.topo_fold}folding} over the
+    {{!Forester_core.Forest_graph}import graph.}*)
 
 module Eval = Eval
 (** Transform {!Syn.tree}s into {{!Forester_core.Types.article}[articles]}.*)
 
 (** {1 High-level architecture}
 
-    The compiler needs to support both batch-style and incremental compilation. To this end, we define a {{!State.t}state type} and {{!Phases}transition functions} that act on this state.
+    The compiler needs to support both batch-style and incremental compilation.
+    To this end, we define a {{!State.t}state type} and
+    {{!Phases}transition functions} that act on this state.
 
-    In the future, we want to record more knowledge in {{!field:State.graphs}[graphs]} of the {{!State.t}state} and derive the information we need for the language server via the query system.
-
-    *)
+    In the future, we want to record more knowledge in
+    {{!field:State.graphs}[graphs]} of the {{!State.t}state} and derive the
+    information we need for the language server via the query system. *)
 
 module Forest = Forest
 (** Augmented hash table used throughout compilation phases.*)
@@ -45,7 +50,6 @@ module State = State
 module Phases = Phases
 module Driver = Driver
 module Asset_router = Asset_router
-
 module URI_util = URI_util
 
 (** {1 IO}*)
@@ -55,12 +59,19 @@ module URI_util = URI_util
 module Build_latex = Build_latex
 module LaTeX_pipeline = LaTeX_pipeline
 module LaTeX_template = LaTeX_template
+
 module Job = Job
 (** Definition of LaTeX jobs*)
 
 (**/**)
+
 module Eio_util = Eio_util
 module Export_for_test = Export_for_test
 module Cache = Cache
 module Dir_scanner = Dir_scanner
+module Eval_args = Eval_args
+module Eval_datalog = Eval_datalog
+module Eval_object = Eval_object
+module Eval_transclusion = Eval_transclusion
+
 (**/**)
