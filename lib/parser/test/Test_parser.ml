@@ -159,12 +159,11 @@ let () =
       "scope", [test_case "scope" `Quick test_scope;];
       "text", [test_case "text" `Quick test_prim];
       "verbatim",
-      [
-        test_case "verbatim" `Quick test_verbatim;
-        test_case
-          "unterminated verbatim returns error"
-          `Quick
-          test_verbatim_unterminated_errors;
+      [test_case "verbatim" `Quick test_verbatim;
+      test_case
+        "unterminated verbatim returns error"
+        `Quick
+        test_verbatim_unterminated_errors;
       ];
       "math", [test_case "math" `Quick test_math];
       "hashtag", [test_case "hashtag" `Quick test_hashtag];
