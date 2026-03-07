@@ -1,0 +1,22 @@
+// SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+{
+  "name": "ocaml-forester",
+  "build": {
+    "context": "..",
+    "dockerfile": "../docker/Dockerfile.dev"
+  },
+  "remoteEnv": {
+    "OPAMYES": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ocamllabs.ocaml-platform",
+        "rust-lang.rust-analyzer",
+        "haskell.haskell"
+      ]
+    }
+  }
+}
