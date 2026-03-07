@@ -6,6 +6,7 @@
 module Main (main) where
 
 import Data.Char (isSpace)
+import Data.List (find)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -51,6 +52,8 @@ main = do
   testBlockQuotePreservesNestedContent
   testStrictDiagnostics
   testUnsupportedTableDiagnostics
+  testSourceProvenanceComments
+  testDiagnosticSourceSpan
   testRoundTripInvariants
   testCoverageBaseline
   testFixtureSnapshots
@@ -282,6 +285,55 @@ testUnsupportedTableDiagnostics = do
   assertTrue "table fallback emitted" ("\\table-fallback{" `T.isInfixOf` converted)
   assertTrue "table fallback row emitted" ("\\row{a | b}" `T.isInfixOf` converted)
   assertTrue "table-fallback diagnostic emitted" ("table-fallback" `elem` codes)
+
+testSourceProvenanceComments :: IO ()
+testSourceProvenanceComments = do
+  let markdownSource =
+        T.unlines
+          [ "# Heading"
+          , ""
+          , "Paragraph text."
+          ]
+      provenanceOptions =
+        defaultConversionOptions
+          { emitSourceProvenance = True
+          }
+  output <-
+    expectRight
+      "source provenance conversion should succeed"
+      (convertMarkdownToForesterWith provenanceOptions markdownSource)
+  let converted = convertedText output
+  assertTrue
+    "provenance comments emitted"
+    ("% pandoc-sourcepos:" `T.isInfixOf` converted)
+  assertTrue
+    "converted title still emitted"
+    ("\\title{Heading}" `T.isInfixOf` converted)
+
+testDiagnosticSourceSpan :: IO ()
+testDiagnosticSourceSpan = do
+  let markdownSource =
+        T.unlines
+          [ "| a | b |"
+          , "|---|---|"
+          , "| 1 | 2 |"
+          ]
+      provenanceOptions =
+        defaultConversionOptions
+          { emitSourceProvenance = True
+          }
+  output <-
+    expectRight
+      "provenance diagnostics conversion should succeed"
+      (convertMarkdownToForesterWith provenanceOptions markdownSource)
+  let maybeTableDiagnostic =
+        find ((== "table-fallback") . code) (diagnostics output)
+  case maybeTableDiagnostic of
+    Nothing -> do
+      putStrLn "Assertion failed: expected table-fallback diagnostic with source span"
+      exitFailure
+    Just diagnostic ->
+      assertTrue "table diagnostic includes source span" (sourceSpan diagnostic /= Nothing)
 
 testRoundTripInvariants :: IO ()
 testRoundTripInvariants =

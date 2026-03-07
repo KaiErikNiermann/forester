@@ -47,6 +47,7 @@ data ConversionDiagnostic = ConversionDiagnostic
   { severity :: DiagnosticSeverity
   , code :: T.Text
   , location :: [T.Text]
+  , sourceSpan :: Maybe T.Text
   , message :: T.Text
   }
   deriving (Eq, Show)
@@ -65,6 +66,7 @@ data ConversionOptions = ConversionOptions
   { strictMode :: Bool
   , inputProfile :: ConversionInputProfile
   , readerOptions :: ReaderOptions
+  , emitSourceProvenance :: Bool
   }
 
 data CoverageReport = CoverageReport
@@ -103,6 +105,7 @@ defaultConversionOptions =
     { strictMode = False
     , inputProfile = InputProfileGfm
     , readerOptions = gfmReaderOptions
+    , emitSourceProvenance = False
     }
 
 markdownReaderOptions :: ReaderOptions
@@ -149,7 +152,8 @@ convertMarkdownToForester source =
 
 convertMarkdownToForesterWith :: ConversionOptions -> T.Text -> Either ConversionError ConversionOutput
 convertMarkdownToForesterWith options source = do
-  document <- first MarkdownReadFailed (runPure (readMarkdown (readerOptions options) source))
+  let effectiveReaderOptions = applySourceProvenanceExtensions options
+  document <- first MarkdownReadFailed (runPure (readDocument options effectiveReaderOptions source))
   let coverage = collectCoverageReport document
   let (normalizedDoc, collectedDiagnostics) = W.runWriter (normalizePandoc document)
   if strictMode options && not (null collectedDiagnostics)
@@ -157,7 +161,7 @@ convertMarkdownToForesterWith options source = do
     else
       Right
         ConversionOutput
-          { convertedText = renderNormalizedDocument normalizedDoc
+          { convertedText = renderNormalizedDocument (emitSourceProvenance options) normalizedDoc
           , diagnostics = collectedDiagnostics
           , coverageReport = coverage
           }
@@ -166,12 +170,35 @@ convertForesterToMarkdown :: T.Text -> Either ConversionError T.Text
 convertForesterToMarkdown source =
   Right (renderForesterSubset source)
 
+applySourceProvenanceExtensions :: ConversionOptions -> ReaderOptions
+applySourceProvenanceExtensions options =
+  if emitSourceProvenance options
+    then
+      let baseOptions = readerOptions options
+       in baseOptions
+            { readerExtensions =
+                enableExtension Ext_sourcepos (readerExtensions baseOptions)
+            }
+    else readerOptions options
+
+readDocument :: ConversionOptions -> ReaderOptions -> T.Text -> PandocPure Pandoc
+readDocument options effectiveReaderOptions source =
+  case (inputProfile options, emitSourceProvenance options) of
+    (InputProfileGfm, True) -> readCommonMark effectiveReaderOptions source
+    _ -> readMarkdown effectiveReaderOptions source
+
 data ListKind
   = UnorderedList
   | OrderedListKind
   deriving (Eq, Show)
 
-data NormalizedDocument = NormalizedDocument [NormalizedBlock]
+data NormalizedDocument = NormalizedDocument [NormalizedTopBlock]
+
+data NormalizedTopBlock = NormalizedTopBlock
+  { topBlockSourceSpan :: Maybe T.Text
+  , topBlockValue :: NormalizedBlock
+  }
+  deriving (Eq, Show)
 
 data NormalizedBlock
   = NTitle [NormalizedInline]
@@ -384,7 +411,10 @@ normalizePandoc :: Pandoc -> Normalizer NormalizedDocument
 normalizePandoc (Pandoc meta blocks) = do
   metadata <- normalizeMetadata ["document", "meta"] meta
   normalized <- normalizeTopLevelBlocks (not (hasDocumentTitle metadata)) ["document"] blocks
-  pure (NormalizedDocument (metadataBlocks metadata <> normalized))
+  pure
+    ( NormalizedDocument
+        (map (NormalizedTopBlock Nothing) (metadataBlocks metadata) <> normalized)
+    )
 
 normalizeMetadata :: [T.Text] -> Meta -> Normalizer NormalizedMetadata
 normalizeMetadata path meta@(Meta metaMap) = do
@@ -462,7 +492,7 @@ normalizeMetadata path meta@(Meta metaMap) = do
       , hasDocumentTitle = not (null titleBlock)
       }
 
-normalizeTopLevelBlocks :: Bool -> [T.Text] -> [Block] -> Normalizer [NormalizedBlock]
+normalizeTopLevelBlocks :: Bool -> [T.Text] -> [Block] -> Normalizer [NormalizedTopBlock]
 normalizeTopLevelBlocks allowDocumentTitle path blocks =
   go allowDocumentTitle 0 blocks
   where
@@ -471,21 +501,30 @@ normalizeTopLevelBlocks allowDocumentTitle path blocks =
       let blockPath = path <> ["block[" <> tshow blockIndex <> "]"]
       (normalizedCurrent, nextAllowTitle) <-
         case block of
-          Header 1 _attr inlines | allowTitle -> do
+          Header 1 attr inlines | allowTitle -> do
             normalized <- normalizeInlines (blockPath <> ["header"]) inlines
-            pure ([NTitle normalized], False)
-          Header 1 _attr inlines -> do
-            warn
+            pure (attachTopLevelSourceSpan (attrSourceSpan attr) [NTitle normalized], False)
+          Header 1 attr inlines -> do
+            warnWithSourceSpan
+              (attrSourceSpan attr)
               "demoted-level-1-heading"
               blockPath
               "Encountered additional level-1 heading after document title was established; emitted as section level 1."
             normalized <- normalizeInlines (blockPath <> ["header"]) inlines
-            pure ([NSection 1 normalized], False)
+            pure (attachTopLevelSourceSpan (attrSourceSpan attr) [NSection 1 normalized], False)
           _ -> do
             normalized <- normalizeBlock path blockIndex block
-            pure (normalized, allowTitle)
+            pure (attachTopLevelSourceSpan (blockSourceSpan block) normalized, allowTitle)
       normalizedRest <- go nextAllowTitle (blockIndex + 1) rest
       pure (normalizedCurrent <> normalizedRest)
+
+attachTopLevelSourceSpan :: Maybe T.Text -> [NormalizedBlock] -> [NormalizedTopBlock]
+attachTopLevelSourceSpan sourcePos blocks =
+  case blocks of
+    [] -> []
+    firstBlock : rest ->
+      NormalizedTopBlock sourcePos firstBlock
+        : map (NormalizedTopBlock Nothing) rest
 
 lookupMetaEntries :: [T.Text] -> T.Text -> Meta -> Normalizer [[NormalizedInline]]
 lookupMetaEntries path key meta =
@@ -548,6 +587,26 @@ nonEmptyInlineGroups :: [[NormalizedInline]] -> [[NormalizedInline]]
 nonEmptyInlineGroups =
   filter (not . T.null . T.strip . renderInlineText)
 
+attrSourceSpan :: Attr -> Maybe T.Text
+attrSourceSpan (_, _classes, keyValues) =
+  lookup "data-pos" keyValues
+
+isSourcePosWrapper :: Attr -> Bool
+isSourcePosWrapper (identifier, classes, keyValues) =
+  T.null identifier
+    && null classes
+    && maybe False (const True) (lookup "data-pos" keyValues)
+    && all (\(key, value) -> key == "data-pos" || (key == "wrapper" && value == "1")) keyValues
+
+blockSourceSpan :: Block -> Maybe T.Text
+blockSourceSpan = \case
+  Header _ attr _ -> attrSourceSpan attr
+  CodeBlock attr _ -> attrSourceSpan attr
+  Div attr _ -> attrSourceSpan attr
+  Table attr _ _ _ _ _ -> attrSourceSpan attr
+  Figure attr _ _ -> attrSourceSpan attr
+  _ -> Nothing
+
 normalizeBlocks :: [T.Text] -> [Block] -> Normalizer [NormalizedBlock]
 normalizeBlocks path blocks = do
   normalized <- zipWithM (normalizeBlock path) [0 :: Int ..] blocks
@@ -597,7 +656,7 @@ normalizeBlock parentPath blockIndex block =
         BlockQuote nested -> do
           normalized <- normalizeBlocks (blockPath <> ["quote"]) nested
           pure [NBlockQuote normalized]
-        CodeBlock (identifier, classes, keyValues) codeValue -> do
+        CodeBlock attr@(identifier, classes, keyValues) codeValue -> do
           let selectedLanguage =
                 case classes of
                   className : _ -> Just className
@@ -608,7 +667,8 @@ normalizeBlock parentPath blockIndex block =
                   [] -> []
           if not (T.null identifier) || not (null droppedClasses) || not (null keyValues)
             then
-              warn
+              warnWithSourceSpan
+                (attrSourceSpan attr)
                 "lossy-code-attributes"
                 blockPath
                 "Code block identifier, additional classes, or key/value attributes cannot be preserved exactly; emitted primary language only."
@@ -652,12 +712,16 @@ normalizeBlock parentPath blockIndex block =
               [0 :: Int ..]
               items
           pure [NList UnorderedList Nothing normalizedItems]
-        Div _attr nested -> do
-          warn
-            "lossy-div-wrapper"
-            blockPath
-            "Div wrappers are dropped while preserving nested block content."
-          normalizeBlocks (blockPath <> ["div"]) nested
+        Div attr nested ->
+          if isSourcePosWrapper attr
+            then normalizeBlocks (blockPath <> ["div"]) nested
+            else do
+              warnWithSourceSpan
+                (attrSourceSpan attr)
+                "lossy-div-wrapper"
+                blockPath
+                "Div wrappers are dropped while preserving nested block content."
+              normalizeBlocks (blockPath <> ["div"]) nested
         RawBlock format rawText -> do
           warn
             "raw-block"
@@ -673,8 +737,9 @@ normalizeBlock parentPath blockIndex block =
             blockPath
             "Horizontal rule mapped to a plain textual separator paragraph."
           pure [NRawParagraph "---"]
-        Table _attr caption _colSpecs tableHead tableBodies tableFoot -> do
-          warn
+        Table attr caption _colSpecs tableHead tableBodies tableFoot -> do
+          warnWithSourceSpan
+            (attrSourceSpan attr)
             "table-fallback"
             blockPath
             "Tables are mapped to structured fallback rows; advanced alignment and spans are represented lossily."
@@ -899,26 +964,48 @@ normalizeInline parentPath inlineIndex inlineValue =
           normalizeInlines (inlinePath <> ["span"]) inlines
 
 warn :: T.Text -> [T.Text] -> T.Text -> Normalizer ()
-warn warningCode warningLocation warningMessage =
+warn =
+  warnWithSourceSpan Nothing
+
+warnWithSourceSpan :: Maybe T.Text -> T.Text -> [T.Text] -> T.Text -> Normalizer ()
+warnWithSourceSpan warningSourceSpan warningCode warningLocation warningMessage =
   W.tell
     [ ConversionDiagnostic
         { severity = DiagnosticWarning
         , code = warningCode
         , location = warningLocation
+        , sourceSpan = warningSourceSpan
         , message = warningMessage
         }
     ]
 
-renderNormalizedDocument :: NormalizedDocument -> T.Text
-renderNormalizedDocument (NormalizedDocument blocks) =
-  let rendered = map renderTopBlock (filter (/= NEmpty) blocks)
+renderNormalizedDocument :: Bool -> NormalizedDocument -> T.Text
+renderNormalizedDocument emitProvenance (NormalizedDocument blocks) =
+  let rendered =
+        map (renderTopLevelBlock emitProvenance) (filter (not . isEmptyTopLevelBlock) blocks)
       nonEmpty = filter (not . T.null) rendered
    in if null nonEmpty
         then ""
         else T.intercalate "\n\n" nonEmpty <> "\n"
 
-renderTopBlock :: NormalizedBlock -> T.Text
-renderTopBlock = \case
+renderTopLevelBlock :: Bool -> NormalizedTopBlock -> T.Text
+renderTopLevelBlock emitProvenance (NormalizedTopBlock sourcePos block) =
+  let renderedBlock = renderBlock block
+   in case (emitProvenance, sourcePos, renderedBlock) of
+        (True, Just spanText, textValue) | not (T.null textValue) ->
+          "% pandoc-sourcepos: " <> sanitizeCommentText spanText <> "\n" <> textValue
+        _ -> renderedBlock
+
+isEmptyTopLevelBlock :: NormalizedTopBlock -> Bool
+isEmptyTopLevelBlock =
+  isEmptyBlock . topBlockValue
+
+isEmptyBlock :: NormalizedBlock -> Bool
+isEmptyBlock block =
+  block == NEmpty
+
+renderBlock :: NormalizedBlock -> T.Text
+renderBlock = \case
   NTitle inlines -> "\\title{" <> renderInlines inlines <> "}"
   NSection level inlines ->
     "\\section{" <> tshow level <> "}{" <> renderInlines inlines <> "}"
@@ -984,7 +1071,7 @@ renderListItem listKind attrs itemIndex blocks =
 
 renderBlocksInline :: [NormalizedBlock] -> T.Text
 renderBlocksInline blocks =
-  let rendered = map renderBlockAsInline (filter (/= NEmpty) blocks)
+  let rendered = map renderBlockAsInline (filter (not . isEmptyBlock) blocks)
       nonEmpty = filter (not . T.null) rendered
    in T.intercalate " " nonEmpty
 
@@ -1083,6 +1170,16 @@ escapeText =
 renderInlineText :: [NormalizedInline] -> T.Text
 renderInlineText =
   T.strip . T.concat . map renderInlineTextNode
+
+sanitizeCommentText :: T.Text -> T.Text
+sanitizeCommentText =
+  T.concatMap
+    (\c ->
+       case c of
+         '\r' -> " "
+         '\n' -> " "
+         _ -> T.singleton c
+    )
 
 renderInlineTextNode :: NormalizedInline -> T.Text
 renderInlineTextNode = \case

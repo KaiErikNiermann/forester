@@ -36,6 +36,7 @@ data MarkdownCliOptions = MarkdownCliOptions
   { cliStrictMode :: Bool
   , cliInputProfile :: ConversionInputProfile
   , cliDiagnosticsFormat :: DiagnosticsFormat
+  , cliEmitSourceProvenance :: Bool
   , cliPath :: Maybe FilePath
   }
 
@@ -45,6 +46,7 @@ defaultMarkdownCliOptions =
     { cliStrictMode = False
     , cliInputProfile = InputProfileGfm
     , cliDiagnosticsFormat = DiagnosticsFormatText
+    , cliEmitSourceProvenance = False
     , cliPath = Nothing
     }
 
@@ -73,6 +75,8 @@ parseMarkdownOptions :: MarkdownCliOptions -> [String] -> Either String Markdown
 parseMarkdownOptions options = \case
   [] -> Right options
   "--strict" : rest -> parseMarkdownOptions options {cliStrictMode = True} rest
+  "--emit-sourcepos-comments" : rest ->
+    parseMarkdownOptions options {cliEmitSourceProvenance = True} rest
   "--input-format" : formatName : rest ->
     case parseInputProfile formatName of
       Left err -> Left err
@@ -134,6 +138,7 @@ runMarkdownCommand options = do
           { strictMode = cliStrictMode options
           , inputProfile = cliInputProfile options
           , readerOptions = readerOptionsForProfile (cliInputProfile options)
+          , emitSourceProvenance = cliEmitSourceProvenance options
           }
   case convertMarkdownToForesterWith conversionOptions input of
     Left (StrictModeDiagnostics conversionDiagnostics) -> do
@@ -171,11 +176,14 @@ renderDiagnosticText diagnostic =
         if null (location diagnostic)
           then ""
           else " @" <> T.intercalate "/" (location diagnostic)
+      sourceSpanText =
+        maybe "" (\spanText -> " [source " <> spanText <> "]") (sourceSpan diagnostic)
    in "["
         <> renderSeverity (severity diagnostic)
         <> "] "
         <> code diagnostic
         <> locationText
+        <> sourceSpanText
         <> ": "
         <> message diagnostic
 
@@ -197,6 +205,9 @@ renderDiagnosticJson diagnostic =
     <> "\"location\":"
     <> renderLocationJson (location diagnostic)
     <> ","
+    <> "\"source_span\":"
+    <> renderMaybeTextJson (sourceSpan diagnostic)
+    <> ","
     <> "\"message\":\""
     <> jsonEscape (message diagnostic)
     <> "\""
@@ -205,6 +216,10 @@ renderDiagnosticJson diagnostic =
 renderLocationJson :: [T.Text] -> T.Text
 renderLocationJson parts =
   "[" <> T.intercalate "," (map (\part -> "\"" <> jsonEscape part <> "\"") parts) <> "]"
+
+renderMaybeTextJson :: Maybe T.Text -> T.Text
+renderMaybeTextJson =
+  maybe "null" (\value -> "\"" <> jsonEscape value <> "\"")
 
 renderSeverity :: DiagnosticSeverity -> T.Text
 renderSeverity = \case
@@ -227,6 +242,6 @@ usage :: String
 usage =
   unlines
     [ "Usage:"
-    , "  forester-pandoc markdown-to-forester [--strict] [--input-format markdown|gfm] [--diagnostics-format none|text|json] [FILE]"
+    , "  forester-pandoc markdown-to-forester [--strict] [--emit-sourcepos-comments] [--input-format markdown|gfm] [--diagnostics-format none|text|json] [FILE]"
     , "  forester-pandoc forester-to-markdown [FILE]"
     ]
