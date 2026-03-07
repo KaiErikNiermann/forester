@@ -215,10 +215,10 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         }
         .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
 
-        let head_node1 = choice((head_node.clone(), head_node1_fallback));
-        let textual_node = choice((plain_text, head_node1.clone()));
+        let head_node1 = choice((head_node.clone(), head_node1_fallback)).boxed();
+        let textual_node = choice((plain_text, head_node1.clone())).boxed();
         let textual_expr = textual_node.clone().repeated();
-        let code_expr = ws_list(head_node1.clone());
+        let code_expr = ws_list(head_node1.clone()).boxed();
         let subtree_body =
             ws_list(head_node.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace));
 
@@ -247,7 +247,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 )]
             }),
             braces_arg,
-        ));
+        ))
+        .boxed();
 
         let hash_ident = select! {
             Token::HashIdent(s) => Node::HashIdent { name: s },
@@ -311,6 +312,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 };
                 (info, name)
             });
+        let bvar = select! { Token::Text(name) => name };
+        let method_name = bvar.delimited_by(just(Token::LSquare), just(Token::RSquare));
+        let method_decl = method_name
+            .clone()
+            .then_ignore(select! { Token::Whitespace(_) => () }.repeated())
+            .then(arg.clone())
+            .boxed();
+        let object_self = bvar.delimited_by(just(Token::LSquare), just(Token::RSquare));
 
         let bindings = binding.repeated();
         let fun_spec = ident_path.clone().then(bindings.clone()).then(arg.clone());
@@ -420,7 +429,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         let decl_xmlns_cmd = select! { Token::DeclXmlns(prefix) => prefix }
-            .then(txt_arg)
+            .then(txt_arg.clone())
             .map_with_span(|(prefix, uri), span| {
                 Located::new(
                     Node::DeclXmlns { prefix, uri },
@@ -442,10 +451,76 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 )
             });
 
+        let object_cmd = just(Token::KwObject)
+            .ignore_then(object_self.clone().or_not())
+            .then(
+                ws_list(method_decl.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .map_with_span(|(self_name, methods), span| {
+                Located::new(
+                    Node::Object {
+                        def: ObjectDef { self_name, methods },
+                    },
+                    Some(make_span_from_range(span)),
+                )
+            })
+            .boxed();
+
+        let patch_bindings = choice((
+            object_self
+                .clone()
+                .then(object_self.clone())
+                .map(|(self_name, super_name)| (Some(self_name), Some(super_name))),
+            object_self.clone().map(|self_name| (Some(self_name), None)),
+            empty().to((None::<String>, None::<String>)),
+        ))
+        .boxed();
+
+        let patch_cmd = just(Token::KwPatch)
+            .ignore_then(
+                code_expr
+                    .clone()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .then(patch_bindings)
+            .then(
+                ws_list(method_decl.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .map_with_span(|((obj, (self_name, super_name)), methods), span| {
+                Located::new(
+                    Node::Patch {
+                        def: PatchDef {
+                            obj,
+                            self_name,
+                            super_name,
+                            methods,
+                        },
+                    },
+                    Some(make_span_from_range(span)),
+                )
+            })
+            .boxed();
+
+        let call_cmd = just(Token::KwCall)
+            .ignore_then(
+                code_expr
+                    .clone()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .then(txt_arg.clone())
+            .map_with_span(|(target, method), span| {
+                Located::new(
+                    Node::Call { target, method },
+                    Some(make_span_from_range(span)),
+                )
+            })
+            .boxed();
+
         let dx_rel = choice((
             ident_node.clone().map(|node| vec![node]),
             just(Token::Tick).ignore_then(arg.clone()),
-        ));
+        ))
+        .boxed();
 
         let dx_term_node = choice((
             select! { Token::DxVar(name) => Node::DxVar { name } },
@@ -456,7 +531,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 .ignore_then(arg.clone())
                 .map(|body| Node::DxConstUri { body }),
         ))
-        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))))
+        .boxed();
 
         let dx_term = dx_term_node.clone().map(|node| vec![node]);
 
@@ -464,12 +540,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             .clone()
             .then(ws_list(dx_term.clone()))
             .map(|(relation, args)| Node::DxProp { relation, args })
-            .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+            .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))))
+            .boxed();
 
         let dx_prop = dx_prop_node.clone().map(|node| vec![node]);
         let dx_premise = dx_prop
             .clone()
-            .delimited_by(just(Token::LBrace), just(Token::RBrace));
+            .delimited_by(just(Token::LBrace), just(Token::RBrace))
+            .boxed();
         let dx_negative_premises = choice((
             just(Token::Hash).ignore_then(ws_list(dx_premise.clone())),
             dx_prop
@@ -481,7 +559,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                     negatives.append(&mut rest);
                     negatives
                 }),
-        ));
+        ))
+        .boxed();
 
         let dx_query_var = select! { Token::DxVar(name) => name };
         let dx_interstitial_ws = select! { Token::Whitespace(_) => () }.repeated();
@@ -505,7 +584,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                     positives,
                     negatives: negatives.unwrap_or_default(),
                 }),
-        ));
+        ))
+        .boxed();
 
         let datalog_cmd = just(Token::KwDatalog)
             .ignore_then(
@@ -514,11 +594,12 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                     .ignore_then(dx_sequent_node)
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
-            .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+            .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))))
+            .boxed();
 
         let generic_cmd = ident_node;
 
-        choice((
+        let command_like = choice((
             def_cmd,
             alloc_cmd,
             export_cmd,
@@ -526,6 +607,9 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             subtree_cmd,
             fun_cmd,
             let_cmd,
+            object_cmd,
+            patch_cmd,
+            call_cmd,
             scope_cmd,
             put_cmd,
             default_cmd,
@@ -535,6 +619,11 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             decl_xmlns_cmd,
             datalog_cmd,
             generic_cmd,
+        ))
+        .boxed();
+
+        choice((
+            command_like,
             hash_ident,
             verbatim,
             inline_math,
@@ -1064,6 +1153,58 @@ mod tests {
                     }] if args.len() == 2
                         && matches!(args[1].as_slice(), [Located { value: Node::DxConstContent { body }, .. }] if matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "tag"))
                 )
+        ));
+    }
+
+    #[test]
+    fn test_parse_object_with_self_and_verbatim_method() {
+        let result = parse("\\object[self]{[render]{\\p{Body}} [raw]\\verbEND|literalEND}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Object { def }
+                if def.self_name.as_deref() == Some("self")
+                && def.methods.len() == 2
+                && def.methods[0].0 == "render"
+                && matches!(&def.methods[0].1[..], [Located { value: Node::Ident { path }, .. }, Located { value: Node::Group { .. }, .. }] if path == &vec!["p".to_string()])
+                && def.methods[1].0 == "raw"
+                && matches!(&def.methods[1].1[..], [Located { value: Node::Verbatim { content }, .. }] if content == "literal")
+        ));
+    }
+
+    #[test]
+    fn test_parse_patch_with_self_super_and_methods() {
+        let result = parse("\\patch{\\object{[render]{base}}}[self][super]{[render]{override}}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Patch { def }
+                if def.self_name.as_deref() == Some("self")
+                && def.super_name.as_deref() == Some("super")
+                && def.obj.len() == 1
+                && matches!(&def.obj[0].value, Node::Object { .. })
+                && def.methods.len() == 1
+                && def.methods[0].0 == "render"
+        ));
+    }
+
+    #[test]
+    fn test_parse_call_with_code_expr_target_and_txt_arg_method() {
+        let result = parse("\\call{\\ref{alpha/beta}}{render html}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Call { target, method }
+                if method == "render html"
+                && target.len() == 2
+                && matches!(&target[0].value, Node::Ident { path } if path == &vec!["ref".to_string()])
+                && matches!(&target[1].value, Node::Group { .. })
         ));
     }
 }
