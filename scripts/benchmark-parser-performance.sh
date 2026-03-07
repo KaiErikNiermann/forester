@@ -2,9 +2,8 @@
 # SPDX-FileCopyrightText: 2026 The Forester Project Contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-repo_root="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 thresholds_path="$repo_root/tools/rust-parser/benchmarks/thresholds.json"
 
 output_path=""
@@ -36,15 +35,6 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-
-require_cmd() {
-  local command_name="$1"
-  local install_hint="$2"
-  if ! command -v "$command_name" >/dev/null 2>&1; then
-    printf 'Missing required command: %s\n%s\n' "$command_name" "$install_hint" >&2
-    exit 1
-  fi
-}
 
 resolve_rust_benchmark_binary() {
   local release_bin="$repo_root/tools/rust-parser/target/release/benchmark"
@@ -149,16 +139,7 @@ temp_dir="$(mktemp -d)"
 trap 'rm -rf "$temp_dir"' EXIT
 
 mapfile -t threshold_config < <(
-  python3 - "$thresholds_path" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    data = json.load(handle)
-
-print(data["runs"])
-print(data["amplified_target_bytes"])
-PY
+  python3 "$repo_root/scripts/benchmark_parser_summary.py" threshold-config "$thresholds_path"
 )
 
 runs="${threshold_config[0]}"
@@ -190,139 +171,36 @@ run_measurement ocaml "$ocaml_benchmark_bin" header-binders-fixtures "$header_sm
 run_measurement rust "$rust_benchmark_bin" header-binders-amplified "$header_large_corpus" "$runs" "$temp_dir" "$rust_header_large_metrics"
 run_measurement ocaml "$ocaml_benchmark_bin" header-binders-amplified "$header_large_corpus" "$runs" "$temp_dir" "$ocaml_header_large_metrics"
 
-json_output="$(
-  python3 - \
-    "$thresholds_path" \
-    "positive-fixtures" \
-    "$small_corpus" \
-    "$rust_small_metrics" \
-    "$ocaml_small_metrics" \
-    "positive-amplified" \
-    "$large_corpus" \
-    "$rust_large_metrics" \
-    "$ocaml_large_metrics" \
-    "header-binders-fixtures" \
-    "$header_small_corpus" \
-    "$rust_header_small_metrics" \
-    "$ocaml_header_small_metrics" \
-    "header-binders-amplified" \
-    "$header_large_corpus" \
-    "$rust_header_large_metrics" \
-    "$ocaml_header_large_metrics" <<'PY'
-import json
-import statistics
-import sys
-from pathlib import Path
-
-thresholds_path, *corpus_args = sys.argv[1:]
-
-with open(thresholds_path, "r", encoding="utf-8") as handle:
-    thresholds = json.load(handle)
-
-if len(corpus_args) % 4 != 0:
-    raise SystemExit("expected corpus arguments in groups of four")
-
-def load_metrics(path: str) -> dict[str, float]:
-    rows: list[tuple[float, int]] = []
-    with open(path, "r", encoding="utf-8") as handle:
-        for line in handle:
-            elapsed, rss = line.strip().split("\t")
-            rows.append((float(elapsed), int(rss)))
-    elapsed_values = sorted(value for value, _ in rows)
-    rss_values = sorted(value for _, value in rows)
-    return {
-        "runs": len(rows),
-        "median_seconds": statistics.median(elapsed_values),
-        "median_rss_kib": statistics.median(rss_values),
-    }
-
-def parser_metrics(corpus_path: str, metrics_path: str) -> dict[str, float]:
-    metrics = load_metrics(metrics_path)
-    size_bytes = Path(corpus_path).stat().st_size
-    metrics["bytes"] = size_bytes
-    metrics["throughput_bytes_per_second"] = size_bytes / metrics["median_seconds"]
-    metrics["throughput_mib_per_second"] = metrics["throughput_bytes_per_second"] / (1024 * 1024)
-    return metrics
-
-def compare(corpus_name: str, corpus_path: str, rust_path: str, ocaml_path: str) -> dict[str, object]:
-    corpus_thresholds = thresholds["corpora"][corpus_name]
-    rust_metrics = parser_metrics(corpus_path, rust_path)
-    ocaml_metrics = parser_metrics(corpus_path, ocaml_path)
-    throughput_ratio = rust_metrics["throughput_bytes_per_second"] / ocaml_metrics["throughput_bytes_per_second"]
-    rss_ratio = rust_metrics["median_rss_kib"] / ocaml_metrics["median_rss_kib"]
-    regression = (
-        throughput_ratio < corpus_thresholds["min_rust_vs_ocaml_throughput_ratio"]
-        or rss_ratio > corpus_thresholds["max_rust_vs_ocaml_rss_ratio"]
-    )
-    return {
-        "name": corpus_name,
-        "bytes": rust_metrics["bytes"],
-        "thresholds": corpus_thresholds,
-        "rust": rust_metrics,
-        "ocaml": ocaml_metrics,
-        "comparison": {
-            "throughput_ratio": throughput_ratio,
-            "rss_ratio": rss_ratio,
-            "regression": regression,
-        },
-    }
-
-corpora = [
-    compare(
-        corpus_args[i],
-        corpus_args[i + 1],
-        corpus_args[i + 2],
-        corpus_args[i + 3],
-    )
-    for i in range(0, len(corpus_args), 4)
-]
-
-overall_regression = any(corpus["comparison"]["regression"] for corpus in corpora)
-
-print(
-    json.dumps(
-        {
-            "status": "regression" if overall_regression else "ok",
-            "thresholds": thresholds,
-            "corpora": corpora,
-        },
-        indent=2,
-        sort_keys=True,
-    )
-)
-PY
-)"
+summary_path="$temp_dir/rust-parser-benchmarks.json"
+python3 "$repo_root/scripts/benchmark_parser_summary.py" summarize \
+  "$thresholds_path" \
+  "positive-fixtures" \
+  "$small_corpus" \
+  "$rust_small_metrics" \
+  "$ocaml_small_metrics" \
+  "positive-amplified" \
+  "$large_corpus" \
+  "$rust_large_metrics" \
+  "$ocaml_large_metrics" \
+  "header-binders-fixtures" \
+  "$header_small_corpus" \
+  "$rust_header_small_metrics" \
+  "$ocaml_header_small_metrics" \
+  "header-binders-amplified" \
+  "$header_large_corpus" \
+  "$rust_header_large_metrics" \
+  "$ocaml_header_large_metrics" \
+  > "$summary_path"
 
 if [[ -n "$output_path" ]]; then
-  printf '%s\n' "$json_output" > "$output_path"
+  ensure_parent_dir "$output_path"
+  cp "$summary_path" "$output_path"
 else
-  printf '%s\n' "$json_output"
+  cat "$summary_path"
 fi
 
-python3 - "$json_output" <<'PY'
-import json
-import sys
-
-data = json.loads(sys.argv[1])
-for corpus in data["corpora"]:
-    comparison = corpus["comparison"]
-    print(
-        f"{corpus['name']}: "
-        f"rust={corpus['rust']['throughput_mib_per_second']:.2f} MiB/s, "
-        f"ocaml={corpus['ocaml']['throughput_mib_per_second']:.2f} MiB/s, "
-        f"throughput_ratio={comparison['throughput_ratio']:.2f}, "
-        f"rss_ratio={comparison['rss_ratio']:.2f}, "
-        f"status={'regression' if comparison['regression'] else 'ok'}"
-    )
-PY
+python3 "$repo_root/scripts/benchmark_parser_summary.py" print-summary "$summary_path"
 
 if [[ $fail_on_regression -eq 1 ]]; then
-  python3 - "$json_output" <<'PY'
-import json
-import sys
-
-data = json.loads(sys.argv[1])
-if data["status"] != "ok":
-    sys.exit(1)
-PY
+  python3 "$repo_root/scripts/benchmark_parser_summary.py" assert-ok "$summary_path"
 fi

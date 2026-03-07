@@ -7,7 +7,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_cmd cabal "Install cabal to build the Markdown converter for corpus validation."
 require_cmd date "GNU date is required to timestamp the corpus report."
 require_cmd opam "Install opam to build the OCaml parser validator for corpus validation."
-require_cmd rg "ripgrep is required to summarize converter diagnostics."
+require_cmd python3 "Install Python 3 so diagnostic JSON can be summarized."
 
 manifest_path="$repo_root/tools/pandoc-converter/corpus/realworld-manifest.txt"
 report_path=""
@@ -53,23 +53,14 @@ parse_args() {
   done
 }
 
-trim_manifest_entry() {
-  printf '%s' "$1" | sed -e 's/#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
-}
-
 load_corpus_entries() {
-  while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
-    local entry
-    entry="$(trim_manifest_entry "$raw_line")"
-    if [[ -z "$entry" ]]; then
-      continue
-    fi
+  while IFS= read -r entry; do
     if [[ ! -f "$repo_root/$entry" ]]; then
       printf 'Corpus manifest entry does not exist: %s\n' "$entry" >&2
       exit 1
     fi
     printf '%s\n' "$entry"
-  done < "$manifest_path"
+  done < <(read_manifest_entries "$manifest_path")
 }
 
 resolve_converter_path() {
@@ -98,37 +89,9 @@ resolve_ocaml_validator_path() {
   printf '%s\n' "$repo_root/_build/default/lib/compiler/test/Validate_forester_cli.exe"
 }
 
-count_diagnostics() {
+diagnostic_summary() {
   local diagnostics_path="$1"
-  if [[ ! -s "$diagnostics_path" ]]; then
-    printf '0\n'
-    return 0
-  fi
-
-  local count
-  count="$( (rg -o '"code":"[^"]+"' "$diagnostics_path" || true) | wc -l | tr -d '[:space:]' )"
-  printf '%s\n' "${count:-0}"
-}
-
-summarize_diagnostic_codes() {
-  local diagnostics_path="$1"
-  if [[ ! -s "$diagnostics_path" ]]; then
-    printf 'none\n'
-    return 0
-  fi
-
-  local summary
-  summary="$( (rg -o '"code":"[^"]+"' "$diagnostics_path" || true) \
-    | sed -e 's/^"code":"//' -e 's/"$//' \
-    | sort \
-    | uniq -c \
-    | awk '{printf "%s%s:%s", sep, $2, $1; sep=", "}')"
-
-  if [[ -z "$summary" ]]; then
-    printf 'none\n'
-  else
-    printf '%s\n' "$summary"
-  fi
+  python3 "$repo_root/scripts/json_diagnostic_summary.py" "$diagnostics_path"
 }
 
 append_report() {
@@ -203,8 +166,7 @@ run_case() {
   fi
 
   output_bytes="$(wc -c < "$converted_path" | tr -d '[:space:]')"
-  diagnostics_count="$(count_diagnostics "$diagnostics_path")"
-  diagnostics_summary="$(summarize_diagnostic_codes "$diagnostics_path")"
+  IFS=$'\t' read -r diagnostics_count diagnostics_summary < <(diagnostic_summary "$diagnostics_path")
 
   append_report "## $relative_path"
   append_report ""
@@ -230,7 +192,7 @@ main() {
     report_path="$tmp_dir/markdown-realworld-corpus-report.md"
   fi
 
-  mkdir -p "$(dirname "$report_path")"
+  ensure_parent_dir "$report_path"
   : > "$report_path"
 
   local converter_path ocaml_validator_path

@@ -15,6 +15,26 @@ require_cmd() {
   fi
 }
 
+ensure_parent_dir() {
+  local target_path="$1"
+  mkdir -p "$(dirname "$target_path")"
+}
+
+trim_manifest_entry() {
+  printf '%s' "$1" | sed -e 's/#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+read_manifest_entries() {
+  local manifest_path="$1"
+  while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+    local entry
+    entry="$(trim_manifest_entry "$raw_line")"
+    if [[ -n "$entry" ]]; then
+      printf '%s\n' "$entry"
+    fi
+  done < "$manifest_path"
+}
+
 collect_ocaml_files() {
   (
     cd "$repo_root"

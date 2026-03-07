@@ -1,0 +1,25 @@
+name: Setup Haskell CI
+description: Install just, configure GHC/Cabal, and refresh the Cabal index
+inputs:
+  working-directory:
+    description: Directory containing the Cabal project to update
+    required: false
+    default: tools/pandoc-converter
+runs:
+  using: composite
+  steps:
+    - name: Install just
+      uses: taiki-e/install-action@v2
+      with:
+        tool: just
+
+    - name: Set up GHC and Cabal
+      uses: haskell-actions/setup@v2
+      with:
+        ghc-version: "9.8.2"
+        cabal-version: "3.12.1.0"
+
+    - name: Update the Cabal index
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: cabal update
