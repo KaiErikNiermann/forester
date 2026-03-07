@@ -274,57 +274,6 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         let bindings = binding.repeated();
 
-        // \title{content} - basic command test
-        // Returns the identifier node; argument is consumed but returned as part of command
-        let title_cmd = just(Token::Ident("title".to_string()))
-            .ignore_then(braced_arg.clone())
-            .map_with_span(|body, span: std::ops::Range<usize>| {
-                // Create a group containing the title identifier and its braced argument
-                Located::new(
-                    Node::Group {
-                        delim: Delim::Braces,
-                        body: vec![
-                            Located::new(
-                                Node::Ident {
-                                    path: vec!["title".to_string()],
-                                },
-                                Some(make_span_from_range(span.clone())),
-                            ),
-                            Located::new(
-                                Node::braces(body),
-                                Some(make_span_from_range(span.clone())),
-                            ),
-                        ],
-                    },
-                    Some(make_span_from_range(span)),
-                )
-            });
-
-        // \p{content} - paragraph command test
-        let p_cmd = just(Token::Ident("p".to_string()))
-            .ignore_then(braced_arg.clone())
-            .map_with_span(|body, span: std::ops::Range<usize>| {
-                // Create a group containing the p identifier and its braced argument
-                Located::new(
-                    Node::Group {
-                        delim: Delim::Braces,
-                        body: vec![
-                            Located::new(
-                                Node::Ident {
-                                    path: vec!["p".to_string()],
-                                },
-                                Some(make_span_from_range(span.clone())),
-                            ),
-                            Located::new(
-                                Node::braces(body),
-                                Some(make_span_from_range(span.clone())),
-                            ),
-                        ],
-                    },
-                    Some(make_span_from_range(span)),
-                )
-            });
-
         // \def\name[bindings]{body}
         let def_cmd = just(Token::KwDef)
             .ignore_then(ident_path.clone())
@@ -430,9 +379,6 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             decl_xmlns_cmd,
             subtree_cmd,
             scope_cmd,
-            // Then try title and p as special cases
-            title_cmd,
-            p_cmd,
             generic_cmd,
             xml_ident,
             // Groups
@@ -466,7 +412,17 @@ mod tests {
         let result = parse("\\title{Hello World}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert!(!doc.nodes.is_empty());
+        assert_eq!(doc.nodes.len(), 2);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec!["title".to_string()])
+        );
+        assert!(matches!(
+            &doc.nodes[1].value,
+            Node::Group {
+                delim: Delim::Braces,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -474,7 +430,17 @@ mod tests {
         let result = parse("\\p{This is a paragraph.}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert!(!doc.nodes.is_empty());
+        assert_eq!(doc.nodes.len(), 2);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec!["p".to_string()])
+        );
+        assert!(matches!(
+            &doc.nodes[1].value,
+            Node::Group {
+                delim: Delim::Braces,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -486,6 +452,8 @@ mod tests {
 "#;
         let result = parse(input);
         assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 6);
     }
 
     #[test]
@@ -652,7 +620,17 @@ mod tests {
         let result = parse(" \n\t\\title{Hello}\n");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert_eq!(doc.nodes.len(), 1);
+        assert_eq!(doc.nodes.len(), 2);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec!["title".to_string()])
+        );
+        assert!(matches!(
+            &doc.nodes[1].value,
+            Node::Group {
+                delim: Delim::Braces,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -660,10 +638,10 @@ mod tests {
         let result = parse("\\p{alpha  \n\tbeta}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        let Node::Group { body, .. } = &doc.nodes[0].value else {
-            panic!("expected outer group");
-        };
-        let Node::Group { body, .. } = &body[1].value else {
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec!["p".to_string()])
+        );
+        let Node::Group { body, .. } = &doc.nodes[1].value else {
             panic!("expected braced argument group");
         };
         assert_eq!(body.len(), 5);
@@ -679,7 +657,7 @@ mod tests {
         let result = parse("% comment\n\\title{Hello}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert_eq!(doc.nodes.len(), 1);
+        assert_eq!(doc.nodes.len(), 2);
     }
 
     #[test]
@@ -687,10 +665,10 @@ mod tests {
         let result = parse("\\p{alpha% comment\n\nbeta}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        let Node::Group { body, .. } = &doc.nodes[0].value else {
-            panic!("expected outer group");
-        };
-        let Node::Group { body, .. } = &body[1].value else {
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Ident { path } if path == &vec!["p".to_string()])
+        );
+        let Node::Group { body, .. } = &doc.nodes[1].value else {
             panic!("expected braced argument group");
         };
         assert!(matches!(&body[0].value, Node::Text { content } if content == "alpha"));
