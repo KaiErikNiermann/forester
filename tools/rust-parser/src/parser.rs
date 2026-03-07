@@ -297,6 +297,9 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         let ident_path = select! { Token::Ident(s) => s }
             .separated_by(just(Token::Slash))
             .at_least(1);
+        let ident_node = ident_path.clone().map_with_span(|path, span| {
+            Located::new(Node::Ident { path }, Some(make_span_from_range(span)))
+        });
 
         let binding = select! { Token::Text(s) => s }
             .delimited_by(just(Token::LSquare), just(Token::RSquare))
@@ -439,9 +442,81 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 )
             });
 
-        let generic_cmd = ident_path.map_with_span(|path, span| {
-            Located::new(Node::Ident { path }, Some(make_span_from_range(span)))
-        });
+        let dx_rel = choice((
+            ident_node.clone().map(|node| vec![node]),
+            just(Token::Tick).ignore_then(arg.clone()),
+        ));
+
+        let dx_term_node = choice((
+            select! { Token::DxVar(name) => Node::DxVar { name } },
+            just(Token::Tick)
+                .ignore_then(arg.clone())
+                .map(|body| Node::DxConstContent { body }),
+            just(Token::AtSign)
+                .ignore_then(arg.clone())
+                .map(|body| Node::DxConstUri { body }),
+        ))
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let dx_term = dx_term_node.clone().map(|node| vec![node]);
+
+        let dx_prop_node = dx_rel
+            .clone()
+            .then(ws_list(dx_term.clone()))
+            .map(|(relation, args)| Node::DxProp { relation, args })
+            .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let dx_prop = dx_prop_node.clone().map(|node| vec![node]);
+        let dx_premise = dx_prop
+            .clone()
+            .delimited_by(just(Token::LBrace), just(Token::RBrace));
+        let dx_negative_premises = choice((
+            just(Token::Hash).ignore_then(ws_list(dx_premise.clone())),
+            dx_prop
+                .clone()
+                .delimited_by(just(Token::HashLBrace), just(Token::RBrace))
+                .then(ws_list(dx_premise.clone()))
+                .map(|(first, mut rest)| {
+                    let mut negatives = vec![first];
+                    negatives.append(&mut rest);
+                    negatives
+                }),
+        ));
+
+        let dx_query_var = select! { Token::DxVar(name) => name };
+        let dx_interstitial_ws = select! { Token::Whitespace(_) => () }.repeated();
+
+        let dx_sequent_node = choice((
+            dx_prop
+                .clone()
+                .then_ignore(just(Token::DxEntailed))
+                .then(ws_list(dx_premise.clone()))
+                .map(|(conclusion, premises)| Node::DxSequent {
+                    conclusion,
+                    premises,
+                }),
+            dx_query_var
+                .then_ignore(dx_interstitial_ws)
+                .then_ignore(just(Token::DxEntailed))
+                .then(ws_list(dx_premise.clone()))
+                .then(dx_negative_premises.or_not())
+                .map(|((var, positives), negatives)| Node::DxQuery {
+                    var,
+                    positives,
+                    negatives: negatives.unwrap_or_default(),
+                }),
+        ));
+
+        let datalog_cmd = just(Token::KwDatalog)
+            .ignore_then(
+                select! { Token::Whitespace(_) => () }
+                    .repeated()
+                    .ignore_then(dx_sequent_node)
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let generic_cmd = ident_node;
 
         choice((
             def_cmd,
@@ -458,6 +533,7 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             open_cmd,
             xml_ident,
             decl_xmlns_cmd,
+            datalog_cmd,
             generic_cmd,
             hash_ident,
             verbatim,
@@ -924,5 +1000,70 @@ mod tests {
     fn test_subtree_rejects_raw_text_body() {
         let result = parse("\\subtree{plain text}");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_datalog_sequent_with_uri_term() {
+        let result =
+            parse("\\datalog{\\rel/links-to ?X @{https://example.com} -: {\\rel/is-node ?X}}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::DxSequent { conclusion, premises }
+                if premises.len() == 1
+                && matches!(
+                    conclusion.as_slice(),
+                    [Located {
+                        value: Node::DxProp { relation, args },
+                        ..
+                    }] if matches!(
+                        relation.as_slice(),
+                        [Located { value: Node::Ident { path }, .. }]
+                            if path == &vec!["rel".to_string(), "links-to".to_string()]
+                    ) && args.len() == 2
+                        && matches!(args[0].as_slice(), [Located { value: Node::DxVar { name }, .. }] if name == "X")
+                        && matches!(args[1].as_slice(), [Located { value: Node::DxConstUri { body }, .. }] if matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "https://example.com"))
+                )
+        ));
+    }
+
+    #[test]
+    fn test_parse_datalog_query_with_negative_premises() {
+        let result = parse(
+            "\\datalog{\n  ?related -: {\\rel/links-to @{example} ?related} #{\\rel/hidden ?related}\n}",
+        );
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::DxQuery {
+                var,
+                positives,
+                negatives
+            } if var == "related" && positives.len() == 1 && negatives.len() == 1
+        ));
+    }
+
+    #[test]
+    fn test_parse_datalog_content_constant_term() {
+        let result = parse("\\datalog{?X -: {\\rel/has-tag ?X '{tag}}}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::DxQuery { positives, .. }
+                if matches!(
+                    positives[0].as_slice(),
+                    [Located {
+                        value: Node::DxProp { args, .. },
+                        ..
+                    }] if args.len() == 2
+                        && matches!(args[1].as_slice(), [Located { value: Node::DxConstContent { body }, .. }] if matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "tag"))
+                )
+        ));
     }
 }
