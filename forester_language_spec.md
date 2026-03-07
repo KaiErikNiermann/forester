@@ -361,18 +361,28 @@ binders := ('[' bvar ']')*
 
 bvar := '~'? TEXT
 
+phase1_header_binders :=
+  | '(' (bvar (',' bvar)*)? ')'
+
 // Examples:
 // \def\foo{body}           → no params
 // \def\foo[x]{body}        → one strict param
 // \def\foo[x][y]{body}     → two strict params
 // \def\foo[~x]{body}       → one lazy param
 // \def\foo[x][~y]{body}    → mixed
+// \def\foo(x, ~y){body}    → phase-1 sugar for \def\foo[x][~y]{body}
+// \fun(x, y){body}         → phase-1 sugar for \fun[x][y]{body}
 ```
+
+Phase-1 parsers also accept parenthesized header binders for `\def` and `\fun`.
+Those forms are surface sugar only: they desugar to the square-binder core AST, and formatter implementations may normalize them back to `[]`.
 
 ### 4.5 Objects
 
 ```
 self := '[' TEXT ']'
+
+self_sugar := '(' TEXT ')'
 
 methods := method*
 
@@ -382,7 +392,19 @@ patch_binders :=
   | '[' TEXT ']' '[' TEXT ']'    // [self][super]
   | '[' TEXT ']'                  // [self] only
   | ε                             // neither
+
+patch_binders_sugar :=
+  | '(' TEXT ',' TEXT ')'         // (self, super)
+  | '(' TEXT ')'                  // (self)
 ```
+
+Phase-1 parsers also accept:
+
+- `\object(self){...}` as sugar for `\object[self]{...}`
+- `\patch{target}(self){...}` as sugar for `\patch{target}[self]{...}`
+- `\patch{target}(self, super){...}` as sugar for `\patch{target}[self][super]{...}`
+
+As with function headers, formatter implementations may normalize these sugar forms back to the square-binder core syntax.
 
 ### 4.6 XML Elements
 
@@ -578,6 +600,12 @@ value =
   [method1]{body using #self}
   [method2]{another method}
 }
+
+// Equivalent phase-1 sugar:
+\object(self){
+  [method1]{body using #self}
+  [method2]{another method}
+}
 ```
 
 Objects are stored on a heap with:
@@ -613,6 +641,11 @@ Resolution follows prototype chain.
 
 ```
 \patch{\get\baseObj}[self][super]{
+  [method1]{override using #super#method1}
+}
+
+// Equivalent phase-1 sugar:
+\patch{\get\baseObj}(self, super){
   [method1]{override using #super#method1}
 }
 ```

@@ -130,3 +130,23 @@ The parser test matrix for phase 1 must include:
 - arity rejection cases for `object` and `patch`
 - empty-entry and trailing-comma rejection cases
 - OCaml/Rust parser-sync parity for all accepted and rejected examples
+
+## Tooling Policy
+
+Phase 1 keeps author-facing sugar and formatter output intentionally distinct.
+
+- Parsers accept the parenthesized header forms listed above.
+- The formatter canonicalizes desugared ASTs back to the square-binder core syntax:
+  - `\def\name(x, ~y){body}` formats as `\def\name[x][~y]{body}`
+  - `\fun(x, y){body}` formats as `\fun[x][y]{body}`
+  - `\object(self){...}` formats as `\object[self]{...}`
+  - `\patch{target}(self, super){...}` formats as `\patch{target}[self][super]{...}`
+- This normalization is deliberate. The AST does not retain source-form provenance for phase-1 sugar, and forcing the formatter to preserve `()` would require new representation state that the current design intentionally avoids.
+- Editor snippets should expose both the longhand core forms and explicit phase-1 sugar variants.
+- LSP keyword completions remain plain command completions for now; phase 1 does not add parameter-aware snippet completions through the language server.
+
+## Authoring Guidance
+
+- Use the sugar forms when they improve readability while drafting.
+- Expect document formatting to rewrite them into longhand `[]` binders.
+- Use longhand directly when you want formatting to remain a no-op for binder headers.

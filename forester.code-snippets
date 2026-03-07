@@ -146,6 +146,11 @@
     "body": ["\\def\\${1:name}[${2:x}][${3:y}]{${4:body}}"],
     "description": "Define a macro with multiple arguments"
   },
+  "Define Macro with Header Sugar": {
+    "prefix": ["\\defsugar", "defsugar", "defparen"],
+    "body": ["\\def\\${1:name}(${2:x}, ~${3:y}){${4:body}}"],
+    "description": "Define a macro with parenthesized header binders"
+  },
   "Let (Local Macro)": {
     "prefix": ["\\let", "let"],
     "body": ["\\let\\${1:name}{${2:body}}"],
@@ -160,6 +165,11 @@
     "prefix": ["\\fun", "fun", "lambda"],
     "body": ["\\fun[${1:arg}]{${2:body}}"],
     "description": "Anonymous function/lambda"
+  },
+  "Anonymous Function with Header Sugar": {
+    "prefix": ["\\funsugar", "funsugar", "funparen"],
+    "body": ["\\fun(${1:x}, ${2:y}){${3:body}}"],
+    "description": "Anonymous function with parenthesized header binders"
   },
   "Scope": {
     "prefix": ["\\scope", "scope"],
@@ -252,6 +262,15 @@
     ],
     "description": "Create an object"
   },
+  "Object with Header Sugar": {
+    "prefix": ["\\objectsugar", "objsugar", "objectparen"],
+    "body": [
+      "\\object(${1:self}){",
+      "  [${2:method}]{${3:body}}",
+      "}"
+    ],
+    "description": "Create an object with parenthesized self binder"
+  },
   "Patch Object": {
     "prefix": ["\\patch", "patch"],
     "body": [
@@ -260,6 +279,15 @@
       "}"
     ],
     "description": "Patch/extend an object"
+  },
+  "Patch Object with Header Sugar": {
+    "prefix": ["\\patchsugar", "patchsugar", "patchparen"],
+    "body": [
+      "\\patch{${1:base-obj}}(${2:self}, ${3:super}){",
+      "  [${4:method}]{${5:body}}",
+      "}"
+    ],
+    "description": "Patch/extend an object with parenthesized binders"
   },
   "Method Call": {
     "prefix": ["methodcall", "call"],

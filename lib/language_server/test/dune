@@ -1,0 +1,10 @@
+;;; SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+;;;
+;;; SPDX-License-Identifier: GPL-3.0-or-later
+
+(test
+ (name Test_document_format)
+ (libraries
+  alcotest
+  forester.test
+  forester.language_server))
