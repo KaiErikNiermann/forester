@@ -26,3 +26,11 @@
   asai
   lsp
   forester.language_server))
+
+(executable
+ (name Parser_oracle)
+ (libraries
+  forester.test
+  forester.core
+  yojson
+  asai))
