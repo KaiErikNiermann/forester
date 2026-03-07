@@ -1,0 +1,8 @@
+\title{Hello from Markdown}
+
+\p{This page is converted by the Pandoc scaffold.}
+
+\ul{
+  \li{first item}
+  \li{second item}
+}
