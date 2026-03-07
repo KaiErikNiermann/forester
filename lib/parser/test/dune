@@ -34,3 +34,10 @@
   forester.core
   yojson
   asai))
+
+(executable
+ (name Parser_benchmark)
+ (libraries
+  forester.parser
+  forester.core
+  asai))

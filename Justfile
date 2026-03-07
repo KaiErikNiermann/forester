@@ -52,6 +52,9 @@ test-parser-sync:
 test-rust:
   cargo test --manifest-path tools/rust-parser/Cargo.toml
 
+benchmark-rust-parser:
+  ./scripts/benchmark-parser-performance.sh
+
 test-haskell:
   cd tools/pandoc-converter && cabal --project-file=cabal.project test all
   ./scripts/test-markdown-converter.sh

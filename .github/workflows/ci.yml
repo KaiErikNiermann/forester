@@ -21,6 +21,7 @@ jobs:
       haskell: ${{ steps.filter.outputs.haskell }}
       markdown_bridge: ${{ steps.filter.outputs.markdown_bridge }}
       parser_sync_policy: ${{ steps.filter.outputs.parser_sync_policy }}
+      parser_benchmark: ${{ steps.filter.outputs.parser_benchmark }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -83,6 +84,12 @@ jobs:
               - "docs/rust-parser/**"
               - "lib/parser/**"
               - "tools/rust-parser/**"
+            parser_benchmark:
+              - ".github/workflows/ci.yml"
+              - "Justfile"
+              - "scripts/benchmark-parser-performance.sh"
+              - "lib/parser/**"
+              - "tools/rust-parser/**"
 
   parser-sync-policy:
     needs: changes
@@ -102,6 +109,27 @@ jobs:
           FORESTER_PARSER_SYNC_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORESTER_PARSER_SYNC_HEAD_REF: ${{ github.sha }}
         run: ./scripts/check-parser-sync.sh
+
+  parser-benchmark:
+    needs: changes
+    if: needs.changes.outputs.parser_benchmark == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up shared CI toolchain
+        uses: ./.github/actions/setup-ci
+
+      - name: Benchmark Rust parser against OCaml parser
+        run: ./scripts/benchmark-parser-performance.sh --output rust-parser-benchmarks.json --fail-on-regression
+
+      - name: Upload parser benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-parser-benchmarks
+          path: rust-parser-benchmarks.json
 
   license:
     runs-on: ubuntu-latest
