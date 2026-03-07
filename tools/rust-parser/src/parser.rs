@@ -594,6 +594,29 @@ mod tests {
     }
 
     #[test]
+    fn test_head_node1_tokens_fall_back_to_text() {
+        let result = parse("?- ?foo -: # @ '");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 6);
+        assert!(matches!(&doc.nodes[0].value, Node::Text { content } if content == "?-"));
+        assert!(matches!(&doc.nodes[1].value, Node::Text { content } if content == "?foo"));
+        assert!(matches!(&doc.nodes[2].value, Node::Text { content } if content == "-:"));
+        assert!(matches!(&doc.nodes[3].value, Node::Text { content } if content == "#"));
+        assert!(matches!(&doc.nodes[4].value, Node::Text { content } if content == "@"));
+        assert!(matches!(&doc.nodes[5].value, Node::Text { content } if content == "'"));
+    }
+
+    #[test]
+    fn test_bare_question_falls_back_to_text() {
+        let result = parse("?");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(&doc.nodes[0].value, Node::Text { content } if content == "?"));
+    }
+
+    #[test]
     fn test_parse_xml_ident_node() {
         let result = parse("\\<svg:path>");
         assert!(result.is_ok());

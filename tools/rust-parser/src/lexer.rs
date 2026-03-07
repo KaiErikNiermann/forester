@@ -298,15 +298,11 @@ fn lex_main(scanner: &mut Scanner<'_>, modes: &mut Vec<Mode>, tokens: &mut Vec<S
             let start = scanner.pos;
             scanner.advance_char();
             let name = scanner.consume_while(is_simple_name_char);
-            if name.start != name.end {
-                push_token(
-                    tokens,
-                    Token::DxVar(scanner.slice(name).to_string()),
-                    start..scanner.pos,
-                );
-            } else {
-                push_token(tokens, Token::Text("?".to_string()), start..scanner.pos);
-            }
+            push_token(
+                tokens,
+                Token::DxVar(scanner.slice(name).to_string()),
+                start..scanner.pos,
+            );
         }
         '\'' => {
             let start = scanner.pos;
@@ -830,6 +826,44 @@ mod tests {
     fn test_unterminated_verbatim_errors() {
         let errors = tokenize("\\startverb\nhello").unwrap_err();
         assert_eq!(errors[0].to_string(), "unterminated verbatim");
+    }
+
+    #[test]
+    fn test_datalog_token_forms() {
+        let tokens = tokenize("?- ?foo -: # #topic @ '").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                Token::DxVar("-".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::DxVar("foo".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::DxEntailed,
+                Token::Whitespace(" ".to_string()),
+                Token::Hash,
+                Token::Whitespace(" ".to_string()),
+                Token::HashIdent("topic".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::AtSign,
+                Token::Whitespace(" ".to_string()),
+                Token::Tick,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_bare_question_is_dx_var_empty() {
+        let tokens = tokenize("?").unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token.clone())
+                .collect::<Vec<_>>(),
+            vec![Token::DxVar(String::new())]
+        );
     }
 
     #[test]
