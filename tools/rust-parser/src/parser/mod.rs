@@ -15,7 +15,8 @@ use crate::lexer::{tokenize, Token};
 use chumsky::prelude::*;
 use recovery::{
     default_recovery_message, recover_braced_output, recover_group_node, recover_text_arg,
-    recover_textual_nodes, recover_to_empty, recover_until_closing, recovered_error_nodes,
+    recover_textual_nodes, recover_through_closing, recover_to_empty, recover_until_closing,
+    recovered_error_nodes,
 };
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -136,6 +137,69 @@ pub fn parse(input: &str) -> ParseResult<Document> {
 pub fn parse_recovery(input: &str) -> RecoveryResult<Document> {
     parse_with_mode(input, ParseMode::Recovery)
 }
+
+fn contains_header_whitespace(s: &str) -> bool {
+    s.chars().any(|ch| matches!(ch, ' ' | '\t' | '\r' | '\n'))
+}
+
+fn split_parenthesized_header_items(raw: &str, allow_empty: bool) -> Result<Vec<String>, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return if allow_empty {
+            Ok(Vec::new())
+        } else {
+            Err(raw.to_string())
+        };
+    }
+
+    trimmed
+        .split(',')
+        .map(str::trim)
+        .map(|item| {
+            if item.is_empty() || contains_header_whitespace(item) {
+                Err(raw.to_string())
+            } else {
+                Ok(item.to_string())
+            }
+        })
+        .collect()
+}
+
+fn parenthesized_binding_list(
+    raw: &str,
+    allow_empty: bool,
+) -> Result<Vec<(BindingInfo, String)>, String> {
+    split_parenthesized_header_items(raw, allow_empty)?
+        .into_iter()
+        .map(|item| {
+            if let Some(rest) = item.strip_prefix('~') {
+                if rest.is_empty() || contains_header_whitespace(rest) {
+                    Err(raw.to_string())
+                } else {
+                    Ok((BindingInfo::Lazy, rest.to_string()))
+                }
+            } else {
+                Ok((BindingInfo::Strict, item))
+            }
+        })
+        .collect()
+}
+
+fn single_parenthesized_name(raw: &str) -> Result<String, String> {
+    match split_parenthesized_header_items(raw, false)?.as_slice() {
+        [name] => Ok(name.clone()),
+        _ => Err(raw.to_string()),
+    }
+}
+
+fn patch_parenthesized_names(raw: &str) -> Result<(Option<String>, Option<String>), String> {
+    match split_parenthesized_header_items(raw, false)?.as_slice() {
+        [self_name] => Ok((Some(self_name.clone()), None)),
+        [self_name, super_name] => Ok((Some(self_name.clone()), Some(super_name.clone()))),
+        _ => Err(raw.to_string()),
+    }
+}
+
 fn ws_or<P, O>(parser: P) -> impl Parser<Token, Vec<O>, Error = Simple<Token>> + Clone
 where
     P: Parser<Token, O, Error = Simple<Token>> + Clone,
@@ -402,9 +466,72 @@ fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<T
             .then(arg.clone())
             .boxed();
         let object_self = bvar.delimited_by(just(Token::LSquare), just(Token::RSquare));
+        let parenthesized_header_text = just(Token::LParen)
+            .ignore_then(wstext.then_ignore(just(Token::RParen).rewind()))
+            .boxed();
+        let parenthesized_bindings = recover_through_closing(
+            parenthesized_header_text
+                .clone()
+                .try_map(|raw, span| {
+                    parenthesized_binding_list(&raw, true).map_err(|offender| {
+                        Simple::custom(
+                            span,
+                            format!("invalid parenthesized header binders: {offender}"),
+                        )
+                    })
+                })
+                .then_ignore(just(Token::RParen)),
+            mode,
+            Token::RParen,
+            |_| Vec::new(),
+        );
+        let parenthesized_object_self = recover_through_closing(
+            parenthesized_header_text
+                .clone()
+                .try_map(|raw, span| {
+                    single_parenthesized_name(&raw).map_err(|offender| {
+                        Simple::custom(
+                            span,
+                            format!("invalid parenthesized object binder: {offender}"),
+                        )
+                    })
+                })
+                .then_ignore(just(Token::RParen)),
+            mode,
+            Token::RParen,
+            |_| String::new(),
+        );
+        let parenthesized_patch_bindings = recover_through_closing(
+            parenthesized_header_text
+                .clone()
+                .try_map(|raw, span| {
+                    patch_parenthesized_names(&raw).map_err(|offender| {
+                        Simple::custom(
+                            span,
+                            format!("invalid parenthesized patch binders: {offender}"),
+                        )
+                    })
+                })
+                .then_ignore(just(Token::RParen)),
+            mode,
+            Token::RParen,
+            |_| (None, None),
+        );
 
         let bindings = binding.repeated();
+        let non_parenthesized_bindings = just(Token::LParen)
+            .rewind()
+            .not()
+            .rewind()
+            .ignore_then(bindings.clone())
+            .boxed();
+        let fun_bindings =
+            choice((parenthesized_bindings.clone(), non_parenthesized_bindings)).boxed();
         let fun_spec = ident_path.clone().then(bindings.clone()).then(arg.clone());
+        let def_fun_spec = ident_path
+            .clone()
+            .then(fun_bindings.clone())
+            .then(arg.clone());
         let code_block = recover_braced_output(
             recover_textual_nodes(code_expr.clone(), mode, Token::RBrace, "code expression")
                 .delimited_by(just(Token::LBrace), just(Token::RBrace)),
@@ -418,9 +545,8 @@ fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<T
             |_| Vec::new(),
         );
 
-        let def_cmd = just(Token::KwDef)
-            .ignore_then(fun_spec.clone())
-            .map_with_span(|((path, bindings), body), span| {
+        let def_cmd = just(Token::KwDef).ignore_then(def_fun_spec).map_with_span(
+            |((path, bindings), body), span| {
                 Located::new(
                     Node::Def {
                         path,
@@ -429,7 +555,8 @@ fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<T
                     },
                     Some(make_span_from_range(span)),
                 )
-            });
+            },
+        );
 
         let alloc_cmd = just(Token::KwAlloc)
             .ignore_then(ident_path.clone())
@@ -460,7 +587,7 @@ fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<T
             });
 
         let fun_cmd = just(Token::KwFun)
-            .ignore_then(bindings.clone())
+            .ignore_then(fun_bindings.clone())
             .then(arg.clone())
             .map_with_span(|(bindings, body), span| {
                 Located::new(
@@ -547,7 +674,18 @@ fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<T
             });
 
         let object_cmd = just(Token::KwObject)
-            .ignore_then(object_self.clone().or_not())
+            .ignore_then(
+                choice((
+                    object_self.clone().map(Some),
+                    parenthesized_object_self.clone().map(Some),
+                    just(Token::LParen)
+                        .rewind()
+                        .not()
+                        .rewind()
+                        .ignore_then(empty().to(None::<String>)),
+                ))
+                .boxed(),
+            )
             .then(method_block.clone())
             .map_with_span(|(self_name, methods), span| {
                 Located::new(
@@ -565,7 +703,12 @@ fn parser(mode: ParseMode) -> impl Parser<Token, Located<Node>, Error = Simple<T
                 .then(object_self.clone())
                 .map(|(self_name, super_name)| (Some(self_name), Some(super_name))),
             object_self.clone().map(|self_name| (Some(self_name), None)),
-            empty().to((None::<String>, None::<String>)),
+            parenthesized_patch_bindings,
+            just(Token::LParen)
+                .rewind()
+                .not()
+                .rewind()
+                .ignore_then(empty().to((None::<String>, None::<String>))),
         ))
         .boxed();
 

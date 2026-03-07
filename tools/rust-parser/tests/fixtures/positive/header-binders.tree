@@ -1,0 +1,5 @@
+\def\macro(x, ~y){body}
+\def\empty(){body}
+\fun(x, y){body}
+\object(self){[render]{}}
+\patch{\get\base}(self, super){[render]{ok}}

@@ -344,6 +344,38 @@ let test_rust_bridge_supports_recovery_mode () =
       Alcotest.failf "Expected recovered parse result, got failure:\n%s"
         (render_rust_errors errors)
 
+let test_rust_bridge_reports_header_binder_error_ranges () =
+  with_rust_parser_or_skip
+    "rust parser bridge reports header binder error ranges"
+  @@ fun _rust_parser_path ->
+  let input = {|\def\macro(x,){body}|} in
+  match Rust_parser.parse input with
+  | Ok code ->
+      Alcotest.failf
+        "Expected malformed parenthesized header binders to fail, got %d nodes"
+        (List.length code)
+  | Error [ error ] -> (
+      Alcotest.(check bool)
+        "error range is non-empty" true
+        (error.start_offset >= 0 && error.end_offset > error.start_offset);
+      match error.details with
+      | None ->
+          Alcotest.fail
+            "Expected structured error details for header binder sugar"
+      | Some details ->
+          Alcotest.(check string) "error kind" "custom" details.kind;
+          Alcotest.(check bool)
+            "primary label present" true
+            (List.exists
+               (fun (label : Rust_parser.parse_error_label) ->
+                 label.kind = "primary"
+                 && label.start_offset = error.start_offset
+                 && label.end_offset = error.end_offset)
+               details.labels))
+  | Error errors ->
+      Alcotest.failf "Expected single header binder error, got %d"
+        (List.length errors)
+
 let () =
   let open Alcotest in
   run "Rust parser parity"
@@ -360,5 +392,7 @@ let () =
             test_rust_bridge_surfaces_structured_errors;
           test_case "bridge supports recovery mode" `Quick
             test_rust_bridge_supports_recovery_mode;
+          test_case "bridge reports header binder error ranges" `Quick
+            test_rust_bridge_reports_header_binder_error_ranges;
         ] );
     ]

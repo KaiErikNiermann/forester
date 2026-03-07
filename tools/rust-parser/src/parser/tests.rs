@@ -127,6 +127,129 @@ fn test_binder_rejects_backslash_command_content() {
 }
 
 #[test]
+fn test_parse_def_parenthesized_binders() {
+    let result = parse("\\def\\macro(x, ~y){body}");
+    assert!(result.is_ok());
+    let doc = result.unwrap();
+    assert_eq!(doc.nodes.len(), 1);
+    assert!(matches!(
+        &doc.nodes[0].value,
+        Node::Def { path, bindings, body }
+            if path == &vec!["macro".to_string()]
+            && bindings == &vec![
+                (BindingInfo::Strict, "x".to_string()),
+                (BindingInfo::Lazy, "y".to_string())
+            ]
+            && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "body")
+    ));
+}
+
+#[test]
+fn test_parse_def_empty_parenthesized_binders() {
+    let result = parse("\\def\\macro(){body}");
+    assert!(result.is_ok());
+    let doc = result.unwrap();
+    assert!(matches!(
+        &doc.nodes[0].value,
+        Node::Def { bindings, .. } if bindings.is_empty()
+    ));
+}
+
+#[test]
+fn test_parse_fun_parenthesized_binders() {
+    let result = parse("\\fun(x, y){body}");
+    assert!(result.is_ok());
+    let doc = result.unwrap();
+    assert!(matches!(
+        &doc.nodes[0].value,
+        Node::Fun { bindings, body }
+            if bindings == &vec![
+                (BindingInfo::Strict, "x".to_string()),
+                (BindingInfo::Strict, "y".to_string())
+            ]
+            && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "body")
+    ));
+}
+
+#[test]
+fn test_parse_object_parenthesized_self() {
+    let result = parse("\\object(self){[render]{}}");
+    assert!(result.is_ok());
+    let doc = result.unwrap();
+    assert!(matches!(
+        &doc.nodes[0].value,
+        Node::Object { def }
+            if def.self_name.as_deref() == Some("self")
+            && matches!(def.methods.as_slice(), [(name, body)] if name == "render" && body.is_empty())
+    ));
+}
+
+#[test]
+fn test_parse_patch_parenthesized_bindings() {
+    let result = parse("\\patch{\\get\\base}(self, super){[render]{ok}}");
+    assert!(result.is_ok());
+    let doc = result.unwrap();
+    assert!(matches!(
+        &doc.nodes[0].value,
+        Node::Patch { def }
+            if def.self_name.as_deref() == Some("self")
+            && def.super_name.as_deref() == Some("super")
+            && matches!(
+                def.obj.as_slice(),
+                [Located { value: Node::Get { path }, .. }] if path == &vec!["base".to_string()]
+            )
+            && matches!(
+                def.methods.as_slice(),
+                [(name, body)] if name == "render"
+                    && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "ok")
+            )
+    ));
+}
+
+#[test]
+fn test_parenthesized_header_binders_reject_invalid_forms() {
+    assert!(parse("\\let\\macro(x){body}").is_err());
+    assert!(parse("\\def\\macro(x)[y]{body}").is_err());
+    assert!(parse("\\def\\macro[x](y){body}").is_err());
+    assert!(parse("\\object(){[render]{}}").is_err());
+    assert!(parse("\\patch{\\get\\base}(self, super, extra){[render]{}}").is_err());
+    assert!(parse("\\def\\macro(x,){body}").is_err());
+    assert!(parse("\\def\\macro(x y){body}").is_err());
+}
+
+#[test]
+fn test_parenthesized_header_binder_recovery_preserves_following_nodes() {
+    let input = "\\def\\macro(x,){body}\n\\fun(z){tail}";
+    let recovery = parse_recovery(input);
+
+    assert!(recovery.output.is_some());
+    assert!(!recovery.errors.is_empty());
+
+    let first_error = &recovery.errors[0];
+    assert!(matches!(
+        first_error,
+        ParseError::Custom { message, span }
+            if message.contains("invalid parenthesized header binders") && span.start < span.end
+    ));
+
+    let doc = recovery.output.expect("recovered document");
+    assert_eq!(doc.nodes.len(), 2);
+    assert!(matches!(
+        &doc.nodes[0].value,
+        Node::Def { path, bindings, body }
+            if path == &vec!["macro".to_string()]
+            && bindings.is_empty()
+            && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "body")
+    ));
+    assert!(matches!(
+        &doc.nodes[1].value,
+        Node::Fun { bindings, body }
+            if bindings == &vec![(BindingInfo::Strict, "z".to_string())]
+            && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "tail")
+    ));
+}
+
+#[test]
 fn test_parse_error_unclosed_brace() {
     let input = "\\title{Hello";
     let result = parse(input);

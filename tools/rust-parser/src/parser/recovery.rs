@@ -83,6 +83,40 @@ where
         .boxed()
 }
 
+pub(super) fn recover_through_closing<P, O, F>(
+    parser: P,
+    mode: ParseMode,
+    closing: Token,
+    fallback: F,
+) -> BoxedParser<'static, Token, O, Simple<Token>>
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone + 'static,
+    O: 'static,
+    F: Fn(Range<usize>) -> O + Clone + 'static,
+{
+    if !mode.enables_recovery() {
+        return parser.boxed();
+    }
+
+    let closing_direct = just(closing.clone()).map_with_span({
+        let fallback = fallback.clone();
+        move |_: Token, span| fallback(span)
+    });
+
+    let closing_after_skip = filter({
+        let closing = closing.clone();
+        move |token: &Token| token != &closing
+    })
+    .repeated()
+    .at_least(1)
+    .then_ignore(just(closing).or_not())
+    .map_with_span(move |_: Vec<Token>, span| fallback(span));
+
+    parser
+        .recover_with(skip_parser(choice((closing_direct, closing_after_skip))))
+        .boxed()
+}
+
 pub(super) fn default_recovery_message(context: &str) -> String {
     format!("recovered malformed {context}")
 }
