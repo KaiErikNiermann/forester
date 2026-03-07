@@ -813,7 +813,7 @@ mod tests {
 
     #[test]
     fn test_special_names_after_backslash() {
-        let tokens = tokenize("\\% \\{ \\_ \\| \\ ").unwrap();
+        let tokens = tokenize("\\% \\\\ \\, \\\" \\` \\_ \\; \\# \\{ \\} \\[ \\] \\| \\ ").unwrap();
         assert_eq!(
             tokens
                 .iter()
@@ -822,9 +822,27 @@ mod tests {
             vec![
                 Token::Text("%".to_string()),
                 Token::Whitespace(" ".to_string()),
-                Token::Ident("{".to_string()),
+                Token::Ident("\\".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident(",".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("\"".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("`".to_string()),
                 Token::Whitespace(" ".to_string()),
                 Token::Ident("_".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident(";".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("#".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("{".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("}".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("[".to_string()),
+                Token::Whitespace(" ".to_string()),
+                Token::Ident("]".to_string()),
                 Token::Whitespace(" ".to_string()),
                 Token::Ident("|".to_string()),
                 Token::Whitespace(" ".to_string()),
@@ -841,6 +859,30 @@ mod tests {
             vec![SpannedToken {
                 token: Token::Verbatim("  hello world".to_string()),
                 span: 0..27,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_inline_verbatim_trims_trailing_newlines_and_whitespace() {
+        let tokens = tokenize("\\verbEND|line one\nline two \n\nEND").unwrap();
+        assert_eq!(
+            tokens,
+            vec![SpannedToken {
+                token: Token::Verbatim("line one\nline two".to_string()),
+                span: 0..32,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_inline_verbatim_waits_for_full_herald_match() {
+        let tokens = tokenize("\\verbEND|bodyEN bodyEND").unwrap();
+        assert_eq!(
+            tokens,
+            vec![SpannedToken {
+                token: Token::Verbatim("bodyEN body".to_string()),
+                span: 0..23,
             }]
         );
     }
