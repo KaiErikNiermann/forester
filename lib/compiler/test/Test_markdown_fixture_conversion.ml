@@ -4,6 +4,9 @@
 (******************************************************************************)
 
 open Forester_compiler
+open Forester_core
+
+module Rust_parser = Forester_parser.Rust_parser
 
 let is_executable_file path =
   (not (Sys.is_directory path))
@@ -40,6 +43,23 @@ let resolve_converter_path () =
     else
       None
   | _ -> find_in_path "forester-pandoc"
+
+let resolve_rust_parser_path () =
+  let repo_local_candidates () =
+    let root = Sys.getcwd () in
+    [
+      Filename.concat root "tools/rust-parser/target/debug/forester-rust-parser";
+      Filename.concat root "tools/rust-parser/target/release/forester-rust-parser";
+    ]
+  in
+  let candidate_paths =
+    match Sys.getenv_opt "FORESTER_RUST_PARSER_PATH" with
+    | Some path when String.trim path <> "" -> path :: repo_local_candidates ()
+    | _ -> repo_local_candidates ()
+  in
+  match List.find_opt (fun path -> Sys.file_exists path && is_executable_file path) candidate_paths with
+  | Some path -> Some path
+  | None -> find_in_path "forester-rust-parser"
 
 let bool_of_env name =
   match Sys.getenv_opt name with
@@ -184,6 +204,155 @@ let parse_forester_or_fail ~fixture output =
       "Fixture %s produced Forester that failed parser validation:\n%s"
       fixture
       explanation
+
+let rec strip_code_locations (code : Code.t) : Code.t =
+  List.map
+    (fun ({Asai.Range.value; _}: Code.node Asai.Range.located) ->
+      {
+        Asai.Range.loc = None;
+        value = Code.map strip_code_locations value;
+      }
+    )
+    code
+
+let rec normalize_bridge_shape (code : Code.t) : Code.t =
+  let is_glue_after = function
+    | '/'
+    | '-'
+    | '@'
+    | '\'' ->
+      true
+    | _ -> false
+  in
+  let is_glue_before = function
+    | '/'
+    | ':'
+    | '-'
+    | '@'
+    | '.'
+    | ','
+    | ';'
+    | '!'
+    | '?'
+    | '\'' ->
+      true
+    | _ -> false
+  in
+  let escaped_literal_text = function
+    | ["{"]
+    | ["}"]
+    | ["["]
+    | ["]"]
+    | ["#"]
+    | ["%"]
+    | ["\\"] as path ->
+      Some (List.hd path)
+    | _ -> None
+  in
+  let collapse_text_nodes nodes =
+    let rec take_text_run acc = function
+      | ({Asai.Range.value = Code.Text text; _}: Code.node Asai.Range.located) :: rest ->
+        take_text_run (text :: acc) rest
+      | rest -> List.rev acc, rest
+    in
+    let rec loop acc = function
+      | [] -> List.rev acc
+      | ({Asai.Range.value = Code.Text text; _}: Code.node Asai.Range.located) :: rest ->
+        let texts, tail = take_text_run [text] rest in
+        let normalized_text =
+          let buffer = Buffer.create 32 in
+          let pending_space = ref false in
+          List.iter
+            (fun value ->
+              if String.trim value = "" then
+                pending_space := true
+              else
+                (
+                  if Buffer.length buffer > 0 then
+                    (
+                      let previous_char = Buffer.nth buffer (Buffer.length buffer - 1) in
+                      let current_char = value.[0] in
+                      if !pending_space || (not (is_glue_after previous_char || is_glue_before current_char)) then
+                        Buffer.add_char buffer ' '
+                    );
+                  Buffer.add_string buffer value;
+                  pending_space := false
+                )
+            )
+            texts;
+          Buffer.contents buffer
+        in
+        if normalized_text = "" then
+          loop acc tail
+        else
+          loop
+            ({Asai.Range.loc = None; value = Code.Text normalized_text} :: acc)
+            tail
+      | node :: rest -> loop (node :: acc) rest
+    in
+    loop [] nodes
+  in
+  let normalize_node ({Asai.Range.value; loc}: Code.node Asai.Range.located) =
+    let normalized_value =
+      match value with
+      | Code.Ident path ->
+        (
+          match escaped_literal_text path with
+          | Some text -> Code.Text text
+          | None -> value
+        )
+      | _ -> Code.map normalize_bridge_shape value
+    in
+    {
+      Asai.Range.loc = loc;
+      value = normalized_value;
+    }
+  in
+  let normalized_nodes = List.map normalize_node code in
+  List.concat_map
+    (fun ({Asai.Range.value; _} as node) ->
+      match value with
+      | Code.Group (Braces, (({Asai.Range.value = Code.Ident _; _}) :: _ as body)) ->
+        body
+      | _ -> [node]
+    )
+    normalized_nodes
+  |> collapse_text_nodes
+
+let render_code_shape (code : Code.t) =
+  Format.asprintf "%a" Code.pp code
+
+let parse_forester_with_ocaml_or_fail ~fixture output =
+  match Parse.parse_content ~filename: (fixture ^ ".tree") output with
+  | Ok code -> code
+  | Error diagnostic ->
+    let explanation =
+      Asai.Diagnostic.string_of_text diagnostic.Asai.Diagnostic.explanation.value
+    in
+    Alcotest.failf
+      "Fixture %s produced Forester that failed OCaml parser validation:\n%s"
+      fixture
+      explanation
+
+let parse_forester_with_rust_or_fail ~rust_parser_path ~fixture output =
+  Rust_parser.set_rust_parser_path rust_parser_path;
+  match Rust_parser.parse output with
+  | Ok code -> code
+  | Error errors ->
+    let rendered_errors =
+      errors
+      |> List.map (fun (error : Rust_parser.parse_error) ->
+          if error.report <> "" then
+            error.report
+          else
+            error.message
+        )
+      |> String.concat "\n\n"
+    in
+    Alcotest.failf
+      "Fixture %s produced Forester that failed Rust parser validation:\n%s"
+      fixture
+      rendered_errors
 
 let rec find_substring haystack needle start =
   let haystack_len = String.length haystack in
@@ -350,6 +519,25 @@ let with_converter_or_skip test_name f =
         Alcotest.skip ()
       )
 
+let with_rust_parser_or_skip test_name f =
+  match resolve_rust_parser_path () with
+  | Some rust_parser_path -> f rust_parser_path
+  | None ->
+    if bool_of_env "FORESTER_RUST_PARSER_REQUIRE_BINARY" then
+      Alcotest.fail
+        (
+          Printf.sprintf
+            "%s requires rust parser binary; set FORESTER_RUST_PARSER_PATH or build tools/rust-parser"
+            test_name
+        )
+    else
+      (
+        Printf.eprintf
+          "%s skipped because rust parser binary is unavailable (set FORESTER_RUST_PARSER_REQUIRE_BINARY=1 to enforce)\n%!"
+          test_name;
+        Alcotest.skip ()
+      )
+
 let test_fixture_goldens () =
   with_converter_or_skip "golden fixture parity" @@ fun converter_path ->
   List.iter
@@ -472,6 +660,65 @@ let test_randomized_markdown_generation () =
     assert_no_known_hazards ~fixture: (Printf.sprintf "fuzz-%d" seed) output
   done
 
+let test_dual_parser_equivalence () =
+  with_converter_or_skip "dual parser equivalence" @@ fun converter_path ->
+  with_rust_parser_or_skip "dual parser equivalence" @@ fun rust_parser_path ->
+  let checked_fixtures = ref 0 in
+  List.iter
+    (fun fixture ->
+      let status, output = run_converter ~converter_path ~markdown_path: fixture.markdown_path in
+      (
+        match status with
+        | Unix.WEXITED 0 -> ()
+        | Unix.WEXITED code ->
+          Alcotest.failf
+            "Fixture %s converter exited with code %d:\n%s"
+            fixture.stem
+            code
+            output
+        | Unix.WSIGNALED signal_number ->
+          Alcotest.failf
+            "Fixture %s converter terminated by signal %d"
+            fixture.stem
+            signal_number
+        | Unix.WSTOPPED signal_number ->
+          Alcotest.failf
+            "Fixture %s converter stopped by signal %d"
+            fixture.stem
+            signal_number
+      );
+      if find_substring output "\\verb" 0 <> None then
+        Printf.eprintf
+          "dual parser equivalence skipped for %s because current Rust parser parity does not cover verbatim output yet\n%!"
+          fixture.stem
+      else
+        (
+          incr checked_fixtures;
+          let ocaml_code =
+            parse_forester_with_ocaml_or_fail ~fixture: fixture.stem output
+            |> strip_code_locations
+            |> normalize_bridge_shape
+          in
+          let rust_code =
+            parse_forester_with_rust_or_fail
+              ~rust_parser_path
+              ~fixture: fixture.stem
+              output
+            |> strip_code_locations
+            |> normalize_bridge_shape
+          in
+          Alcotest.(check string)
+            ("dual parser shape " ^ fixture.stem)
+            (render_code_shape ocaml_code)
+            (render_code_shape rust_code)
+        )
+    )
+    (load_fixture_cases ());
+  Alcotest.(check bool)
+    "dual parser equivalence checked at least one fixture"
+    true
+    (!checked_fixtures > 0)
+
 let () =
   let open Alcotest in
   run
@@ -482,6 +729,7 @@ let () =
         [test_case "golden parity" `Quick test_fixture_goldens;
         test_case "parser validity" `Quick test_fixture_outputs_parse;
         test_case "known hazard checks" `Quick test_fixture_hazards;
+        test_case "dual parser equivalence" `Quick test_dual_parser_equivalence;
         test_case "randomized markdown generation" `Quick test_randomized_markdown_generation;
         ]
       );
