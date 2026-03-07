@@ -5,6 +5,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_cmd cabal "Install cabal to run the Markdown converter scaffold tests."
+"$repo_root/scripts/check-markdown-regression-fixtures.sh"
 
 actual_output="$(mktemp)"
 diagnostics_output="$(mktemp)"
