@@ -52,3 +52,12 @@
   forester.parser
   yojson
   asai))
+
+
+(test
+ (name Test_rust_parser_process)
+ (libraries
+  alcotest
+  forester.test
+  forester.parser
+  unix))
