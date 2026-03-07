@@ -1,171 +1,16 @@
 // SPDX-FileCopyrightText: 2024 The Forester Project Contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Error types for the Forester parser
-
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use schemars::JsonSchema;
-use serde::Serialize;
-use std::fmt;
 use thiserror::Error;
 
-#[allow(unused_imports)]
-use crate::ast::Span;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExpectedTokens(Vec<String>);
-
-impl ExpectedTokens {
-    pub fn new(values: Vec<String>) -> Self {
-        Self(values)
-    }
-
-    pub fn values(&self) -> &[String] {
-        &self.0
-    }
-
-    pub fn contains(&self, value: &str) -> bool {
-        self.0.iter().any(|candidate| candidate == value)
-    }
-}
-
-impl fmt::Display for ExpectedTokens {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.as_slice() {
-            [] => write!(f, "end of input"),
-            [only] => write!(f, "{only}"),
-            [rest @ .., last] => {
-                let joined = rest.join(", ");
-                write!(f, "{joined} or {last}")
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ParseErrorKind {
-    UnexpectedToken,
-    UnexpectedEof,
-    UnclosedDelimiter,
-    MismatchedDelimiter,
-    UnexpectedClosingDelimiter,
-    InvalidEscape,
-    LexerError,
-    Custom,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ParseErrorLabelKind {
-    Primary,
-    Context,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-pub struct ParseErrorLabel {
-    pub kind: ParseErrorLabelKind,
-    pub message: String,
-    pub start_offset: usize,
-    pub end_offset: usize,
-}
-
-impl ParseErrorLabel {
-    fn new(
-        kind: ParseErrorLabelKind,
-        message: impl Into<String>,
-        span: std::ops::Range<usize>,
-    ) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-            start_offset: span.start,
-            end_offset: span.end,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
-pub struct ParseErrorDetails {
-    pub kind: ParseErrorKind,
-    pub expected: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub found: Option<String>,
-    pub labels: Vec<ParseErrorLabel>,
-    pub notes: Vec<String>,
-}
-
-const VALID_ESCAPED_NAMES_HINT: &str =
-    "valid escaped names after a backslash here are %, space, \\\\, ,, \", `, _, ;, #, {, }, [, ], and |";
-
-fn has_targeted_expectations(expected: &ExpectedTokens) -> bool {
-    expected.values().len() <= 3
-}
-
-fn expected_note(expected: &ExpectedTokens) -> Option<String> {
-    (!expected.values().is_empty()).then(|| format!("expected {}", expected))
-}
-
-fn delimiter_expectation_note(expected: &ExpectedTokens) -> Option<String> {
-    (has_targeted_expectations(expected)
-        && (expected.contains("'}'") || expected.contains("']'") || expected.contains("')'")))
-    .then(|| "a preceding delimiter may still need its closing token".to_string())
-}
-
-fn braced_body_note(expected: &ExpectedTokens) -> Option<String> {
-    (has_targeted_expectations(expected) && expected.contains("'{'"))
-        .then(|| "this construct requires a braced argument or body at this point".to_string())
-}
-
-fn path_continuation_note(expected: &ExpectedTokens) -> Option<String> {
-    (has_targeted_expectations(expected) && expected.contains("'/'"))
-        .then(|| "slash-separated identifier paths may continue with '/'".to_string())
-}
-
-fn plain_text_note(found: &str) -> Option<String> {
-    found.starts_with("'text:")
-        .then(|| {
-            "plain text is only valid inside textual bodies; at top level you likely need a command such as \\p{...}".to_string()
-        })
-}
-
-fn custom_label(message: &str) -> String {
-    if message.starts_with("syntax error, unexpected ") {
-        "unexpected lexeme here".to_string()
-    } else if message == "unterminated verbatim" {
-        "verbatim block did not reach its closing marker".to_string()
-    } else if message.contains("XML identifier") {
-        "invalid XML command syntax here".to_string()
-    } else if message.contains("xmlns prefix") {
-        "invalid xmlns command syntax here".to_string()
-    } else {
-        "error occurred here".to_string()
-    }
-}
-
-fn custom_notes(message: &str) -> Vec<String> {
-    match message {
-        "unterminated verbatim" => vec![
-            "inline verbatim closes when the opening herald reappears".to_string(),
-            "block verbatim closes only at \\stopverb".to_string(),
-        ],
-        msg if msg.starts_with("syntax error, unexpected ") => vec![
-            "the lexer could not continue from this lexeme".to_string(),
-            VALID_ESCAPED_NAMES_HINT.to_string(),
-        ],
-        "invalid XML identifier after backslash"
-        | "invalid qualified XML identifier after backslash" => {
-            vec!["expected an XML command of the form \\<name> or \\<prefix:name>".to_string()]
-        }
-        "unterminated XML identifier after backslash" => {
-            vec!["close the XML command with '>'".to_string()]
-        }
-        "invalid xmlns prefix after backslash" => {
-            vec!["expected an xmlns declaration of the form \\xmlns:prefix".to_string()]
-        }
-        _ => vec![],
-    }
-}
+use super::details::{
+    braced_body_note, custom_label, custom_notes, delimiter_expectation_note, expected_note,
+    path_continuation_note, plain_text_note, VALID_ESCAPED_NAMES_HINT,
+};
+use super::{
+    ExpectedTokens, ParseErrorDetails, ParseErrorKind, ParseErrorLabel, ParseErrorLabelKind,
+};
 
 /// Parse error type
 #[derive(Debug, Clone, Error)]
@@ -392,11 +237,9 @@ impl ParseError {
         let source_len = source.len();
         let details = self.details();
 
-        // Helper to clamp span to source bounds
         let clamp_span = |span: &std::ops::Range<usize>| -> std::ops::Range<usize> {
             let start = span.start.min(source_len.saturating_sub(1));
             let end = span.end.min(source_len);
-            // Ensure we have at least 1 char span for visibility
             if start >= end && source_len > 0 {
                 start..start.saturating_add(1).min(source_len)
             } else {
@@ -468,55 +311,3 @@ impl ParseError {
 
 /// Result type alias for parse operations
 pub type ParseResult<T> = Result<T, Vec<ParseError>>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn unexpected_token_reports_plain_text_hint() {
-        let errors = crate::parse("hello").expect_err("plain text should fail");
-        let details = errors[0].details();
-
-        assert_eq!(details.kind, ParseErrorKind::UnexpectedToken);
-        assert!(details
-            .notes
-            .iter()
-            .any(|note| note.contains("plain text is only valid inside textual bodies")));
-        assert!(!details
-            .notes
-            .iter()
-            .any(|note| note.contains("braced argument or body")));
-    }
-
-    #[test]
-    fn unexpected_eof_reports_braced_body_hint() {
-        let errors =
-            crate::parse("\\namespace\\foo").expect_err("namespace without body should fail");
-        let details = errors[0].details();
-
-        assert_eq!(details.kind, ParseErrorKind::UnexpectedEof);
-        assert!(details
-            .notes
-            .iter()
-            .any(|note| note.contains("braced argument or body")));
-        assert!(details
-            .notes
-            .iter()
-            .any(|note| note.contains("slash-separated identifier paths")));
-    }
-
-    #[test]
-    fn custom_verbatim_errors_report_closing_hints() {
-        let errors = crate::lexer::tokenize("\\startverb\nhello")
-            .expect_err("unterminated verbatim should fail");
-        let details = errors[0].details();
-
-        assert_eq!(details.kind, ParseErrorKind::Custom);
-        assert!(details
-            .notes
-            .iter()
-            .any(|note| note.contains("inline verbatim closes")));
-        assert!(details.notes.iter().any(|note| note.contains("\\stopverb")));
-    }
-}
