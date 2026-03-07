@@ -81,6 +81,13 @@ Configured in `gfmReaderOptions` (extends markdown profile):
 
 Rationale: cover common Markdown + GFM-like constructs needed for bridge viability.
 
+### Provenance Mode
+
+- Optional provenance emission is enabled through `forester-pandoc markdown-to-forester --emit-sourcepos-comments`.
+- In provenance mode, GFM input is read through Pandoc's CommonMark reader with `Ext_sourcepos` enabled.
+- Emitted Forester output includes `% pandoc-sourcepos: ...` comments ahead of top-level blocks when Pandoc exposes source positions.
+- Structured diagnostics include `source_span` when the originating Pandoc node carries source-position data.
+
 ## 4. Mapping Matrix
 
 ## Block-level mappings
@@ -187,3 +194,4 @@ Bridge is considered ready for next milestone when all are true:
 ## 11. User Examples
 
 - See `docs/pandoc-bridge/examples.md` for concrete Markdown input and emitted Forester output pairs covering headings, metadata, tables, figures, and citations.
+- See `docs/pandoc-bridge/release-checklist.md` for the full pre-release validation checklist.
