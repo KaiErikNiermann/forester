@@ -9,6 +9,7 @@
 pub mod ast;
 pub mod error;
 pub mod ffi;
+pub mod json;
 pub mod lexer;
 pub mod parser;
 

@@ -1,0 +1,986 @@
+{
+  "$defs": {
+    "BindingInfo": {
+      "description": "Binding strictness: strict evaluates immediately, lazy delays evaluation",
+      "enum": [
+        "strict",
+        "lazy"
+      ],
+      "type": "string"
+    },
+    "Delim": {
+      "description": "Delimiter types for grouping",
+      "enum": [
+        "braces",
+        "squares",
+        "parens"
+      ],
+      "type": "string"
+    },
+    "Document": {
+      "description": "Complete parse tree for a document",
+      "properties": {
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/Located"
+          },
+          "type": "array"
+        },
+        "source_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "nodes"
+      ],
+      "type": "object"
+    },
+    "ErrorInfo": {
+      "properties": {
+        "end_offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "report": {
+          "description": "Pretty-printed error report using ariadne.",
+          "type": "string"
+        },
+        "start_offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "message",
+        "start_offset",
+        "end_offset",
+        "report"
+      ],
+      "type": "object"
+    },
+    "Located": {
+      "description": "A located value (value with optional span)",
+      "properties": {
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/Node"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "type": "object"
+    },
+    "MathMode": {
+      "description": "Math display mode",
+      "enum": [
+        "inline",
+        "display"
+      ],
+      "type": "string"
+    },
+    "Node": {
+      "description": "AST Node types - mirrors OCaml Code.node",
+      "oneOf": [
+        {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "content"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "type": {
+              "const": "verbatim",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "content"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "type": {
+              "const": "comment",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "content"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "const": "error",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "delim": {
+              "$ref": "#/$defs/Delim"
+            },
+            "type": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "delim",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "mode": {
+              "$ref": "#/$defs/MathMode"
+            },
+            "type": {
+              "const": "math",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "mode",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "ident",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "const": "hash_ident",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "xml_ident",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "bindings": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "#/$defs/BindingInfo"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "let",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path",
+            "bindings",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "bindings": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "#/$defs/BindingInfo"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "def",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path",
+            "bindings",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "bindings": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "#/$defs/BindingInfo"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "fun",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "bindings",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "scope",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "namespace",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "open",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "put",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "default",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "get",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "path": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "alloc",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "def": {
+              "$ref": "#/$defs/ObjectDef"
+            },
+            "type": {
+              "const": "object",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "def"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "def": {
+              "$ref": "#/$defs/PatchDef"
+            },
+            "type": {
+              "const": "patch",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "def"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "type": "string"
+            },
+            "target": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "call",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "target",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "addr": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "subtree",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "target": {
+              "type": "string"
+            },
+            "type": {
+              "const": "import",
+              "type": "string"
+            },
+            "visibility": {
+              "$ref": "#/$defs/Visibility"
+            }
+          },
+          "required": [
+            "type",
+            "visibility",
+            "target"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "prefix": {
+              "type": "string"
+            },
+            "type": {
+              "const": "decl_xmlns",
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "prefix",
+            "uri"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "conclusion": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "premises": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/Located"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "dx_sequent",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "conclusion",
+            "premises"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "negatives": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/Located"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "positives": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/Located"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "dx_query",
+              "type": "string"
+            },
+            "var": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "var",
+            "positives",
+            "negatives"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "args": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/Located"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "relation": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "dx_prop",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "relation",
+            "args"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "const": "dx_var",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "dx_const_content",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/Located"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "dx_const_uri",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "body"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ObjectDef": {
+      "description": "Object definition",
+      "properties": {
+        "methods": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/$defs/Located"
+                },
+                "type": "array"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "self_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "methods"
+      ],
+      "type": "object"
+    },
+    "PatchDef": {
+      "description": "Patch (object extension) definition",
+      "properties": {
+        "methods": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/$defs/Located"
+                },
+                "type": "array"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "obj": {
+          "items": {
+            "$ref": "#/$defs/Located"
+          },
+          "type": "array"
+        },
+        "self_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "super_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "obj",
+        "methods"
+      ],
+      "type": "object"
+    },
+    "Position": {
+      "properties": {
+        "column": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "offset": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "offset",
+        "line",
+        "column"
+      ],
+      "type": "object"
+    },
+    "Span": {
+      "description": "Source location information",
+      "properties": {
+        "end": {
+          "$ref": "#/$defs/Position"
+        },
+        "start": {
+          "$ref": "#/$defs/Position"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "Visibility": {
+      "description": "Import visibility",
+      "enum": [
+        "private",
+        "public"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Result of parsing, returned as JSON to external consumers.",
+  "oneOf": [
+    {
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/Document"
+        },
+        "status": {
+          "const": "ok",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "document"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/ErrorInfo"
+          },
+          "type": "array"
+        },
+        "status": {
+          "const": "error",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "errors"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "ParseResult"
+}

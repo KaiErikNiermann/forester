@@ -5,10 +5,11 @@
 //!
 //! These types mirror the OCaml Code.ml types for interoperability.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Source location information
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
@@ -35,7 +36,7 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Position {
     pub offset: usize,
     pub line: usize,
@@ -53,7 +54,7 @@ impl Position {
 }
 
 /// A located value (value with optional span)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Located<T> {
     pub value: T,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -78,7 +79,7 @@ impl<T> Located<T> {
 }
 
 /// Binding strictness: strict evaluates immediately, lazy delays evaluation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BindingInfo {
     Strict,
@@ -89,7 +90,7 @@ pub enum BindingInfo {
 pub type Binding = (BindingInfo, String);
 
 /// Delimiter types for grouping
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Delim {
     Braces,  // { }
@@ -98,7 +99,7 @@ pub enum Delim {
 }
 
 /// Math display mode
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MathMode {
     Inline,  // #{...}
@@ -106,7 +107,7 @@ pub enum MathMode {
 }
 
 /// Import visibility
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Visibility {
     Private,
@@ -117,14 +118,14 @@ pub enum Visibility {
 pub type Path = Vec<String>;
 
 /// Object definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ObjectDef {
     pub self_name: Option<String>,
     pub methods: Vec<(String, Nodes)>,
 }
 
 /// Patch (object extension) definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PatchDef {
     pub obj: Nodes,
     pub self_name: Option<String>,
@@ -133,7 +134,7 @@ pub struct PatchDef {
 }
 
 /// AST Node types - mirrors OCaml Code.node
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Node {
     // Content nodes
@@ -269,7 +270,7 @@ pub enum Node {
 pub type Nodes = Vec<Located<Node>>;
 
 /// Complete parse tree for a document
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Document {
     pub nodes: Nodes,
     #[serde(skip_serializing_if = "Option::is_none")]

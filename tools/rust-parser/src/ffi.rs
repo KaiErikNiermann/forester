@@ -9,39 +9,8 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-use crate::error::ParseError;
-use crate::{parse, Document};
-
-/// Result of parsing, returned as JSON
-#[derive(serde::Serialize)]
-#[serde(tag = "status")]
-enum ParseResult {
-    #[serde(rename = "ok")]
-    Ok { document: Document },
-    #[serde(rename = "error")]
-    Error { errors: Vec<ErrorInfo> },
-}
-
-#[derive(serde::Serialize)]
-struct ErrorInfo {
-    message: String,
-    start_offset: usize,
-    end_offset: usize,
-    /// Pretty-printed error report using ariadne
-    report: String,
-}
-
-impl ErrorInfo {
-    fn from_error(e: &ParseError, filename: &str, source: &str) -> Self {
-        let span = e.span();
-        ErrorInfo {
-            message: e.to_string(),
-            start_offset: span.start,
-            end_offset: span.end,
-            report: e.report(filename, source),
-        }
-    }
-}
+use crate::json::{ErrorInfo, ParseResult};
+use crate::parse;
 
 /// Parse input and return JSON result
 ///
@@ -88,18 +57,11 @@ pub unsafe extern "C" fn rust_parser_parse_with_filename(
     };
 
     let result = match parse(input_str) {
-        Ok(mut doc) => {
-            if !filename.is_null() {
-                doc.source_path = Some(filename_str.to_string());
-            }
-            ParseResult::Ok { document: doc }
-        }
-        Err(errors) => ParseResult::Error {
-            errors: errors
-                .iter()
-                .map(|e| ErrorInfo::from_error(e, filename_str, input_str))
-                .collect(),
+        Ok(doc) if filename.is_null() => ParseResult::Ok { document: doc },
+        Ok(doc) => ParseResult::Ok {
+            document: doc.with_source_path(filename_str.to_string()),
         },
+        Err(errors) => ParseResult::from_parse_result(Err(errors), filename_str, input_str),
     };
 
     let json = serde_json::to_string(&result).unwrap();

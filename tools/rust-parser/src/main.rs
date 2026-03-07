@@ -3,40 +3,9 @@
 
 //! Forester Rust Parser - CLI tool for testing
 
-use forester_rust_parser::error::ParseError;
-use forester_rust_parser::{parse, Document};
+use forester_rust_parser::json::{schema_pretty_string, ParseResult};
+use forester_rust_parser::parse;
 use std::io::{self, Read};
-
-/// Result of parsing, returned as JSON (same format as FFI)
-#[derive(serde::Serialize)]
-#[serde(tag = "status")]
-enum ParseResult {
-    #[serde(rename = "ok")]
-    Ok { document: Document },
-    #[serde(rename = "error")]
-    Error { errors: Vec<ErrorInfo> },
-}
-
-#[derive(serde::Serialize)]
-struct ErrorInfo {
-    message: String,
-    start_offset: usize,
-    end_offset: usize,
-    /// Pretty-printed error report using ariadne
-    report: String,
-}
-
-impl ErrorInfo {
-    fn from_error(e: &ParseError, filename: &str, source: &str) -> Self {
-        let span = e.span();
-        ErrorInfo {
-            message: e.to_string(),
-            start_offset: span.start,
-            end_offset: span.end,
-            report: e.report(filename, source),
-        }
-    }
-}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -49,11 +18,15 @@ fn main() {
             println!("  forester-rust-parser [file]     Parse a file");
             println!("  forester-rust-parser -          Read from stdin");
             println!("  forester-rust-parser --json     Output AST as JSON");
+            println!("  forester-rust-parser --json-schema  Output JSON schema");
             println!("  forester-rust-parser --version  Show version");
             println!("  forester-rust-parser --help     Show this help");
         }
         Some("--version") | Some("-V") => {
             println!("forester-rust-parser {}", env!("CARGO_PKG_VERSION"));
+        }
+        Some("--json-schema") => {
+            print!("{}", schema_pretty_string());
         }
         Some("--json") => {
             // JSON mode: read from stdin or file
@@ -78,15 +51,7 @@ fn main() {
                 (buf, "<stdin>".to_string())
             };
 
-            let result = match parse(&input) {
-                Ok(doc) => ParseResult::Ok { document: doc },
-                Err(errors) => ParseResult::Error {
-                    errors: errors
-                        .iter()
-                        .map(|e| ErrorInfo::from_error(e, &filename, &input))
-                        .collect(),
-                },
-            };
+            let result = ParseResult::from_parse_result(parse(&input), &filename, &input);
             let json = serde_json::to_string_pretty(&result).unwrap();
             println!("{}", json);
         }
