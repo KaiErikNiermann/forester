@@ -2,5 +2,5 @@
   \rel/links-to ?X @{https://example.com} -: {\rel/is-node ?X}
 }
 \datalog{
-  ?related -: {\rel/links-to @{example} ?related} #{\rel/hidden ?related}
+  ?related -: {\rel/links-to @{example} ?related} # {\rel/hidden ?related}
 }

@@ -568,19 +568,9 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             .clone()
             .delimited_by(just(Token::LBrace), just(Token::RBrace))
             .boxed();
-        let dx_negative_premises = choice((
-            just(Token::Hash).ignore_then(ws_list(dx_premise.clone())),
-            dx_prop
-                .clone()
-                .delimited_by(just(Token::HashLBrace), just(Token::RBrace))
-                .then(ws_list(dx_premise.clone()))
-                .map(|(first, mut rest)| {
-                    let mut negatives = vec![first];
-                    negatives.append(&mut rest);
-                    negatives
-                }),
-        ))
-        .boxed();
+        let dx_negative_premises = just(Token::Hash)
+            .ignore_then(ws_list(dx_premise.clone()))
+            .boxed();
 
         let dx_query_var = select! { Token::DxVar(name) => name };
         let dx_interstitial_ws = select! { Token::Whitespace(_) => () }.repeated();
@@ -1146,7 +1136,7 @@ mod tests {
     #[test]
     fn test_parse_datalog_query_with_negative_premises() {
         let result = parse(
-            "\\datalog{\n  ?related -: {\\rel/links-to @{example} ?related} #{\\rel/hidden ?related}\n}",
+            "\\datalog{\n  ?related -: {\\rel/links-to @{example} ?related} # {\\rel/hidden ?related}\n}",
         );
         assert!(result.is_ok());
         let doc = result.unwrap();
