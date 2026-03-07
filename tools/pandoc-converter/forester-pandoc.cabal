@@ -14,7 +14,6 @@ category:           Text
 common shared-settings
   default-language: Haskell2010
   ghc-options: -Wall
-  hs-source-dirs: src
   build-depends:
       base >=4.18 && <5
     , mtl >=2.3 && <2.4
@@ -25,13 +24,19 @@ common shared-settings
 
 library
   import:           shared-settings
+  hs-source-dirs:   src
   exposed-modules:  Forester.Pandoc
+  other-modules:
+      Forester.Pandoc.Coverage
+    , Forester.Pandoc.Normalize
+    , Forester.Pandoc.Render
+    , Forester.Pandoc.SourcePos
+    , Forester.Pandoc.Types
 
 executable forester-pandoc
   import:           shared-settings
   main-is:          Main.hs
   hs-source-dirs:   app
-  other-modules:    Forester.Pandoc
   build-depends:
       forester-pandoc
 
@@ -40,6 +45,5 @@ test-suite forester-pandoc-test
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test
-  other-modules:    Forester.Pandoc
   build-depends:
       forester-pandoc
