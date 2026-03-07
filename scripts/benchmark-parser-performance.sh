@@ -47,13 +47,7 @@ require_cmd() {
 }
 
 resolve_rust_benchmark_binary() {
-  local debug_bin="$repo_root/tools/rust-parser/target/debug/benchmark"
   local release_bin="$repo_root/tools/rust-parser/target/release/benchmark"
-
-  if [[ -x "$release_bin" ]]; then
-    printf '%s\n' "$release_bin"
-    return
-  fi
 
   cargo build --manifest-path "$repo_root/tools/rust-parser/Cargo.toml" --release --bin benchmark >/dev/null
   printf '%s\n' "$release_bin"
@@ -61,11 +55,6 @@ resolve_rust_benchmark_binary() {
 
 resolve_ocaml_benchmark_binary() {
   local exe="$repo_root/_build/default/lib/parser/test/Parser_benchmark.exe"
-  if [[ -x "$exe" ]]; then
-    printf '%s\n' "$exe"
-    return
-  fi
-
   require_cmd opam "Install opam so the OCaml benchmark executable can be built."
   opam exec -- dune build lib/parser/test/Parser_benchmark.exe >/dev/null
   printf '%s\n' "$exe"
@@ -81,13 +70,32 @@ make_corpora() {
   local fixture
   for fixture in "$repo_root"/tools/rust-parser/tests/fixtures/positive/*.tree; do
     case "$(basename "$fixture")" in
-      bare-backslash.tree)
+      # These fixtures are intentionally only valid when the file ends
+      # immediately after the final token, so concatenating them with a
+      # newline would change their semantics.
+      bare-backslash.tree|empty-ident-fragment.tree)
         continue
         ;;
     esac
     cat "$fixture" >> "$combined"
     printf '\n' >> "$combined"
   done
+
+  cp "$combined" "$amplified"
+  while [[ $(wc -c < "$amplified") -lt "$target_bytes" ]]; do
+    cat "$combined" >> "$amplified"
+  done
+}
+
+make_header_binder_corpora() {
+  local temp_dir="$1"
+  local combined="$temp_dir/header-binders-fixtures.tree"
+  local amplified="$temp_dir/header-binders-amplified.tree"
+  local target_bytes="$2"
+  local fixture="$repo_root/tools/rust-parser/tests/fixtures/positive/header-binders.tree"
+
+  cat "$fixture" > "$combined"
+  printf '\n' >> "$combined"
 
   cp "$combined" "$amplified"
   while [[ $(wc -c < "$amplified") -lt "$target_bytes" ]]; do
@@ -157,38 +165,62 @@ runs="${threshold_config[0]}"
 amplified_target_bytes="${threshold_config[1]}"
 
 make_corpora "$temp_dir" "$amplified_target_bytes"
+make_header_binder_corpora "$temp_dir" "$amplified_target_bytes"
 
 small_corpus="$temp_dir/positive-fixtures.tree"
 large_corpus="$temp_dir/positive-amplified.tree"
+header_small_corpus="$temp_dir/header-binders-fixtures.tree"
+header_large_corpus="$temp_dir/header-binders-amplified.tree"
 
 rust_small_metrics="$temp_dir/rust-positive-fixtures.tsv"
 ocaml_small_metrics="$temp_dir/ocaml-positive-fixtures.tsv"
 rust_large_metrics="$temp_dir/rust-positive-amplified.tsv"
 ocaml_large_metrics="$temp_dir/ocaml-positive-amplified.tsv"
+rust_header_small_metrics="$temp_dir/rust-header-binders-fixtures.tsv"
+ocaml_header_small_metrics="$temp_dir/ocaml-header-binders-fixtures.tsv"
+rust_header_large_metrics="$temp_dir/rust-header-binders-amplified.tsv"
+ocaml_header_large_metrics="$temp_dir/ocaml-header-binders-amplified.tsv"
 
 run_measurement rust "$rust_benchmark_bin" positive-fixtures "$small_corpus" "$runs" "$temp_dir" "$rust_small_metrics"
 run_measurement ocaml "$ocaml_benchmark_bin" positive-fixtures "$small_corpus" "$runs" "$temp_dir" "$ocaml_small_metrics"
 run_measurement rust "$rust_benchmark_bin" positive-amplified "$large_corpus" "$runs" "$temp_dir" "$rust_large_metrics"
 run_measurement ocaml "$ocaml_benchmark_bin" positive-amplified "$large_corpus" "$runs" "$temp_dir" "$ocaml_large_metrics"
+run_measurement rust "$rust_benchmark_bin" header-binders-fixtures "$header_small_corpus" "$runs" "$temp_dir" "$rust_header_small_metrics"
+run_measurement ocaml "$ocaml_benchmark_bin" header-binders-fixtures "$header_small_corpus" "$runs" "$temp_dir" "$ocaml_header_small_metrics"
+run_measurement rust "$rust_benchmark_bin" header-binders-amplified "$header_large_corpus" "$runs" "$temp_dir" "$rust_header_large_metrics"
+run_measurement ocaml "$ocaml_benchmark_bin" header-binders-amplified "$header_large_corpus" "$runs" "$temp_dir" "$ocaml_header_large_metrics"
 
 json_output="$(
   python3 - \
     "$thresholds_path" \
+    "positive-fixtures" \
     "$small_corpus" \
-    "$large_corpus" \
     "$rust_small_metrics" \
     "$ocaml_small_metrics" \
+    "positive-amplified" \
+    "$large_corpus" \
     "$rust_large_metrics" \
-    "$ocaml_large_metrics" <<'PY'
+    "$ocaml_large_metrics" \
+    "header-binders-fixtures" \
+    "$header_small_corpus" \
+    "$rust_header_small_metrics" \
+    "$ocaml_header_small_metrics" \
+    "header-binders-amplified" \
+    "$header_large_corpus" \
+    "$rust_header_large_metrics" \
+    "$ocaml_header_large_metrics" <<'PY'
 import json
 import statistics
 import sys
 from pathlib import Path
 
-thresholds_path, small_corpus, large_corpus, rust_small, ocaml_small, rust_large, ocaml_large = sys.argv[1:]
+thresholds_path, *corpus_args = sys.argv[1:]
 
 with open(thresholds_path, "r", encoding="utf-8") as handle:
     thresholds = json.load(handle)
+
+if len(corpus_args) % 4 != 0:
+    raise SystemExit("expected corpus arguments in groups of four")
 
 def load_metrics(path: str) -> dict[str, float]:
     rows: list[tuple[float, int]] = []
@@ -212,8 +244,10 @@ def parser_metrics(corpus_path: str, metrics_path: str) -> dict[str, float]:
     metrics["throughput_mib_per_second"] = metrics["throughput_bytes_per_second"] / (1024 * 1024)
     return metrics
 
-def compare(corpus_name: str, rust_metrics: dict[str, float], ocaml_metrics: dict[str, float]) -> dict[str, object]:
+def compare(corpus_name: str, corpus_path: str, rust_path: str, ocaml_path: str) -> dict[str, object]:
     corpus_thresholds = thresholds["corpora"][corpus_name]
+    rust_metrics = parser_metrics(corpus_path, rust_path)
+    ocaml_metrics = parser_metrics(corpus_path, ocaml_path)
     throughput_ratio = rust_metrics["throughput_bytes_per_second"] / ocaml_metrics["throughput_bytes_per_second"]
     rss_ratio = rust_metrics["median_rss_kib"] / ocaml_metrics["median_rss_kib"]
     regression = (
@@ -233,25 +267,24 @@ def compare(corpus_name: str, rust_metrics: dict[str, float], ocaml_metrics: dic
         },
     }
 
-small = compare(
-    "positive-fixtures",
-    parser_metrics(small_corpus, rust_small),
-    parser_metrics(small_corpus, ocaml_small),
-)
-large = compare(
-    "positive-amplified",
-    parser_metrics(large_corpus, rust_large),
-    parser_metrics(large_corpus, ocaml_large),
-)
+corpora = [
+    compare(
+        corpus_args[i],
+        corpus_args[i + 1],
+        corpus_args[i + 2],
+        corpus_args[i + 3],
+    )
+    for i in range(0, len(corpus_args), 4)
+]
 
-overall_regression = any(corpus["comparison"]["regression"] for corpus in [small, large])
+overall_regression = any(corpus["comparison"]["regression"] for corpus in corpora)
 
 print(
     json.dumps(
         {
             "status": "regression" if overall_regression else "ok",
             "thresholds": thresholds,
-            "corpora": [small, large],
+            "corpora": corpora,
         },
         indent=2,
         sort_keys=True,

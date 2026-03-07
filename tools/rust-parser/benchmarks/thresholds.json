@@ -9,6 +9,14 @@
     "positive-amplified": {
       "min_rust_vs_ocaml_throughput_ratio": 0.0125,
       "max_rust_vs_ocaml_rss_ratio": 2.0
+    },
+    "header-binders-fixtures": {
+      "min_rust_vs_ocaml_throughput_ratio": 0.5,
+      "max_rust_vs_ocaml_rss_ratio": 2.0
+    },
+    "header-binders-amplified": {
+      "min_rust_vs_ocaml_throughput_ratio": 0.02,
+      "max_rust_vs_ocaml_rss_ratio": 2.0
     }
   }
 }
