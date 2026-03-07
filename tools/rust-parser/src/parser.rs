@@ -152,15 +152,41 @@ pub fn parse_file(path: &std::path::Path) -> ParseResult<Document> {
     Ok(doc)
 }
 
-/// Document parser - parses a sequence of nodes
-fn document_parser() -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
-    choice((select! { Token::Whitespace(_) => None }, parser().map(Some)))
-        .repeated()
-        .then_ignore(end())
-        .map(|nodes| nodes.into_iter().flatten().collect())
+fn import_parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
+    let wstext = select! {
+        Token::Text(s) => s,
+        Token::Ident(s) => s,
+        Token::Whitespace(s) => s,
+    }
+    .repeated()
+    .map(|parts| parts.join(""));
+
+    just(Token::KwImport)
+        .ignore_then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
+        .map_with_span(|target, span| {
+            Located::new(
+                Node::Import {
+                    visibility: Visibility::Private,
+                    target,
+                },
+                Some(make_span_from_range(span)),
+            )
+        })
 }
 
-/// Single node parser
+/// Document parser - parses a sequence of nodes
+fn document_parser() -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
+    choice((
+        select! { Token::Whitespace(_) => None },
+        import_parser().map(Some),
+        parser().map(Some),
+    ))
+    .repeated()
+    .then_ignore(end())
+    .map(|nodes| nodes.into_iter().flatten().collect())
+}
+
+/// Single non-import node parser
 fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
     recursive(|node| {
         let _nodes = node.clone().repeated();
@@ -306,19 +332,6 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 )
             });
 
-        // \import{target}
-        let import_cmd = just(Token::KwImport)
-            .ignore_then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
-            .map_with_span(|parts, span| {
-                Located::new(
-                    Node::Import {
-                        visibility: Visibility::Private,
-                        target: parts,
-                    },
-                    Some(make_span_from_range(span)),
-                )
-            });
-
         // \export{target}
         let export_cmd = just(Token::KwExport)
             .ignore_then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
@@ -374,7 +387,6 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             // Specific commands first (more specific patterns)
             def_cmd,
             let_cmd,
-            import_cmd,
             export_cmd,
             decl_xmlns_cmd,
             subtree_cmd,
@@ -471,6 +483,20 @@ mod tests {
         assert!(
             matches!(&doc.nodes[0].value, Node::Import { target, .. } if target == "foundation / intro")
         );
+    }
+
+    #[test]
+    fn test_nested_import_is_rejected() {
+        let result = parse("\\p{before \\import{foundation} after}");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_export_is_allowed() {
+        let result = parse("\\p{before \\export{foundation} after}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 2);
     }
 
     #[test]
