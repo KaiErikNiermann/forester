@@ -20,6 +20,7 @@ jobs:
       test: ${{ steps.filter.outputs.test }}
       haskell: ${{ steps.filter.outputs.haskell }}
       markdown_bridge: ${{ steps.filter.outputs.markdown_bridge }}
+      parser_sync_policy: ${{ steps.filter.outputs.parser_sync_policy }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -75,6 +76,32 @@ jobs:
               - "lib/compiler/test/Test_markdown_fixture_conversion.ml"
               - "lib/compiler/test/dune"
               - "tools/pandoc-converter/**"
+            parser_sync_policy:
+              - ".github/workflows/ci.yml"
+              - "scripts/check-parser-sync.sh"
+              - "scripts/test-parser-sync-policy.sh"
+              - "docs/rust-parser/**"
+              - "lib/parser/**"
+              - "tools/rust-parser/**"
+
+  parser-sync-policy:
+    needs: changes
+    if: needs.changes.outputs.parser_sync_policy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate parser-sync policy checker
+        run: ./scripts/test-parser-sync-policy.sh
+
+      - name: Enforce OCaml/Rust parser drift policy
+        env:
+          FORESTER_PARSER_SYNC_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FORESTER_PARSER_SYNC_HEAD_REF: ${{ github.sha }}
+        run: ./scripts/check-parser-sync.sh
 
   license:
     runs-on: ubuntu-latest

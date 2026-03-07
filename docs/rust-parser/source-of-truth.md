@@ -51,3 +51,14 @@ If OCaml grammar or lexer behavior changes, the same change set should update:
 - Rust lexer/parser implementation
 - parity docs in `docs/rust-parser/`
 - any affected differential/parity tests
+
+This repo now enforces the minimum sync rule in CI with `scripts/check-parser-sync.sh`.
+The gate watches `lib/parser/Lexer.mll`, `lib/parser/Grammar.mly`, `lib/parser/Parse.ml`,
+and `lib/parser/Parse.mli`. If any of those files change, the same change set must also
+touch:
+
+- `tools/rust-parser/src/` for the Rust implementation
+- `lib/parser/test/` or `tools/rust-parser/tests/` for parity coverage
+
+`docs/rust-parser/` updates remain strongly recommended and are reported, but they do
+not currently hard-fail the policy gate.
