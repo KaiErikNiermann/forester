@@ -1,0 +1,79 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: Setup CI Toolchain
+description: Provision the shared OCaml and Rust CI environment for Forester jobs
+
+inputs:
+  ocaml-compiler:
+    description: OCaml compiler version to install
+    required: false
+    default: "5.3.0"
+  rust-components:
+    description: Comma-separated Rust components to install
+    required: false
+    default: ""
+  install-topiary:
+    description: Whether to install topiary-cli
+    required: false
+    default: "false"
+  install-cargo-deny:
+    description: Whether to install cargo-deny
+    required: false
+    default: "false"
+  install-opam-deps:
+    description: Whether to run just deps
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install required system packages
+      shell: bash
+      run: |
+        if command -v sudo >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap libgmp-dev m4 pkg-config
+        else
+          apt-get update
+          apt-get install -y bubblewrap libgmp-dev m4 pkg-config
+        fi
+
+    - name: Set up Rust
+      if: ${{ inputs.rust-components != '' }}
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: ${{ inputs.rust-components }}
+
+    - name: Set up Rust
+      if: ${{ inputs.rust-components == '' }}
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install just
+      uses: taiki-e/install-action@v2
+      with:
+        tool: just
+
+    - name: Install topiary
+      if: ${{ inputs.install-topiary == 'true' }}
+      uses: taiki-e/install-action@v2
+      with:
+        tool: topiary-cli
+
+    - name: Install cargo-deny
+      if: ${{ inputs.install-cargo-deny == 'true' }}
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-deny
+
+    - name: Set up OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: ${{ inputs.ocaml-compiler }}
+
+    - name: Install opam dependencies
+      if: ${{ inputs.install-opam-deps == 'true' }}
+      shell: bash
+      run: just deps
