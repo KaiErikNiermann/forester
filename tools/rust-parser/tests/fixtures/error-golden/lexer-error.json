@@ -1,0 +1,24 @@
+{
+  "status": "error",
+  "errors": [
+    {
+      "message": "syntax error, unexpected \"!\"",
+      "start_offset": 5,
+      "end_offset": 6,
+      "report": "Error: syntax error, unexpected \"!\"\n   ╭─[lexer-error.tree:1:6]\n   │\n 1 │ \\foo/!\n   │      ┬  \n   │      ╰── error occurred here\n───╯\n",
+      "details": {
+        "kind": "custom",
+        "expected": [],
+        "labels": [
+          {
+            "kind": "primary",
+            "message": "error occurred here",
+            "start_offset": 5,
+            "end_offset": 6
+          }
+        ],
+        "notes": []
+      }
+    }
+  ]
+}

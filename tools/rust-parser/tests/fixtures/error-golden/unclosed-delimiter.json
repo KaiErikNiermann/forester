@@ -1,0 +1,34 @@
+{
+  "status": "error",
+  "errors": [
+    {
+      "message": "Unclosed delimiter: '#{'; expected '}' before end of input",
+      "start_offset": 6,
+      "end_offset": 7,
+      "report": "Error: Unclosed delimiter: '#{' never reached '}'\n   ╭─[unclosed-delimiter.tree:1:1]\n   │\n 1 │ #{abc\n   │ ─┬   ┬  \n   │  ╰────── '#{' opened here\n   │      │  \n   │      ╰── expected '}' before end of input\n   │ \n   │ Note: close '#{' with '}'\n───╯\n",
+      "details": {
+        "kind": "unclosed_delimiter",
+        "expected": [
+          "'}'"
+        ],
+        "labels": [
+          {
+            "kind": "context",
+            "message": "'#{' opened here",
+            "start_offset": 0,
+            "end_offset": 2
+          },
+          {
+            "kind": "primary",
+            "message": "expected '}' before end of input",
+            "start_offset": 6,
+            "end_offset": 7
+          }
+        ],
+        "notes": [
+          "close '#{' with '}'"
+        ]
+      }
+    }
+  ]
+}

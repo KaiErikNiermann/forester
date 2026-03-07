@@ -1,0 +1,35 @@
+{
+  "status": "error",
+  "errors": [
+    {
+      "message": "Mismatched delimiter: '(' opened here, expected ')', found ']'",
+      "start_offset": 4,
+      "end_offset": 5,
+      "report": "Error: Mismatched delimiter: expected ')', found ']'\n   ╭─[mismatched-delimiter.tree:1:1]\n   │\n 1 │ (abc]\n   │ ┬   ┬  \n   │ ╰────── '(' opened here\n   │     │  \n   │     ╰── found ']' here, but ')' was required to close '('\n   │ \n   │ Note: replace ']' with ')' or close '(' earlier\n───╯\n",
+      "details": {
+        "kind": "mismatched_delimiter",
+        "expected": [
+          "')'"
+        ],
+        "found": "']'",
+        "labels": [
+          {
+            "kind": "context",
+            "message": "'(' opened here",
+            "start_offset": 0,
+            "end_offset": 1
+          },
+          {
+            "kind": "primary",
+            "message": "found ']' here, but ')' was required to close '('",
+            "start_offset": 4,
+            "end_offset": 5
+          }
+        ],
+        "notes": [
+          "replace ']' with ')' or close '(' earlier"
+        ]
+      }
+    }
+  ]
+}

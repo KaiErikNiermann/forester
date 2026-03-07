@@ -1,0 +1,27 @@
+{
+  "status": "error",
+  "errors": [
+    {
+      "message": "Unexpected closing delimiter: ']'",
+      "start_offset": 0,
+      "end_offset": 1,
+      "report": "Error: Unexpected closing delimiter: ']'\n   ╭─[unexpected-closing-delimiter.tree:1:1]\n   │\n 1 │ ]\n   │ ┬  \n   │ ╰── ']' does not match any currently open delimiter\n   │ \n   │ Note: remove the closing delimiter or add the matching opener\n───╯\n",
+      "details": {
+        "kind": "unexpected_closing_delimiter",
+        "expected": [],
+        "found": "']'",
+        "labels": [
+          {
+            "kind": "primary",
+            "message": "']' does not match any currently open delimiter",
+            "start_offset": 0,
+            "end_offset": 1
+          }
+        ],
+        "notes": [
+          "remove the closing delimiter or add the matching opener"
+        ]
+      }
+    }
+  ]
+}
