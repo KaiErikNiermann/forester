@@ -152,10 +152,28 @@ pub fn parse_file(path: &std::path::Path) -> ParseResult<Document> {
     Ok(doc)
 }
 
+fn ws_or<P, O>(parser: P) -> impl Parser<Token, Vec<O>, Error = Simple<Token>> + Clone
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone,
+{
+    choice((
+        select! { Token::Whitespace(_) => Vec::<O>::new() },
+        parser.map(|node| vec![node]),
+    ))
+}
+
+fn ws_list<P, O>(parser: P) -> impl Parser<Token, Vec<O>, Error = Simple<Token>> + Clone
+where
+    P: Parser<Token, O, Error = Simple<Token>> + Clone,
+{
+    ws_or(parser)
+        .repeated()
+        .map(|chunks| chunks.into_iter().flatten().collect())
+}
+
 fn import_parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
     let wstext = select! {
         Token::Text(s) => s,
-        Token::Ident(s) => s,
         Token::Whitespace(s) => s,
     }
     .repeated()
@@ -176,118 +194,110 @@ fn import_parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> +
 
 /// Document parser - parses a sequence of nodes
 fn document_parser() -> impl Parser<Token, Nodes, Error = Simple<Token>> + Clone {
-    choice((
-        select! { Token::Whitespace(_) => None },
-        import_parser().map(Some),
-        parser().map(Some),
-    ))
-    .repeated()
-    .then_ignore(end())
-    .map(|nodes| nodes.into_iter().flatten().collect())
+    ws_list(choice((import_parser(), parser()))).then_ignore(end())
 }
 
 /// Single non-import node parser
 fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone {
-    recursive(|node| {
-        let _nodes = node.clone().repeated();
-
-        // Text nodes in textual positions.
-        let text = select! {
+    recursive(|head_node| {
+        let plain_text = select! {
             Token::Text(s) => Node::text(s),
             Token::Whitespace(s) => Node::text(s),
+        }
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let head_node1_fallback = select! {
             Token::AtSign => Node::text("@"),
             Token::Tick => Node::text("'"),
             Token::Hash => Node::text("#"),
             Token::DxEntailed => Node::text("-:"),
             Token::DxVar(s) => Node::text(format!("?{s}")),
         }
-        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
 
-        // Hash identifier (#name)
-        let hash_ident = select! {
-            Token::HashIdent(s) => Node::HashIdent { name: s },
-        }
-        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
-
-        let xml_ident = select! {
-            Token::XmlIdent(prefix, name) => Node::XmlIdent { prefix, name },
-        }
-        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
-
-        // Verbatim body already resolved by the lexer.
-        let verbatim = select! {
-            Token::Verbatim(s) => Node::verbatim(s),
-        }
-        .map_with_span(|n, span| Located::new(n, Some(make_span_from_range(span))));
-
-        // Braced group {content}
-        let braces = node
-            .clone()
-            .repeated()
-            .delimited_by(just(Token::LBrace), just(Token::RBrace))
-            .map_with_span(|body, span| {
-                Located::new(Node::braces(body), Some(make_span_from_range(span)))
-            });
-
-        // Square bracketed group [content]
-        let squares = node
-            .clone()
-            .repeated()
-            .delimited_by(just(Token::LSquare), just(Token::RSquare))
-            .map_with_span(|body, span| {
-                Located::new(Node::squares(body), Some(make_span_from_range(span)))
-            });
-
-        // Parenthesized group (content)
-        let parens = node
-            .clone()
-            .repeated()
-            .delimited_by(just(Token::LParen), just(Token::RParen))
-            .map_with_span(|body, span| {
-                Located::new(Node::parens(body), Some(make_span_from_range(span)))
-            });
-
-        // Inline math #{content}
-        let inline_math = node
-            .clone()
-            .repeated()
-            .delimited_by(just(Token::HashLBrace), just(Token::RBrace))
-            .map_with_span(|body, span| {
-                Located::new(Node::inline_math(body), Some(make_span_from_range(span)))
-            });
-
-        // Display math ##{content}
-        let display_math = node
-            .clone()
-            .repeated()
-            .delimited_by(just(Token::HashHashLBrace), just(Token::RBrace))
-            .map_with_span(|body, span| {
-                Located::new(Node::display_math(body), Some(make_span_from_range(span)))
-            });
-
-        // === Backslash commands ===
-
-        // Parse identifier path after backslash: \foo or \foo/bar/baz
-        let ident_path = select! { Token::Ident(s) => s }
-            .separated_by(just(Token::Slash))
-            .at_least(1);
-
-        // Braced argument helper
-        let braced_arg = node
-            .clone()
-            .repeated()
-            .delimited_by(just(Token::LBrace), just(Token::RBrace));
+        let head_node1 = choice((head_node.clone(), head_node1_fallback));
+        let textual_node = choice((plain_text, head_node1.clone()));
+        let textual_expr = textual_node.clone().repeated();
+        let code_expr = ws_list(head_node1.clone());
+        let subtree_body =
+            ws_list(head_node.clone()).delimited_by(just(Token::LBrace), just(Token::RBrace));
 
         let wstext = select! {
             Token::Text(s) => s,
-            Token::Ident(s) => s,
             Token::Whitespace(s) => s,
         }
         .repeated()
         .map(|parts| parts.join(""));
 
-        // Square bracketed binding: [name] or [~name]. OCaml only accepts a
-        // plain textual binder here, not a nested backslash-started command.
+        let txt_arg = wstext.delimited_by(just(Token::LBrace), just(Token::RBrace));
+
+        let verbatim = select! {
+            Token::Verbatim(s) => Node::verbatim(s),
+        }
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let braces_arg = textual_expr
+            .clone()
+            .delimited_by(just(Token::LBrace), just(Token::RBrace));
+        let arg = choice((
+            select! { Token::Verbatim(s) => s }.map_with_span(|content, span| {
+                vec![Located::new(
+                    Node::verbatim(content),
+                    Some(make_span_from_range(span)),
+                )]
+            }),
+            braces_arg,
+        ));
+
+        let hash_ident = select! {
+            Token::HashIdent(s) => Node::HashIdent { name: s },
+        }
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let xml_ident = select! {
+            Token::XmlIdent(prefix, name) => Node::XmlIdent { prefix, name },
+        }
+        .map_with_span(|node, span| Located::new(node, Some(make_span_from_range(span))));
+
+        let braces = textual_expr
+            .clone()
+            .delimited_by(just(Token::LBrace), just(Token::RBrace))
+            .map_with_span(|body, span| {
+                Located::new(Node::braces(body), Some(make_span_from_range(span)))
+            });
+
+        let squares = textual_expr
+            .clone()
+            .delimited_by(just(Token::LSquare), just(Token::RSquare))
+            .map_with_span(|body, span| {
+                Located::new(Node::squares(body), Some(make_span_from_range(span)))
+            });
+
+        let parens = textual_expr
+            .clone()
+            .delimited_by(just(Token::LParen), just(Token::RParen))
+            .map_with_span(|body, span| {
+                Located::new(Node::parens(body), Some(make_span_from_range(span)))
+            });
+
+        let inline_math = textual_expr
+            .clone()
+            .delimited_by(just(Token::HashLBrace), just(Token::RBrace))
+            .map_with_span(|body, span| {
+                Located::new(Node::inline_math(body), Some(make_span_from_range(span)))
+            });
+
+        let display_math = textual_expr
+            .clone()
+            .delimited_by(just(Token::HashHashLBrace), just(Token::RBrace))
+            .map_with_span(|body, span| {
+                Located::new(Node::display_math(body), Some(make_span_from_range(span)))
+            });
+
+        let ident_path = select! { Token::Ident(s) => s }
+            .separated_by(just(Token::Slash))
+            .at_least(1);
+
         let binding = select! { Token::Text(s) => s }
             .delimited_by(just(Token::LSquare), just(Token::RSquare))
             .map(|name| {
@@ -300,33 +310,69 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         let bindings = binding.repeated();
+        let fun_spec = ident_path.clone().then(bindings.clone()).then(arg.clone());
 
-        let fun_spec = ident_path
-            .clone()
-            .then(bindings.clone())
-            .then(braced_arg.clone());
-
-        // \def\name[bindings]{body}
         let def_cmd = just(Token::KwDef)
             .ignore_then(fun_spec.clone())
-            .map_with_span(|((path, binds), body), span| {
+            .map_with_span(|((path, bindings), body), span| {
                 Located::new(
                     Node::Def {
                         path,
-                        bindings: binds,
+                        bindings,
                         body,
                     },
                     Some(make_span_from_range(span)),
                 )
             });
 
-        // \let\name[bindings]{body}
+        let alloc_cmd = just(Token::KwAlloc)
+            .ignore_then(ident_path.clone())
+            .map_with_span(|path, span| {
+                Located::new(Node::Alloc { path }, Some(make_span_from_range(span)))
+            });
+
+        let export_cmd = just(Token::KwExport)
+            .ignore_then(txt_arg.clone())
+            .map_with_span(|target, span| {
+                Located::new(
+                    Node::Import {
+                        visibility: Visibility::Public,
+                        target,
+                    },
+                    Some(make_span_from_range(span)),
+                )
+            });
+
+        let namespace_cmd = just(Token::KwNamespace)
+            .ignore_then(ident_path.clone())
+            .then(
+                code_expr
+                    .clone()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .map_with_span(|(path, body), span| {
+                Located::new(
+                    Node::Namespace { path, body },
+                    Some(make_span_from_range(span)),
+                )
+            });
+
+        let fun_cmd = just(Token::KwFun)
+            .ignore_then(bindings.clone())
+            .then(arg.clone())
+            .map_with_span(|(bindings, body), span| {
+                Located::new(
+                    Node::Fun { bindings, body },
+                    Some(make_span_from_range(span)),
+                )
+            });
+
         let let_cmd = just(Token::KwLet).ignore_then(fun_spec).map_with_span(
-            |((path, binds), body), span| {
+            |((path, bindings), body), span| {
                 Located::new(
                     Node::Let {
                         path,
-                        bindings: binds,
+                        bindings,
                         body,
                     },
                     Some(make_span_from_range(span)),
@@ -334,21 +380,44 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             },
         );
 
-        // \export{target}
-        let export_cmd = just(Token::KwExport)
-            .ignore_then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
-            .map_with_span(|parts, span| {
+        let open_cmd = just(Token::KwOpen)
+            .ignore_then(ident_path.clone())
+            .map_with_span(|path, span| {
+                Located::new(Node::Open { path }, Some(make_span_from_range(span)))
+            });
+
+        let scope_cmd =
+            just(Token::KwScope)
+                .ignore_then(arg.clone())
+                .map_with_span(|body, span| {
+                    Located::new(Node::Scope { body }, Some(make_span_from_range(span)))
+                });
+
+        let put_cmd = just(Token::KwPut)
+            .ignore_then(ident_path.clone())
+            .then(arg.clone())
+            .map_with_span(|(path, body), span| {
+                Located::new(Node::Put { path, body }, Some(make_span_from_range(span)))
+            });
+
+        let default_cmd = just(Token::KwDefault)
+            .ignore_then(ident_path.clone())
+            .then(arg.clone())
+            .map_with_span(|(path, body), span| {
                 Located::new(
-                    Node::Import {
-                        visibility: Visibility::Public,
-                        target: parts,
-                    },
+                    Node::Default { path, body },
                     Some(make_span_from_range(span)),
                 )
             });
 
+        let get_cmd = just(Token::KwGet)
+            .ignore_then(ident_path.clone())
+            .map_with_span(|path, span| {
+                Located::new(Node::Get { path }, Some(make_span_from_range(span)))
+            });
+
         let decl_xmlns_cmd = select! { Token::DeclXmlns(prefix) => prefix }
-            .then(wstext.delimited_by(just(Token::LBrace), just(Token::RBrace)))
+            .then(txt_arg)
             .map_with_span(|(prefix, uri), span| {
                 Located::new(
                     Node::DeclXmlns { prefix, uri },
@@ -356,14 +425,13 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 )
             });
 
-        // \subtree[addr]{body} or \subtree{body}
         let subtree_cmd = just(Token::KwSubtree)
             .ignore_then(
                 wstext
                     .delimited_by(just(Token::LSquare), just(Token::RSquare))
                     .or_not(),
             )
-            .then(braced_arg.clone())
+            .then(subtree_body)
             .map_with_span(|(addr, body), span| {
                 Located::new(
                     Node::Subtree { addr, body },
@@ -371,40 +439,33 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                 )
             });
 
-        // \scope{body}
-        let scope_cmd = just(Token::KwScope)
-            .ignore_then(braced_arg.clone())
-            .map_with_span(|body, span| {
-                Located::new(Node::Scope { body }, Some(make_span_from_range(span)))
-            });
-
-        // Generic command identifier: \ident becomes IDENT(/IDENT)* at the
-        // lexer level, so the parser starts directly from the identifier path.
-        let generic_cmd = ident_path.clone().map_with_span(|path, span| {
+        let generic_cmd = ident_path.map_with_span(|path, span| {
             Located::new(Node::Ident { path }, Some(make_span_from_range(span)))
         });
 
-        // Combine all parsers
         choice((
-            // Specific commands first (more specific patterns)
             def_cmd,
-            let_cmd,
+            alloc_cmd,
             export_cmd,
-            decl_xmlns_cmd,
+            namespace_cmd,
             subtree_cmd,
+            fun_cmd,
+            let_cmd,
             scope_cmd,
-            generic_cmd,
+            put_cmd,
+            default_cmd,
+            get_cmd,
+            open_cmd,
             xml_ident,
-            // Groups
+            decl_xmlns_cmd,
+            generic_cmd,
+            hash_ident,
+            verbatim,
+            inline_math,
+            display_math,
             braces,
             squares,
             parens,
-            inline_math,
-            display_math,
-            verbatim,
-            // Simple tokens
-            text,
-            hash_ident,
         ))
     })
 }
@@ -601,14 +662,25 @@ mod tests {
     }
 
     #[test]
-    fn test_plain_keywords_remain_text() {
-        let result = parse("scope import def");
+    fn test_plain_keywords_remain_text_in_textual_expr() {
+        let result = parse(r"\p{scope import def}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert_eq!(doc.nodes.len(), 3);
-        assert!(matches!(&doc.nodes[0].value, Node::Text { content } if content == "scope"));
-        assert!(matches!(&doc.nodes[1].value, Node::Text { content } if content == "import"));
-        assert!(matches!(&doc.nodes[2].value, Node::Text { content } if content == "def"));
+        let Node::Group { body, .. } = &doc.nodes[1].value else {
+            panic!("expected braced group");
+        };
+        assert_eq!(body.len(), 5);
+        assert!(matches!(&body[0].value, Node::Text { content } if content == "scope"));
+        assert!(matches!(&body[1].value, Node::Text { content } if content == " "));
+        assert!(matches!(&body[2].value, Node::Text { content } if content == "import"));
+        assert!(matches!(&body[3].value, Node::Text { content } if content == " "));
+        assert!(matches!(&body[4].value, Node::Text { content } if content == "def"));
+    }
+
+    #[test]
+    fn test_top_level_plain_text_is_rejected() {
+        let result = parse("scope import def");
+        assert!(result.is_err());
     }
 
     #[test]
@@ -633,25 +705,31 @@ mod tests {
 
     #[test]
     fn test_head_node1_tokens_fall_back_to_text() {
-        let result = parse("?- ?foo -: # @ '");
+        let result = parse(r"\p{?- ?foo -: # @ '}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert_eq!(doc.nodes.len(), 6);
-        assert!(matches!(&doc.nodes[0].value, Node::Text { content } if content == "?-"));
-        assert!(matches!(&doc.nodes[1].value, Node::Text { content } if content == "?foo"));
-        assert!(matches!(&doc.nodes[2].value, Node::Text { content } if content == "-:"));
-        assert!(matches!(&doc.nodes[3].value, Node::Text { content } if content == "#"));
-        assert!(matches!(&doc.nodes[4].value, Node::Text { content } if content == "@"));
-        assert!(matches!(&doc.nodes[5].value, Node::Text { content } if content == "'"));
+        let Node::Group { body, .. } = &doc.nodes[1].value else {
+            panic!("expected braced group");
+        };
+        assert_eq!(body.len(), 11);
+        assert!(matches!(&body[0].value, Node::Text { content } if content == "?-"));
+        assert!(matches!(&body[2].value, Node::Text { content } if content == "?foo"));
+        assert!(matches!(&body[4].value, Node::Text { content } if content == "-:"));
+        assert!(matches!(&body[6].value, Node::Text { content } if content == "#"));
+        assert!(matches!(&body[8].value, Node::Text { content } if content == "@"));
+        assert!(matches!(&body[10].value, Node::Text { content } if content == "'"));
     }
 
     #[test]
     fn test_bare_question_falls_back_to_text() {
-        let result = parse("?");
+        let result = parse(r"\p{?}");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert_eq!(doc.nodes.len(), 1);
-        assert!(matches!(&doc.nodes[0].value, Node::Text { content } if content == "?"));
+        let Node::Group { body, .. } = &doc.nodes[1].value else {
+            panic!("expected braced group");
+        };
+        assert_eq!(body.len(), 1);
+        assert!(matches!(&body[0].value, Node::Text { content } if content == "?" ));
     }
 
     #[test]
@@ -744,5 +822,107 @@ mod tests {
         assert!(matches!(&body[0].value, Node::Text { content } if content == "alpha"));
         assert!(matches!(&body[1].value, Node::Text { content } if content == "\n"));
         assert!(matches!(&body[2].value, Node::Text { content } if content == "beta"));
+    }
+
+    #[test]
+    fn test_parse_alloc_open_and_get_nodes() {
+        let result = parse("\\alloc\\alpha/beta \\open\\gamma \\get\\delta/epsilon");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 3);
+        assert!(
+            matches!(&doc.nodes[0].value, Node::Alloc { path } if path == &vec!["alpha".to_string(), "beta".to_string()])
+        );
+        assert!(
+            matches!(&doc.nodes[1].value, Node::Open { path } if path == &vec!["gamma".to_string()])
+        );
+        assert!(
+            matches!(&doc.nodes[2].value, Node::Get { path } if path == &vec!["delta".to_string(), "epsilon".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parse_put_and_default_with_verbatim_args() {
+        let result = parse(
+            "\\put\\alpha/beta\\verbEND|payloadEND \\put?\\gamma\\startverb\nfallback\n\\stopverb",
+        );
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 2);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Put { path, body }
+                if path == &vec!["alpha".to_string(), "beta".to_string()]
+                && matches!(body.as_slice(), [Located { value: Node::Verbatim { content }, .. }] if content == "payload")
+        ));
+        assert!(matches!(
+            &doc.nodes[1].value,
+            Node::Default { path, body }
+                if path == &vec!["gamma".to_string()]
+                && matches!(body.as_slice(), [Located { value: Node::Verbatim { content }, .. }] if content == "fallback")
+        ));
+    }
+
+    #[test]
+    fn test_parse_fun_and_scope_verbatim_args() {
+        let result = parse("\\fun[~x][y]{body} \\scope\\verbEND|hiddenEND");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 2);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Fun { bindings, body }
+                if bindings == &vec![
+                    (BindingInfo::Lazy, "x".to_string()),
+                    (BindingInfo::Strict, "y".to_string())
+                ]
+                && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "body")
+        ));
+        assert!(matches!(
+            &doc.nodes[1].value,
+            Node::Scope { body }
+                if matches!(body.as_slice(), [Located { value: Node::Verbatim { content }, .. }] if content == "hidden")
+        ));
+    }
+
+    #[test]
+    fn test_namespace_uses_code_expr_and_drops_interstitial_whitespace() {
+        let result = parse("\\namespace\\alpha/beta{\\title{A} \\p{B}}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Namespace { path, body }
+                if path == &vec!["alpha".to_string(), "beta".to_string()]
+                && body.len() == 4
+                && matches!(&body[0].value, Node::Ident { path } if path == &vec!["title".to_string()])
+                && matches!(&body[2].value, Node::Ident { path } if path == &vec!["p".to_string()])
+        ));
+    }
+
+    #[test]
+    fn test_namespace_rejects_raw_text_body() {
+        let result = parse("\\namespace\\alpha{plain}");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_subtree_accepts_wstext_address_and_head_nodes_only_body() {
+        let result = parse("\\subtree[foundation / intro]{\\title{A}\\p{B}}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Subtree { addr, body }
+                if addr.as_deref() == Some("foundation / intro") && body.len() == 4
+        ));
+    }
+
+    #[test]
+    fn test_subtree_rejects_raw_text_body() {
+        let result = parse("\\subtree{plain text}");
+        assert!(result.is_err());
     }
 }
