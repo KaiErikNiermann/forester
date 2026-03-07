@@ -8,3 +8,11 @@
   alcotest
   forester.test
   forester.language_server))
+(test
+ (name Test_completion_kind)
+ (libraries
+  alcotest
+  forester.test
+  forester.core
+  lsp
+  forester.language_server))
