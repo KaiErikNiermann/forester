@@ -43,6 +43,20 @@ let test_formatter_normalizes_patch_header_sugar () =
 }|}
     (format {|\patch{\get\base}(self, super){[render]{ok}}|})
 
+let test_formatter_def_command_body_stays_inline () =
+  Alcotest.(check string)
+    "def command body stays inline when simple" {|\def\macro{\get\item}|}
+    (format {|\def\macro{\get\item}|})
+
+let test_formatter_object_multiple_methods () =
+  Alcotest.(check string)
+    "object method list stays structured"
+    {|\object[self]{
+  [render]{ok}
+  [other]{fine}
+}|}
+    (format {|\object(self){[render]{ok}[other]{fine}}|})
+
 let () =
   Alcotest.run "Document format"
     [
@@ -56,5 +70,9 @@ let () =
             test_formatter_normalizes_object_header_sugar;
           Alcotest.test_case "normalizes patch header sugar" `Quick
             test_formatter_normalizes_patch_header_sugar;
+          Alcotest.test_case "def command body stays inline" `Quick
+            test_formatter_def_command_body_stays_inline;
+          Alcotest.test_case "object multiple methods" `Quick
+            test_formatter_object_multiple_methods;
         ] );
     ]
