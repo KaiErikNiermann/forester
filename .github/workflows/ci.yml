@@ -201,5 +201,11 @@ jobs:
       - name: Set up shared CI toolchain
         uses: ./.github/actions/setup-ci
 
-      - name: Run test checks
+      - name: Build Rust parser binary for OCaml parity tests
+        run: cargo build --manifest-path tools/rust-parser/Cargo.toml --release
+
+      - name: Run combined parser-sync test checks
+        env:
+          FORESTER_RUST_PARSER_PATH: ${{ github.workspace }}/tools/rust-parser/target/release/forester-rust-parser
+          FORESTER_RUST_PARSER_REQUIRE_BINARY: "1"
         run: just test
