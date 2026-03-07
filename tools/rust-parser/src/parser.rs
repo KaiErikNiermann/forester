@@ -286,8 +286,9 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
         .repeated()
         .map(|parts| parts.join(""));
 
-        // Square bracketed binding: [name] or [~name]
-        let binding = select! { Token::Ident(s) => s, Token::Text(s) => s }
+        // Square bracketed binding: [name] or [~name]. OCaml only accepts a
+        // plain textual binder here, not a nested backslash-started command.
+        let binding = select! { Token::Text(s) => s }
             .delimited_by(just(Token::LSquare), just(Token::RSquare))
             .map(|name| {
                 let (info, name) = if let Some(rest) = name.strip_prefix('~') {
@@ -300,11 +301,14 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
 
         let bindings = binding.repeated();
 
+        let fun_spec = ident_path
+            .clone()
+            .then(bindings.clone())
+            .then(braced_arg.clone());
+
         // \def\name[bindings]{body}
         let def_cmd = just(Token::KwDef)
-            .ignore_then(ident_path.clone())
-            .then(bindings.clone())
-            .then(braced_arg.clone())
+            .ignore_then(fun_spec.clone())
             .map_with_span(|((path, binds), body), span| {
                 Located::new(
                     Node::Def {
@@ -317,11 +321,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
             });
 
         // \let\name[bindings]{body}
-        let let_cmd = just(Token::KwLet)
-            .ignore_then(ident_path.clone())
-            .then(bindings.clone())
-            .then(braced_arg.clone())
-            .map_with_span(|((path, binds), body), span| {
+        let let_cmd = just(Token::KwLet).ignore_then(fun_spec).map_with_span(
+            |((path, binds), body), span| {
                 Located::new(
                     Node::Let {
                         path,
@@ -330,7 +331,8 @@ fn parser() -> impl Parser<Token, Located<Node>, Error = Simple<Token>> + Clone 
                     },
                     Some(make_span_from_range(span)),
                 )
-            });
+            },
+        );
 
         // \export{target}
         let export_cmd = just(Token::KwExport)
@@ -503,6 +505,48 @@ mod tests {
     fn test_parse_def() {
         let result = parse("\\def\\myMacro[x]{Content with #x}");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_def_fun_spec_with_path_and_binders() {
+        let result = parse("\\def\\alpha/beta[~x][y]{z}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Def { path, bindings, body }
+                if path == &vec!["alpha".to_string(), "beta".to_string()]
+                && bindings == &vec![
+                    (BindingInfo::Lazy, "x".to_string()),
+                    (BindingInfo::Strict, "y".to_string())
+                ]
+                && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "z")
+        ));
+    }
+
+    #[test]
+    fn test_parse_let_fun_spec_with_path_and_binders() {
+        let result = parse("\\let\\alpha/beta[~x][y]{z}");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(matches!(
+            &doc.nodes[0].value,
+            Node::Let { path, bindings, body }
+                if path == &vec!["alpha".to_string(), "beta".to_string()]
+                && bindings == &vec![
+                    (BindingInfo::Lazy, "x".to_string()),
+                    (BindingInfo::Strict, "y".to_string())
+                ]
+                && matches!(body.as_slice(), [Located { value: Node::Text { content }, .. }] if content == "z")
+        ));
+    }
+
+    #[test]
+    fn test_binder_rejects_backslash_command_content() {
+        let result = parse("\\def\\foo[\\bar]{z}");
+        assert!(result.is_err());
     }
 
     #[test]
