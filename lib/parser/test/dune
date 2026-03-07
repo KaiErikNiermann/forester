@@ -22,4 +22,7 @@
   forester.compiler
   forester.core
   forester.parser
-  forester.frontend))
+  forester.frontend
+  asai
+  lsp
+  forester.language_server))
