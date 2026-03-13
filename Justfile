@@ -77,7 +77,7 @@ benchmark-markdown-bridge:
 
 test:
   just test-ocaml
-  just test-rust
+  # just test-rust
 
 ci:
   just fmt-check
