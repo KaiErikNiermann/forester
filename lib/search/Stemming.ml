@@ -98,7 +98,8 @@ let rule_list_5b = [(503, "ll", "l", 1)]
 
 let all_rules = [
   rule_list_1a;
-  rule_list_1b; (* rule_list_1b1 is conditionally applied below *)
+  rule_list_1b;
+  (* rule_list_1b1 is conditionally applied below *)
   rule_list_1c;
   rule_list_2;
   rule_list_3;
@@ -195,7 +196,7 @@ let rec replace_end word (rule_list : (int * string * string * int) list) =
   | hd :: tl ->
     if match_rule word hd then
       let rule, _, _, _ = hd in
-      (rule, apply_rule word hd)
+        (rule, apply_rule word hd)
     else replace_end word tl
   | [] ->
     (0, word)

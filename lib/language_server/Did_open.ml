@@ -18,6 +18,6 @@ let compute (params : L.DidOpenTextDocumentParams.t) =
   forest.={uri} <- Document document;
   Lsp_state.modify (fun ({forest; _} as lsp_state) ->
     let new_forest = Driver.run_until_done (Action.Parse lsp_uri) forest in
-    {lsp_state with forest = new_forest}
+      {lsp_state with forest = new_forest}
   );
   Diagnostics.compute document

@@ -12,8 +12,7 @@ open Forester_frontend
 let test_parsing () =
   Alcotest.(check config)
     "is the same"
-    Config.{
-      trees = ["trees"];
+    Config.{trees = ["trees"];
       assets = [];
       url = URI.of_string_exn "https://www.forester-notes.org/";
       home = URI.of_string_exn "https://www.forester-notes.org/index/";
@@ -35,8 +34,7 @@ let test_parsing () =
 let test_missing_fields () =
   Alcotest.(check config)
     "is the same"
-    Config.{
-      trees = ["trees"];
+    Config.{trees = ["trees"];
       assets = [];
       foreign = [];
       url = URI.of_string_exn "/";
@@ -54,16 +52,16 @@ let test_missing_fields () =
     )
 
 let test_custom_latex_settings () =
-  let expected_latex = Config.{
-    document_class = "article";
-    document_class_options = ["12pt"; "draft"];
-    compile_command = ["tectonic"; "-Z1"];
-    dvisvgm_command = ["dvisvgm"; "--pdf"];
-  } in
+  let expected_latex =
+    Config.{document_class = "article";
+      document_class_options = ["12pt"; "draft"];
+      compile_command = ["tectonic"; "-Z1"];
+      dvisvgm_command = ["dvisvgm"; "--pdf"];
+    }
+  in
   Alcotest.(check config)
     "parses custom latex block"
-    Config.{
-      trees = ["trees"];
+    Config.{trees = ["trees"];
       assets = [];
       foreign = [];
       url = URI.of_string_exn "/";
@@ -94,15 +92,12 @@ let () =
     "Config parsing"
     [
       "example config works",
-      [
-        test_case "it parses correctly" `Quick test_parsing;
+      [test_case "it parses correctly" `Quick test_parsing;
       ];
       "can parse config with missing fields",
-      [
-        test_case "" `Quick test_missing_fields;
+      [test_case "" `Quick test_missing_fields;
       ];
       "custom latex settings",
-      [
-        test_case "" `Quick test_custom_latex_settings;
+      [test_case "" `Quick test_custom_latex_settings;
       ];
     ]

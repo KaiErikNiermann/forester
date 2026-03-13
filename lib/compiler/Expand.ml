@@ -164,7 +164,8 @@ let rec expand_eff ~(forest : State.t) : Code.t -> Syn.t = function
         let@ () = Sc.section [] in
         begin
           let@ self = Option.iter @~ self in
-          let var = Range.{value = Syn.Var self; loc = node.loc} in (* TODO: correct the location *)
+          let var = Range.{value = Syn.Var self; loc = node.loc} in
+          (* TODO: correct the location *)
           Sc.import_singleton [self] (Term [var], node.loc) (* TODO: correct the location*)
         end;
         List.map (expand_method ~forest) methods
@@ -226,7 +227,7 @@ and expand_ident loc path =
   match Sc.resolve path with
   | None ->
     let visible = Sc.get_visible () in
-    [Range.{value = Syn.Unresolved_ident (visible, path); loc}]
+      [Range.{value = Syn.Unresolved_ident (visible, path); loc}]
   | Some (Term x, _) ->
     let relocate Range.{value; _} = Range.{value; loc} in
     List.map relocate x
@@ -352,27 +353,61 @@ let builtins =
               ["date"], Syn.Date;
               ["meta"], Syn.Meta;
               ["author"], Syn.Attribution (Author, `Uri);
-              ["author"; "literal"], Syn.Attribution (Author, `Content);
+              ["author";
+              "literal"],
+              Syn.Attribution (Author, `Content);
               ["contributor"], Syn.Attribution (Contributor, `Uri);
-              ["contributor"; "literal"], Syn.Attribution (Contributor, `Content);
+              ["contributor";
+              "literal"],
+              Syn.Attribution (Contributor, `Content);
               ["parent"], Syn.Parent;
               ["number"], Syn.Number;
               ["tag"], Syn.Tag `Content;
               ["query"], Syn.Results_of_query;
-              ["rel"; "has-tag"], Syn.Text Builtin_relation.has_tag;
-              ["rel"; "has-taxon"], Syn.Text Builtin_relation.has_taxon;
-              ["rel"; "has-author"], Syn.Text Builtin_relation.has_author;
-              ["rel"; "has-direct-contributor"], Syn.Text Builtin_relation.has_direct_contributor;
-              ["rel"; "transcludes"], Syn.Text Builtin_relation.transcludes;
-              ["rel"; "transcludes"; "transitive-closure"], Syn.Text Builtin_relation.transcludes_tc;
-              ["rel"; "transcludes"; "reflexive-transitive-closure"], Syn.Text Builtin_relation.transcludes_rtc;
-              ["rel"; "links-to"], Syn.Text Builtin_relation.links_to;
-              ["rel"; "is-reference"], Syn.Text Builtin_relation.is_reference;
-              ["rel"; "is-person"], Syn.Text Builtin_relation.is_person;
-              ["rel"; "is-node"], Syn.Text Builtin_relation.is_node;
-              ["rel"; "is-article"], Syn.Text Builtin_relation.is_article;
-              ["rel"; "is-asset"], Syn.Text Builtin_relation.is_asset;
-              ["rel"; "in-host"], Syn.Text Builtin_relation.in_host;
+              ["rel";
+              "has-tag"],
+              Syn.Text Builtin_relation.has_tag;
+              ["rel";
+              "has-taxon"],
+              Syn.Text Builtin_relation.has_taxon;
+              ["rel";
+              "has-author"],
+              Syn.Text Builtin_relation.has_author;
+              ["rel";
+              "has-direct-contributor"],
+              Syn.Text Builtin_relation.has_direct_contributor;
+              ["rel";
+              "transcludes"],
+              Syn.Text Builtin_relation.transcludes;
+              ["rel";
+              "transcludes";
+              "transitive-closure"],
+              Syn.Text Builtin_relation.transcludes_tc;
+              ["rel";
+              "transcludes";
+              "reflexive-transitive-closure"],
+              Syn.Text Builtin_relation.transcludes_rtc;
+              ["rel";
+              "links-to"],
+              Syn.Text Builtin_relation.links_to;
+              ["rel";
+              "is-reference"],
+              Syn.Text Builtin_relation.is_reference;
+              ["rel";
+              "is-person"],
+              Syn.Text Builtin_relation.is_person;
+              ["rel";
+              "is-node"],
+              Syn.Text Builtin_relation.is_node;
+              ["rel";
+              "is-article"],
+              Syn.Text Builtin_relation.is_article;
+              ["rel";
+              "is-asset"],
+              Syn.Text Builtin_relation.is_asset;
+              ["rel";
+              "in-host"],
+              Syn.Text Builtin_relation.in_host;
               ["execute"], Syn.Dx_execute;
               ["route-asset"], Syn.Route_asset;
               ["syndicate-query-as-json-blob"], Syn.Syndicate_query_as_json_blob;
@@ -406,8 +441,7 @@ let expand_tree ~(forest : State.t) (code : Tree.code) : Tree.syn * Reporter.Mes
   let emit d = diagnostics := d :: !diagnostics in
   let fatal d =
     emit d;
-    Tree.{
-      nodes = [];
+    Tree.{nodes = [];
       identity = code.identity;
       code = code;
       units = Trie.empty;

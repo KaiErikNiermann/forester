@@ -30,8 +30,7 @@ type t =
   | Parse_error
   | Unbound_method of (string * Value.obj)
   | Type_warning
-  | Type_error of
-    {
+  | Type_error of {
       got: Value.t option;
       expected: expected_value list
     }

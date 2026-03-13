@@ -9,8 +9,8 @@ open Forester_core
 type env = Eio_unix.Stdenv.base
 
 val latex_to_svg :
-	env: env ->
-	settings: Config.latex_settings ->
-	?loc: Asai.Range.t ->
-	string ->
-	string
+  env: env ->
+  settings: Config.latex_settings ->
+  ?loc: Asai.Range.t ->
+  string ->
+  string

@@ -25,7 +25,8 @@ type section_flags = {
 }
 [@@deriving show, repr]
 
-type title_flags = {empty_when_untitled: bool}
+type title_flags =
+  {empty_when_untitled: bool}
 [@@deriving show, repr]
 
 let default_section_flags = {
@@ -37,7 +38,8 @@ let default_section_flags = {
   expanded = None
 }
 
-type 'content xml_attr = {key: xml_qname; value: 'content}
+type 'content xml_attr =
+  {key: xml_qname; value: 'content}
 [@@deriving show, repr]
 
 type 'content xml_elt = {
@@ -87,13 +89,16 @@ type 'content article = {
 }
 [@@deriving show, repr]
 
-type asset = {uri: URI.t; content: string}
+type asset =
+  {uri: URI.t; content: string}
 [@@deriving show, repr]
 
-type 'a json_blob_syndication = {blob_uri: URI.t; query: (string, 'a vertex) Datalog_expr.query}
+type 'a json_blob_syndication =
+  {blob_uri: URI.t; query: (string, 'a vertex) Datalog_expr.query}
 [@@deriving show, repr]
 
-type atom_feed_syndication = {source_uri: URI.t; feed_uri: URI.t}
+type atom_feed_syndication =
+  {source_uri: URI.t; feed_uri: URI.t}
 [@@deriving show, repr]
 
 type 'content syndication =

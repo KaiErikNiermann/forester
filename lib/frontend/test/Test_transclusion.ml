@@ -17,7 +17,7 @@ open struct
 end
 
 let config = {(Config.default ()) with trees = ["transclude"]}
-let href = URI_scheme.named_uri ~base:config.url "transcludee"
+let href = URI_scheme.named_uri ~base: config.url "transcludee"
 
 module Transclusions = struct
   (* It would be cool to use quickcheck here, but no good way to test the result*)
@@ -37,7 +37,7 @@ let () =
   let@ env = Eio_main.run in
   Logs.set_level (Some Debug);
   let@ () = Reporter.easy_run in
-  let uri = URI_scheme.named_uri ~base:config.url "transcludee" in
+  let uri = URI_scheme.named_uri ~base: config.url "transcludee" in
   let index = URI.Tbl.create 10 in
   URI.Tbl.add index uri @@
     Tree.Resource
@@ -62,7 +62,7 @@ let () =
     let content = Option.get @@ State.get_content_of_transclusion t forest in
     Format.printf
       "%a"
-      (Legacy_xml_client.pp_xml ~forest ?stylesheet:None)
+      (Legacy_xml_client.pp_xml ~forest ?stylesheet: None)
       (
         T.{
           frontmatter = default_frontmatter ~uri: href ();

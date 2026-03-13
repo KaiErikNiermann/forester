@@ -62,18 +62,14 @@ let xml_elt (prefix, uname) content =
 
 let transclude href =
   T.Transclude
-    T.{
-      href = URI.of_string_exn href;
-      target = Mainmatter
-    }
+    T.{href = URI.of_string_exn href;
+      target = Mainmatter}
 
 let artefact content =
   T.Artefact
-    T.{
-      hash = "";
+    T.{hash = "";
       content = Content content;
-      sources = []
-    }
+      sources = []}
 
 let link href content =
   T.Link

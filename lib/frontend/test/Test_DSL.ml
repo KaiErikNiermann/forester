@@ -8,8 +8,7 @@ open Forester_frontend.DSL
 open Forester_core
 open struct module T = Types end
 
-let content_node =
-(module struct
+let content_node = (module struct
   type t = T.content T.content_node
   let equal = (=)
   let pp = T.pp_content_node T.pp_content

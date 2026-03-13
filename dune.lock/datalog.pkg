@@ -1,0 +1,17 @@
+(version 0.7)
+
+(build
+ (progn
+  (when
+   %{pkg-self:dev}
+   (run dune subst))
+  (run dune build -p %{pkg-self:name} -j %{jobs} @install)))
+
+(depends dune ocaml)
+
+(source
+ (fetch
+  (url
+   https://github.com/c-cube/datalog/releases/download/v0.7/datalog-0.7.tbz)
+  (checksum
+   sha256=13ca520bddf4f0c44d1468bc89347be72ec543be58fff29469a0da24956be541)))

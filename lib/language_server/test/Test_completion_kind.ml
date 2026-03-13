@@ -10,29 +10,44 @@ let check_kind label expected node =
   Alcotest.(check bool) label true (actual = expected)
 
 let test_kind_of_syn_node_classifies_core_variants () =
-  check_kind "fun -> function" (Some Forester_lsp.L.CompletionItemKind.Function)
+  check_kind
+    "fun -> function"
+    (Some Forester_lsp.L.CompletionItemKind.Function)
     (Syn.Fun ([], []));
-  check_kind "text -> text" (Some Forester_lsp.L.CompletionItemKind.Text)
+  check_kind
+    "text -> text"
+    (Some Forester_lsp.L.CompletionItemKind.Text)
     (Syn.Text "hello");
-  check_kind "route asset -> file" (Some Forester_lsp.L.CompletionItemKind.File)
+  check_kind
+    "route asset -> file"
+    (Some Forester_lsp.L.CompletionItemKind.File)
     Syn.Route_asset;
-  check_kind "ref -> reference"
-    (Some Forester_lsp.L.CompletionItemKind.Reference) Syn.Ref;
+  check_kind
+    "ref -> reference"
+    (Some Forester_lsp.L.CompletionItemKind.Reference)
+    Syn.Ref;
   check_kind "current tree -> none" None Syn.Current_tree
 
 let test_insert_text_joins_path_segments () =
   Alcotest.(check string)
-    "path joined with slash" "alpha/beta/gamma"
-    (Completion_kind.insert_text [ "alpha"; "beta"; "gamma" ])
+    "path joined with slash"
+    "alpha/beta/gamma"
+    (Completion_kind.insert_text ["alpha"; "beta"; "gamma"])
 
 let () =
-  Alcotest.run "Completion kind"
+  Alcotest.run
+    "Completion kind"
     [
-      ( "kind",
-        [
-          Alcotest.test_case "classifies syn nodes" `Quick
-            test_kind_of_syn_node_classifies_core_variants;
-          Alcotest.test_case "joins path segments" `Quick
-            test_insert_text_joins_path_segments;
-        ] );
+      (
+        "kind",
+        [Alcotest.test_case
+          "classifies syn nodes"
+          `Quick
+          test_kind_of_syn_node_classifies_core_variants;
+        Alcotest.test_case
+          "joins path segments"
+          `Quick
+          test_insert_text_joins_path_segments;
+        ]
+      );
     ]

@@ -51,8 +51,8 @@ build_haskell() {
   fi
 
   (
-    cd "$repo_root"
-    cabal --project-file=tools/pandoc-converter/cabal.project build forester-pandoc:exe:forester-pandoc
+    cd "$repo_root/tools/pandoc-converter"
+    cabal build forester-pandoc:exe:forester-pandoc
   )
 }
 
@@ -77,8 +77,8 @@ install_haskell_binary() {
 
   local binary_path
   binary_path="$(
-    cd "$repo_root" &&
-      cabal --project-file=tools/pandoc-converter/cabal.project list-bin forester-pandoc:exe:forester-pandoc
+    cd "$repo_root/tools/pandoc-converter" &&
+      cabal list-bin forester-pandoc:exe:forester-pandoc
   )"
   install_binary "$binary_path" "forester-pandoc"
 }

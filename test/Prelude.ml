@@ -119,4 +119,4 @@ let find_doc (env : test_env) addr : L.TextDocumentIdentifier.t =
     Option.get @@
     Dir_scanner.find_tree env.dirs (URI_scheme.named_uri ~base: env.config.url addr)
   in
-  {uri = Lsp.Uri.of_path path}
+    {uri = Lsp.Uri.of_path path}

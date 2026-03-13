@@ -45,5 +45,6 @@ let t : t Repr.t =
   |~ case1 "End_of_file" position_t eof
   |> sealv
 
-type 'a located = 'a Asai.Range.located = {loc: t option; value: 'a}
+type 'a located = 'a Asai.Range.located =
+  {loc: t option; value: 'a}
 [@@deriving repr]

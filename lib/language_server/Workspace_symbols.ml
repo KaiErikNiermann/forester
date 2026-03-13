@@ -118,8 +118,7 @@ let fuzzy_match ~pattern text =
         aux (i + 1) (j + 1) (* match, advance both *)
       else
         aux (i + 1) j (* skip char in text *)
-    in
-    aux 0 0
+    in aux 0 0
 
 (* We no longer show exported functions, as this is really gumming up the editor interfaces. *)
 let compute (params : L.WorkspaceSymbolParams.t) : _ =
@@ -137,9 +136,7 @@ let compute (params : L.WorkspaceSymbolParams.t) : _ =
       let@ source_path = Option.map @~ State.source_path_of_uri uri forest in
       let lsp_uri = Lsp.Uri.of_string source_path in
       let location =
-        L.Location.{
-          range = L.Range.{
-            end_ = {character = 0; line = 0;};
+        L.Location.{range = L.Range.{end_ = {character = 0; line = 0;};
             start = {character = 0; line = 0;};
           };
           uri = lsp_uri;
@@ -147,4 +144,4 @@ let compute (params : L.WorkspaceSymbolParams.t) : _ =
       in
       L.SymbolInformation.create ~kind: File ~location ~name: title ()
     in
-    [file_symbol]
+      [file_symbol]

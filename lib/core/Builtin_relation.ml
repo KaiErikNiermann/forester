@@ -42,11 +42,9 @@ let axioms : _ Dx.script = [
   transcludes_rtc @* [var "X"; var "X"] << [is_node @* [var "X"]];
   transcludes_rtc @* [var "X"; var "Y"] << [transcludes_tc @* [var "X"; var "Y"]];
   references @* [var "X"; var "Z"]
-  << [
-      transcludes_rtc @* [var "X"; var "Y"];
-      links_to @* [var "Y"; var "Z"];
-      is_reference @* [var "Z"]
-    ];
+  << [transcludes_rtc @* [var "X"; var "Y"];
+    links_to @* [var "Y"; var "Z"];
+    is_reference @* [var "Z"]];
   has_direct_contributor @* [var "X"; var "Y"] << [has_author @* [var "X"; var "Y"]];
   has_indirect_contributor @* [var "X"; var "Z"] << [transcludes_rtc @* [var "X"; var "Y"]; has_direct_contributor @* [var "Y"; var "Z"]];
 ]

@@ -111,8 +111,7 @@ let () =
     "Test_expansion"
     [
       "",
-      [
-        test_case "subtree" `Quick (test_subtree ~env);
-        test_case "get_visible" `Quick (test_visible ~env);
+      [test_case "subtree" `Quick (test_subtree ~env);
+      test_case "get_visible" `Quick (test_visible ~env);
       ]
     ]

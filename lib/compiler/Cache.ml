@@ -101,8 +101,7 @@ let get_changed_paths ~(config : Config.t) (cache : t) (dirs : Eio.Fs.dir_ty Eio
     None
 
 let rec try_mark_green t node =
-  let exception Done of bool in
-  let dependencies =
+  let exception Done of bool in let dependencies =
     let@ v = List.filter_map @~ pred t node in
     match Dependency_tbl.find_opt t.tbl v with
     | None -> None

@@ -24,7 +24,7 @@ let raw_trees =
   let t6 = {path = "t6.tree"; content = {||}} in
   let t7 = {path = "t7.tree"; content = {||}} in
   let t8 = {path = "t8.tree"; content = {||}} in
-  [t1; t2; t3; t4; t5; t6; t7; t8;]
+    [t1; t2; t3; t4; t5; t6; t7; t8;]
 
 let test_batch_run ~env () =
   let forest, history =
@@ -41,14 +41,13 @@ let test_batch_run ~env () =
   in
   Alcotest.(check @@ list action)
     "all actions have run"
-    [
-      Load_all_configured_dirs;
-      Parse_all;
-      Build_import_graph;
-      Expand_all;
-      Eval_all;
-      Run_jobs [];
-      Done;
+    [Load_all_configured_dirs;
+    Parse_all;
+    Build_import_graph;
+    Expand_all;
+    Eval_all;
+    Run_jobs [];
+    Done;
     ]
     history;
   Alcotest.(check @@ int) "no tree is unparsed" 0 (Seq.length (State.get_all_unparsed forest));
@@ -70,15 +69,13 @@ let test_includes_paths ~env () =
     Alcotest.(check int) "number of trees in resolver" 8 (URI.Tbl.length forest.resolver);
     Alcotest.(check @@ list action)
       "evaluation succeeded"
-      [
-        Load_all_configured_dirs;
-        Parse_all;
-        Build_import_graph;
-        Expand_all;
-        Eval_all;
-        (Run_jobs []);
-        Done
-      ]
+      [Load_all_configured_dirs;
+      Parse_all;
+      Build_import_graph;
+      Expand_all;
+      Eval_all;
+      (Run_jobs []);
+      Done]
       history;
     let uri = (URI.of_string_exn "http://forest.local/t8/") in
     let path =
@@ -156,11 +153,12 @@ let test_persist_tex_sources ~env () =
   let cwd = Eio.Stdenv.cwd env in
   let path = Eio.Path.(cwd / "build" / "resources" / (hash ^ ".tex")) in
   Fun.protect
-    ~finally:(fun () -> try Eio.Path.unlink path with _ -> ())
+    ~finally: (fun () -> try Eio.Path.unlink path with _ -> ())
     (fun () ->
       Build_latex.persist_source ~env ~hash source;
       let stored = Eio.Path.load path in
-      Alcotest.(check string) "stores source verbatim" source stored)
+      Alcotest.(check string) "stores source verbatim" source stored
+    )
 
 let () =
   let@ env = Eio_main.run in
@@ -171,14 +169,12 @@ let () =
     "Test_driver"
     [
       "Steps",
-      [
-        test_case "Batch compilation steps" `Quick (test_batch_run ~env);
-        test_case "reparsing" `Quick (test_reparsing ~env);
-        test_case "persists tex sources" `Quick (test_persist_tex_sources ~env);
+      [test_case "Batch compilation steps" `Quick (test_batch_run ~env);
+      test_case "reparsing" `Quick (test_reparsing ~env);
+      test_case "persists tex sources" `Quick (test_persist_tex_sources ~env);
       ];
       "dev mode",
-      [
-        test_case "includes paths in dev mode" `Quick (test_includes_paths ~env);
-        test_case "omits paths outside dev mode" `Quick (test_omits_paths ~env);
+      [test_case "includes paths in dev mode" `Quick (test_includes_paths ~env);
+      test_case "omits paths outside dev mode" `Quick (test_omits_paths ~env);
       ]
     ]

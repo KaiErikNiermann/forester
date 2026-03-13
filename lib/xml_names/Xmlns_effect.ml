@@ -83,7 +83,7 @@ module Make () = struct
           qname
         | Some xmlns', Some prefixes ->
           if xmlns' = xmlns && List.mem qname.prefix prefixes then
-            {qname with prefix = try smallest_string prefixes with _ -> qname.prefix}
+              {qname with prefix = try smallest_string prefixes with _ -> qname.prefix}
           else
             normalise_qname {qname with prefix = qname.prefix ^ "_"}
         | None, Some prefixes ->

@@ -15,23 +15,24 @@ end
 open Pure_html
 open HTML
 
-let render_query_result ~route ~render_section (forest : State.t)
-    (vs : Vertex_set.t) =
-  let module C = Types.Comparators (struct
+let render_query_result
+    ~route
+    ~render_section
+    (forest : State.t)
+    (vs : Vertex_set.t)
+  =
+  let module C = Types.Comparators(struct
     let string_of_content =
-      Plain_text_client.string_of_content ~forest ~router:(route forest)
+      Plain_text_client.string_of_content ~forest ~router: (route forest)
   end) in
   let make_section =
     T.article_to_section
-      ~flags:
-        T.
-          {
-            default_section_flags with
-            expanded = Some false;
-            numbered = Some false;
-            included_in_toc = Some false;
-            metadata_shown = Some true;
-          }
+      ~flags: T.{default_section_flags with
+        expanded = Some false;
+        numbered = Some false;
+        included_in_toc = Some false;
+        metadata_shown = Some true;
+      }
   in
   let nodes =
     vs |> Vertex_set.to_seq
@@ -42,4 +43,4 @@ let render_query_result ~route ~render_section (forest : State.t)
     |> List.map (Fun.compose (render_section forest) make_section)
   in
   if List.length nodes = 0 then None
-  else Some (div [ class_ "tree-content" ] nodes)
+  else Some (div [class_ "tree-content"] nodes)

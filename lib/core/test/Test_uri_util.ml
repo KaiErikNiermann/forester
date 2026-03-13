@@ -6,7 +6,6 @@
 
 open Forester_core
 
-
 let test_split_addr_1 () =
   let uri = URI.of_string_exn "forest://test/foo-bar" in
   Alcotest.(check @@ option @@ pair (option string) int)
@@ -48,11 +47,10 @@ let () =
     "Test_uri_util"
     [
       "split_addr",
-      [
-        test_case "split_addr" `Quick test_split_addr_1;
-        test_case "split_addr" `Quick test_split_addr_2;
-        test_case "split_addr" `Quick test_split_addr_3;
-        test_case "split_addr" `Quick test_split_addr_4;
-        test_case "split_addr" `Quick test_split_addr_5;
+      [test_case "split_addr" `Quick test_split_addr_1;
+      test_case "split_addr" `Quick test_split_addr_2;
+      test_case "split_addr" `Quick test_split_addr_3;
+      test_case "split_addr" `Quick test_split_addr_4;
+      test_case "split_addr" `Quick test_split_addr_5;
       ]
     ]

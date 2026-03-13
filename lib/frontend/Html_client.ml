@@ -77,7 +77,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
       let xmlns_attrs = List.map render_xmlns_prefix prefixes_to_add in
       attrs @ xmlns_attrs
     in
-    [P.std_tag name attrs content]
+      [P.std_tag name attrs content]
   | Route_of_uri uri ->
     [P.txt "%s" (route uri)]
   | Contextual_number uri ->

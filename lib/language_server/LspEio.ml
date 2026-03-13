@@ -61,10 +61,10 @@ module Header = struct
         | Some n -> n
         | None -> raise (HeaderError (InvalidContentLength value))
       in
-      {headers with content_length}
+        {headers with content_length}
     | [key; value] when is_content_type key ->
       let content_type = String.trim value in
-      {headers with content_type}
+        {headers with content_type}
     | [_; _] ->
       (* We skip any unknown headers. *)
       headers

@@ -1,0 +1,17 @@
+(version 3.11.2)
+
+(build
+ (progn
+  (when
+   %{pkg-self:dev}
+   (run dune subst))
+  (run dune build -p %{pkg-self:name} -j %{jobs} @install)))
+
+(depends dune uri)
+
+(source
+ (fetch
+  (url
+   https://github.com/yawaramin/dream-html/releases/download/v3.11.2/dream-html-3.11.2.tbz)
+  (checksum
+   sha256=ece5aa53d17f5df311842a2ca528b537547f5ed8f88f9a64d292462dae9ff0b5)))

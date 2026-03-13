@@ -11,8 +11,8 @@ let parse_file path =
   let lexbuf = Lexing.from_string input in
   match Forester_parser.Parse.parse lexbuf with
   | Ok code ->
-      ignore (List.length code);
-      Ok ()
+    ignore (List.length code);
+    Ok ()
   | Error diagnostic -> Error (explanation_of_diagnostic diagnostic)
 
 let usage () =
@@ -22,7 +22,7 @@ let usage () =
 let () =
   if Array.length Sys.argv <> 2 then usage ();
   match parse_file Sys.argv.(1) with
-  | Ok () -> ()
+  | Ok() -> ()
   | Error message ->
-      prerr_endline message;
-      exit 1
+    prerr_endline message;
+    exit 1

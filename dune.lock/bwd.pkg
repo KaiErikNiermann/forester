@@ -1,0 +1,11 @@
+(version 2.3.0)
+
+(build
+ (run dune build -p %{pkg-self:name} -j %{jobs}))
+
+(depends dune ocaml)
+
+(source
+ (fetch
+  (url https://github.com/RedPRL/ocaml-bwd/archive/refs/tags/2.3.0.tar.gz)
+  (checksum md5=5ccdce66e6ccc2b2e11bab3c17fecc8c)))

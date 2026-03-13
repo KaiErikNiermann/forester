@@ -45,8 +45,7 @@ let identity_to_uri = function
   | Anonymous -> None
 
 type origin =
-  | Physical of
-    (Lsp.Text_document.t [@printer fun ppf doc ->
+  | Physical of (Lsp.Text_document.t [@printer fun ppf doc ->
       Format.pp_print_string
         ppf
         (Lsp.(Uri.to_path @@ Text_document.documentUri doc))])

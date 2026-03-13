@@ -132,7 +132,8 @@ and tokenize_frontmatter
   (int list * string) list
 = fun path fm ->
   match fm with
-  | {title;
+  | {
+    title;
     attributions;
     taxon;
     tags;

@@ -19,12 +19,14 @@ let format input =
 
 let test_formatter_normalizes_def_header_sugar () =
   Alcotest.(check string)
-    "def header sugar normalizes to square binders" {|\def\macro[x][~y]{body}|}
+    "def header sugar normalizes to square binders"
+    {|\def\macro[x][~y]{body}|}
     (format {|\def\macro(x, ~y){body}|})
 
 let test_formatter_normalizes_fun_header_sugar () =
   Alcotest.(check string)
-    "fun header sugar normalizes to square binders" {|\fun[x][y]{body}|}
+    "fun header sugar normalizes to square binders"
+    {|\fun[x][y]{body}|}
     (format {|\fun(x, y){body}|})
 
 let test_formatter_normalizes_object_header_sugar () =
@@ -45,7 +47,8 @@ let test_formatter_normalizes_patch_header_sugar () =
 
 let test_formatter_def_command_body_stays_inline () =
   Alcotest.(check string)
-    "def command body stays inline when simple" {|\def\macro{\get\item}|}
+    "def command body stays inline when simple"
+    {|\def\macro{\get\item}|}
     (format {|\def\macro{\get\item}|})
 
 let test_formatter_object_multiple_methods () =
@@ -58,21 +61,35 @@ let test_formatter_object_multiple_methods () =
     (format {|\object(self){[render]{ok}[other]{fine}}|})
 
 let () =
-  Alcotest.run "Document format"
+  Alcotest.run
+    "Document format"
     [
-      ( "header sugar",
-        [
-          Alcotest.test_case "normalizes def header sugar" `Quick
-            test_formatter_normalizes_def_header_sugar;
-          Alcotest.test_case "normalizes fun header sugar" `Quick
-            test_formatter_normalizes_fun_header_sugar;
-          Alcotest.test_case "normalizes object header sugar" `Quick
-            test_formatter_normalizes_object_header_sugar;
-          Alcotest.test_case "normalizes patch header sugar" `Quick
-            test_formatter_normalizes_patch_header_sugar;
-          Alcotest.test_case "def command body stays inline" `Quick
-            test_formatter_def_command_body_stays_inline;
-          Alcotest.test_case "object multiple methods" `Quick
-            test_formatter_object_multiple_methods;
-        ] );
+      (
+        "header sugar",
+        [Alcotest.test_case
+          "normalizes def header sugar"
+          `Quick
+          test_formatter_normalizes_def_header_sugar;
+        Alcotest.test_case
+          "normalizes fun header sugar"
+          `Quick
+          test_formatter_normalizes_fun_header_sugar;
+        Alcotest.test_case
+          "normalizes object header sugar"
+          `Quick
+          test_formatter_normalizes_object_header_sugar;
+        Alcotest.test_case
+          "normalizes patch header sugar"
+          `Quick
+          test_formatter_normalizes_patch_header_sugar;
+        Alcotest.test_case
+          "def command body stays inline"
+          `Quick
+          test_formatter_def_command_body_stays_inline;
+        Alcotest.test_case
+          "object multiple methods"
+          `Quick
+          test_formatter_object_multiple_methods;
+        ]
+      );
     ]

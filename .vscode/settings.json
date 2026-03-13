@@ -20,5 +20,9 @@
     "rsweave",
     "forester",
     "plaintext"
-  ]
+  ],
+  "ocaml.sandbox": {
+    "kind": "dune",
+    "root": "${workspaceFolder:ocaml-forester}"
+  }
 }

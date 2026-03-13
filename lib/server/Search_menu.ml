@@ -14,22 +14,20 @@ open HTML
 let v =
   let markup =
     div
-      [
-        class_ "modal-overlay";
-        Hx.trigger "click target:.modal-overlay, keyup[key=='Escape'] from:body";
-        Hx.target "#modal-container";
-        Hx.get "/nil";
+      [class_ "modal-overlay";
+      Hx.trigger "click target:.modal-overlay, keyup[key=='Escape'] from:body";
+      Hx.target "#modal-container";
+      Hx.get "/nil";
       ]
       [
         div
           [class_ "modal-content";]
           [
             form
-              [
-                class_ "search-form";
-                Hx.post "/search";
-                Hx.trigger "input changed delay:500ms, keyup[key=='Enter'], load";
-                Hx.target "#search-results";
+              [class_ "search-form";
+              Hx.post "/search";
+              Hx.trigger "input changed delay:500ms, keyup[key=='Enter'], load";
+              Hx.target "#search-results";
               ]
               [
                 input

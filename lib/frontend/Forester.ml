@@ -87,8 +87,7 @@ let json_manifest ~dev ~(forest : State.t) : string =
   let articles =
     let@ tree = Seq.filter_map @~ Forest.to_seq_values forest.index in
     let@ evaluated = Option.bind @@ Tree.to_evaluated tree in
-    if evaluated.include_in_manifest
-    then Tree.to_article tree
+    if evaluated.include_in_manifest then Tree.to_article tree
     else None
   in
   articles
@@ -127,11 +126,11 @@ let outputs_for_article ~(forest : State.t) (article : _ T.article) =
     let html_content =
       html_redirect @@ String.concat "/" @@ "" :: Legacy_xml_client.local_path_components forest.config xml_route
     in
-    [xml_route, xml_content; html_route, html_content]
+      [xml_route, xml_content; html_route, html_content]
 
 let outputs_for_asset (asset : T.asset) =
   let route = asset.uri in
-  [route, asset.content]
+    [route, asset.content]
 
 let outputs_for_json_blob_syndication ~(forest : State.t) (syndication : _ T.json_blob_syndication) =
   if URI.host syndication.blob_uri = URI.host forest.config.url then
@@ -143,14 +142,14 @@ let outputs_for_json_blob_syndication ~(forest : State.t) (syndication : _ T.jso
       | Uri_vertex uri -> State.get_resource forest uri
     in
     let json_content = Repr.to_json_string ~minify: true (T.forest_t T.content_t) resources in
-    [syndication.blob_uri, json_content]
+      [syndication.blob_uri, json_content]
   else
-    []
+      []
 
 let outputs_for_atom_feed_syndication ~(forest : State.t) (syndication : T.atom_feed_syndication) =
   let atom_nodes = Atom_client.render_feed forest ~source_uri: syndication.source_uri ~feed_uri: syndication.feed_uri in
   let atom_content = Format.asprintf "%a" (Pure_html.pp_xml ~header: true) atom_nodes in
-  [syndication.feed_uri, atom_content]
+    [syndication.feed_uri, atom_content]
 
 let outputs_for_syndication ~(forest : State.t) = function
   | T.Json_blob syndication -> outputs_for_json_blob_syndication ~forest syndication

@@ -17,8 +17,7 @@ type node =
   | Hash_ident of string
   | Xml_ident of string option * string
   | Subtree of string option * t
-  | Let of
-    Trie.path
+  | Let of Trie.path
     * string binding list
     * t
   | Open of Trie.path
@@ -31,8 +30,7 @@ type node =
   | Patch of t patch
   | Call of t * string
   | Import of visibility * string
-  | Def of
-    Trie.path
+  | Def of Trie.path
     * string binding list
     * t
   | Decl_xmlns of string * string

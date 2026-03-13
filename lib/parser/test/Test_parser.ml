@@ -153,7 +153,7 @@ let test_object () =
 let test_parenthesized_header_binders () =
   Alcotest.(check @@ result code diagnostic)
     "def parenthesized binders desugar to same AST"
-    (Ok [def ["macro"] [ (Strict, "x"); (Lazy, "y") ] [text "body"]])
+    (Ok [def ["macro"] [(Strict, "x"); (Lazy, "y")] [text "body"]])
     (parse_string_no_loc {|\def\macro(x, ~y){body}|});
   Alcotest.(check @@ result code diagnostic)
     "def empty parenthesized binders desugar to zero binders"
@@ -161,22 +161,28 @@ let test_parenthesized_header_binders () =
     (parse_string_no_loc {|\def\macro(){body}|});
   Alcotest.(check @@ result code diagnostic)
     "fun parenthesized binders desugar to same AST"
-    (Ok [({ Range.loc = None; value = Code.Fun ([ (Strict, "x"); (Strict, "y") ], [text "body"]) } : Code.node Range.located)])
+    (Ok [({Range.loc = None; value = Code.Fun ([(Strict, "x"); (Strict, "y")], [text "body"])}: Code.node Range.located)])
     (parse_string_no_loc {|\fun(x, y){body}|});
   Alcotest.(check @@ result code diagnostic)
     "object parenthesized self desugars to same AST"
-    (Ok [object_ { self = Some "self"; methods = [ ("render", []) ] }])
+    (Ok [object_ {self = Some "self"; methods = [("render", [])]}])
     (parse_string_no_loc {|\object(self){[render]{}}|});
   Alcotest.(check @@ result code diagnostic)
     "patch parenthesized bindings desugar to same AST"
-    (Ok [
-      ({ Range.loc = None; value = Code.Patch {
-          obj = [({ Range.loc = None; value = Code.Get ["base"] } : Code.node Range.located)];
-          self = Some "self";
-          super = Some "super";
-          methods = [ ("render", [text "ok"]) ];
-        } } : Code.node Range.located)
-    ])
+    (
+      Ok [
+        ({
+          Range.loc = None;
+          value =
+          Code.Patch {
+            obj = [({Range.loc = None; value = Code.Get ["base"]}: Code.node Range.located)];
+            self = Some "self";
+            super = Some "super";
+            methods = [("render", [text "ok"])];
+          }
+        }: Code.node Range.located)
+      ]
+    )
     (parse_string_no_loc {|\patch{\get\base}(self, super){[render]{ok}}|})
 
 let test_parenthesized_header_binders_reject_invalid_forms () =
@@ -228,10 +234,9 @@ let () =
       "hashtag", [test_case "hashtag" `Quick test_hashtag];
       "object", [test_case "object" `Quick test_object];
       "header-binders",
-      [ test_case "parenthesized binders" `Quick test_parenthesized_header_binders;
-        test_case
-          "parenthesized binders reject invalid forms"
-          `Quick
-          test_parenthesized_header_binders_reject_invalid_forms
-      ];
+      [test_case "parenthesized binders" `Quick test_parenthesized_header_binders;
+      test_case
+        "parenthesized binders reject invalid forms"
+        `Quick
+        test_parenthesized_header_binders_reject_invalid_forms];
     ]

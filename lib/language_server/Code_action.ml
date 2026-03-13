@@ -53,6 +53,6 @@ let compute (L.CodeActionParams.{range; textDocument = {uri}; _;}) : L.CodeActio
           ~edit: (create_tree_edit ~range ~uri next_random dir)
           ()
       in
-      [`CodeAction sequential; `CodeAction random]
+        [`CodeAction sequential; `CodeAction random]
   in
   Some actions

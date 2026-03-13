@@ -87,7 +87,7 @@ let render_attribution forest (attribution : _ T.attribution) =
       [A.name [] "%s" @@ string_of_content forest content]
     | T.Uri_vertex href ->
       let content = T.Content [T.Transclude {href; target = Title {empty_when_untitled = false}}] in
-      [A.name [] "%s" @@ string_of_content forest content; A.uri [] "%s" @@ URI.to_string href]
+        [A.name [] "%s" @@ string_of_content forest content; A.uri [] "%s" @@ URI.to_string href]
   in
   tag [] body
 
@@ -133,9 +133,7 @@ let render_entry ~(forest : State.t) ?(scope : URI.t option) (article : T.conten
             ]
       end;
       A.content
-        [
-          A.type_ "xhtml"
-        ]
+        [A.type_ "xhtml"]
         [
           Html_client.render_article_as_div ~heading_level: 1 forest article
         ]

@@ -46,7 +46,8 @@ let make
   ?(hosts = Hashtbl.create 10)
   ?(suggestions = URI.Tbl.create 1000)
   ()
-= {env; dev; persist_tex; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; hosts; suggestions; history = []}
+=
+  {env; dev; persist_tex; config; index; diagnostics; resolver; import_graph; graphs; search_index; dependency_cache; usages; hosts; suggestions; history = []}
 
 module Syntax = struct
   let (.={}) state uri =
@@ -208,12 +209,11 @@ let get_content_of_transclusion (transclusion : T.transclusion) forest =
     let@ article = Option.map @~ get_article transclusion.href forest in
     article.mainmatter
   | Title flags ->
-    Option.some @@
-      begin
-        match get_article transclusion.href forest with
-        | None -> T.Content [T.Uri transclusion.href]
-        | Some article -> get_expanded_title ~flags article.frontmatter forest
-      end
+    Option.some @@ begin
+      match get_article transclusion.href forest with
+      | None -> T.Content [T.Uri transclusion.href]
+      | Some article -> get_expanded_title ~flags article.frontmatter forest
+    end
   | Taxon ->
     let@ article = Option.map @~ get_article transclusion.href forest in
     let default = T.Content [T.Text section_symbol] in
@@ -262,7 +262,8 @@ let plant_resource ?(route_locally = true) ?(include_in_manifest = true) resourc
   let module Graphs = (val forest.graphs) in
   Forest.analyse_resource forest.graphs resource;
   let@ uri = Option.iter @~ T.uri_for_resource resource in
-  let uri = URI.canonicalise uri in (* Seems dodgy if this isn't already canonical! *)
+  let uri = URI.canonicalise uri in
+  (* Seems dodgy if this isn't already canonical! *)
   Graphs.register_uri uri;
   begin
     let@ host = Option.iter @~ URI.host uri in
@@ -304,7 +305,7 @@ let batch_write : t -> _ = function
             Dependency_tbl.add tbl item Item.{timestamp = Some now; color = Green};
             item
     in
-    {Cache.empty with graph = g; tbl;}
+      {Cache.empty with graph = g; tbl;}
 
 let reconstruct = fun ~env: _ ~(_config : Config.t) paths cache ->
   match cache with

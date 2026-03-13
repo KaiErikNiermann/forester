@@ -12,8 +12,7 @@ open struct
 end
 
 let doc1 =
-  T.{
-    frontmatter =
+  T.{frontmatter =
     default_frontmatter
       ~uri: (URI.of_string_exn "forest://doc1")
       ~title: (T.Content [T.Text "Title of tremendous importance"])
@@ -24,8 +23,7 @@ let doc1 =
   }
 
 let doc2 =
-  T.{
-    frontmatter = default_frontmatter ~uri: (URI.of_string_exn "forest://doc2") ();
+  T.{frontmatter = default_frontmatter ~uri: (URI.of_string_exn "forest://doc2") ();
     mainmatter =
     T.Content [T.Text "donut is a donut"];
     backmatter = T.Content [];
@@ -87,20 +85,18 @@ let test_tokenize_content () =
   let render path = Context.render_context_content path content in
   Alcotest.(check @@ list string)
     ""
-    [
-      "first";
-      "item";
-      "second";
-      "item";
-      "first";
-      "item";
-      "second";
-      "list";
-      "second";
-      "item";
-      "second";
-      "list"
-    ]
+    ["first";
+    "item";
+    "second";
+    "item";
+    "first";
+    "item";
+    "second";
+    "list";
+    "second";
+    "item";
+    "second";
+    "list"]
     (List.map render locations)
 
 let test_render_context_frontmatter () =
@@ -143,13 +139,11 @@ let () =
     "Test_forester_search"
     [
       "tokenizer",
-      [
-        test_case "get_nth_word" `Quick test_nth_word;
-        test_case "tokenize_content" `Quick test_tokenize_content;
+      [test_case "get_nth_word" `Quick test_nth_word;
+      test_case "tokenize_content" `Quick test_tokenize_content;
       ];
       "context",
-      [
-        test_case "render_context_frontmatter" `Quick test_render_context_frontmatter;
+      [test_case "render_context_frontmatter" `Quick test_render_context_frontmatter;
       ];
     ]
 

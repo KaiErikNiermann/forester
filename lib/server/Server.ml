@@ -32,7 +32,7 @@ let load_theme ~env theme_location =
   let favicon = load_file "favicon.ico" in
   let js_bundle = EP.(load (env#fs / base_dir / "min.js")) in
   let font_dir = EP.(native_exn @@ theme_dir / "fonts") in
-  {stylesheet; htmx; js_bundle; font_dir; favicon;}
+    {stylesheet; htmx; js_bundle; font_dir; favicon;}
 
 let lookup_font ~env theme font =
   Eio.Path.(load (env#fs / theme.font_dir / font))

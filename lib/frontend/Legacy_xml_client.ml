@@ -100,7 +100,7 @@ let rec render_section forest (section : T.content T.section) : P.node =
       let@ () = Scope.run ~forest ~env: section.frontmatter.uri in
       X.mainmatter [] @@
         if Loop_detection.have_seen_uri_opt section.frontmatter.uri then
-          [X.info [] [P.txt "Transclusion loop detected, rendering stopped."]]
+            [X.info [] [P.txt "Transclusion loop detected, rendering stopped."]]
         else
           let@ () = Loop_detection.add_seen_uri_opt section.frontmatter.uri in
           render_mainmatter forest section
@@ -182,7 +182,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
       let xmlns_attrs = List.map render_xmlns_prefix prefixes_to_add in
       attrs @ xmlns_attrs
     in
-    [P.std_tag name attrs content]
+      [P.std_tag name attrs content]
   | Transclude transclusion ->
     render_transclusion forest transclusion
   | Contextual_number uri ->
@@ -229,7 +229,7 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
       | Display -> "block"
     in
     let body = Format.asprintf "%a" TeX_like.pp_content content in
-    [X.tex [X.display "%s" display] "<![CDATA[%s]]>" body]
+      [X.tex [X.display "%s" display] "<![CDATA[%s]]>" body]
   | Artefact resource ->
     [render_artefact forest resource]
   | Datalog_script _ -> []
@@ -266,10 +266,8 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
           | Ok -> ()
           | Not_found {suggestion} -> Reporter.emit @@ Broken_link {uri = link.href; suggestion}
       end;
-      [
-        X.href "%s" @@ URI.to_string @@ route forest link.href;
-        X.type_ "external"
-      ]
+      [X.href "%s" @@ URI.to_string @@ route forest link.href;
+      X.type_ "external"]
     | Some article ->
       [
         X.href "%s" @@ URI.to_string @@ route forest link.href;
@@ -281,7 +279,7 @@ and render_link (forest : State.t) (link : T.content T.link) : P.node list =
         X.type_ "local"
       ]
   in
-  [X.link attrs @@ render_content forest link.content]
+    [X.link attrs @@ render_content forest link.content]
 
 and render_attributions (forest : State.t) (scope : URI.t option) (primary_attributions : _ T.attribution list) =
   X.authors [] @@
@@ -341,23 +339,20 @@ let render_article (forest : State.t) (article : T.content T.article) : P.node =
   let@ () = In_backmatter.run ~env: false in
   X.tree
     begin
-      List.map render_xmlns_prefix xmlnss @
-        [
-          X.optional_ X.root @@
-            begin
-              let@ uri = Option.map @~ article.frontmatter.uri in
-              URI.equal (Config.home_uri config) uri
-            end;
-          P.string_attr "base-url" "%s" (local_base_url_string config)
-        ]
+      List.map render_xmlns_prefix xmlnss @ [
+        X.optional_ X.root @@ begin
+          let@ uri = Option.map @~ article.frontmatter.uri in
+          URI.equal (Config.home_uri config) uri
+        end;
+        P.string_attr "base-url" "%s" (local_base_url_string config)
+      ]
     end
     [
       render_frontmatter forest article.frontmatter;
-      X.mainmatter [] @@
-        begin
-          let@ () = Loop_detection.add_seen_uri_opt article.frontmatter.uri in
-          render_mainmatter forest @@ T.article_to_section article
-        end;
+      X.mainmatter [] @@ begin
+        let@ () = Loop_detection.add_seen_uri_opt article.frontmatter.uri in
+        render_mainmatter forest @@ T.article_to_section article
+      end;
       X.backmatter [] @@
         let@ () = In_backmatter.run ~env: true in
         render_content forest article.backmatter

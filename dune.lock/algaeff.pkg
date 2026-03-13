@@ -1,0 +1,11 @@
+(version 2.0.0)
+
+(build
+ (run dune build -p %{pkg-self:name} -j %{jobs}))
+
+(depends dune ocaml)
+
+(source
+ (fetch
+  (url https://github.com/RedPRL/algaeff/archive/refs/tags/2.0.0.tar.gz)
+  (checksum md5=70f2a933368a5174d21abd84a0a52c04)))

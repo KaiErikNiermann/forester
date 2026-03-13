@@ -95,7 +95,7 @@ let file_exists path =
     | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) -> false
 
 let try_create_dir ~cwd dname =
-  let (/) = Path.(/) in
+  let ( / ) = Path.( / ) in
   if Eio.Path.is_directory (cwd / dname) then
     Reporter.emit
       Initialization_warning
@@ -108,7 +108,7 @@ let try_create_dir ~cwd dname =
         Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "Failed to create directory `%s`: %a" dname Eio.Exn.pp exn]
 
 let try_create_file ~cwd ?(content = "") fname =
-  let (/) = Path.(/) in
+  let ( / ) = Path.( / ) in
   if Eio.Path.is_file (cwd / fname) then
     Forester_core.Reporter.emit Initialization_warning ~extra_remarks: [Asai.Diagnostic.loctextf "`%s` already exists" fname]
   else

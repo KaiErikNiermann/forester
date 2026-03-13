@@ -52,14 +52,13 @@ let render_tree ~dev ~(forest : State.t) (doc : T.content T.article) : Yojson.Sa
   (* TODO: filter out anonymous stuff *)
   Option.some @@
     let fm =
-      path @
-        [
-          ("title", title);
-          ("uri", `String (URI.display_path_string ~base: forest.config.url uri));
-          ("taxon", taxon);
-          ("tags", tags);
-          ("route", route);
-          ("metas", metas)
-        ]
+      path @ [
+        ("title", title);
+        ("uri", `String (URI.display_path_string ~base: forest.config.url uri));
+        ("taxon", taxon);
+        ("tags", tags);
+        ("route", route);
+        ("metas", metas)
+      ]
     in
     `Assoc fm

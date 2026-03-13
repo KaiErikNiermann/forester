@@ -135,7 +135,7 @@ let children (node : node Range.located) =
     (methods |> List.map snd |> List.concat)
   | Patch {obj; methods; _} ->
     let methods = (methods |> List.map snd |> List.concat) in
-    (List.append obj methods)
+      (List.append obj methods)
   | Text _
   | Verbatim _
   | Ident _

@@ -1,0 +1,32 @@
+(version 0.1.0)
+
+(build
+ (progn
+  (when
+   %{pkg-self:dev}
+   (run dune subst))
+  (run
+   dune
+   build
+   -p
+   %{pkg-self:name}
+   -j
+   %{jobs}
+   --promote-install-files=false
+   @install)
+  (run
+   dune
+   install
+   -p
+   %{pkg-self:name}
+   --create-install-files
+   %{pkg-self:name})))
+
+(depends ocaml dune multicodec cstruct)
+
+(source
+ (fetch
+  (url
+   https://github.com/patricoferris/ocaml-multihash/releases/download/v0.1.0/multihash-0.1.0.tbz)
+  (checksum
+   sha256=cb6887fa2e31dc06d95b15d678ca9a0fa258be4c32d06db9df0b7981bdb8a5f6)))

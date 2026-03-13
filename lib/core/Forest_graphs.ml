@@ -16,8 +16,7 @@ module type S = sig
   val register_uri : URI.t -> unit
 end
 
-let init (db : Dl.db) : (module S) =
-(module struct
+let init (db : Dl.db) : (module S) = (module struct
   let dl_db = db
 
   let register_uri uri =

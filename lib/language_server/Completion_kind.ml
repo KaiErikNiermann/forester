@@ -20,10 +20,17 @@ let kind_of_syn_node : Syn.node -> L.CompletionItemKind.t option = function
   | Meta -> Some Field
   | Route_asset -> Some File
   | Var _ -> Some Variable
-  | Prim _ | Transclude | Embed_tex | Title | Parent | Taxon
+  | Prim _
+  | Transclude
+  | Embed_tex
+  | Title
+  | Parent
+  | Taxon
   | Attribution (_, _)
-  | Tag _ | Date | Number ->
-      Some Keyword
+  | Tag _
+  | Date
+  | Number ->
+    Some Keyword
   | Ref -> Some Reference
   | Group (_, _)
   | Math (_, _)
@@ -34,7 +41,10 @@ let kind_of_syn_node : Syn.node -> L.CompletionItemKind.t option = function
   | Default (_, _, _)
   | Get _
   | Xml_tag (_, _, _)
-  | TeX_cs _ | Unresolved_ident _ | Object _ | Patch _
+  | TeX_cs _
+  | Unresolved_ident _
+  | Object _
+  | Patch _
   | Call (_, _)
   | Results_of_query
   | Dx_sequent (_, _)
@@ -42,21 +52,26 @@ let kind_of_syn_node : Syn.node -> L.CompletionItemKind.t option = function
   | Dx_prop (_, _)
   | Dx_var _
   | Dx_const (_, _)
-  | Dx_execute | Syndicate_current_tree_as_atom_feed
-  | Syndicate_query_as_json_blob | Current_tree ->
-      None
+  | Dx_execute
+  | Syndicate_current_tree_as_atom_feed
+  | Syndicate_query_as_json_blob
+  | Current_tree ->
+    None
 
 let insert_text path = String.concat "/" path
 
 let completion_item_of_visible_entry
-    ((path, (data, _)) :
-      Yuujinchou.Trie.path * (Resolver.P.data * Asai.Range.t option)) =
+    ((path, (data, _)):
+      Yuujinchou.Trie.path * (Resolver.P.data * Asai.Range.t option)
+    )
+  =
   match data with
   | Term [] -> None
   | Term (node :: _) ->
-      let kind = kind_of_syn_node node.value in
-      let insert_text = insert_text path in
-      Some
-        (L.CompletionItem.create ?kind ~insertText:insert_text
-           ~label:(String.concat "/" path) ())
+    let kind = kind_of_syn_node node.value in
+    let insert_text = insert_text path in
+    Some
+      (
+        L.CompletionItem.create ?kind ~insertText: insert_text ~label: (String.concat "/" path) ()
+      )
   | Xmlns _ -> assert false

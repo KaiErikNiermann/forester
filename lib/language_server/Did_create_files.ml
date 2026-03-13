@@ -25,4 +25,4 @@ let compute ({files}: L.CreateFilesParams.t) =
     forest.={uri} <- Document doc
   end;
   let new_forest = Driver.run_until_done Parse_all forest in
-  {lsp_state with forest = new_forest}
+    {lsp_state with forest = new_forest}

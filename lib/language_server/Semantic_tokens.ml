@@ -173,7 +173,7 @@ let tokens (nodes : Code.t) : token list =
   let L.Range.{start; end_} = Lsp_shims.Loc.lsp_range_of_range loc in
   (* Multiline tokens not supported*)
   if start.line <> end_.line then
-    []
+      []
   else
     match value with
     | Code.Ident path ->
@@ -221,7 +221,8 @@ let process_line_delta (index_of_last_line : int option) (tokens : token list) :
     List.fold_left
       (fun
           (last_token, acc)
-          ({start_char;
+          ({
+            start_char;
             length;
             token_type;
             token_modifiers;
@@ -234,13 +235,13 @@ let process_line_delta (index_of_last_line : int option) (tokens : token list) :
           let delta_line = match index_of_last_line with Some i -> i - line | None -> line in
           let delta_start_char = start_char in
           let t = {delta_line; delta_start_char; length; token_type; token_modifiers} in
-          (Some current_token, t :: acc)
+            (Some current_token, t :: acc)
         | Some last_token ->
           (*If there is a previous token, we know we are still on the same line*)
           let delta_line = current_token.line - last_token.line in
           let delta_start_char = if delta_line > 0 then current_token.start_char else current_token.start_char - last_token.start_char in
           let delta = {delta_line; delta_start_char; length = current_token.length; token_type = current_token.token_type; token_modifiers;} in
-          (Some current_token, delta :: acc)
+            (Some current_token, delta :: acc)
       )
       (None, [])
       tokens

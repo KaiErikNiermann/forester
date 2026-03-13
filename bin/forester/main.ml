@@ -164,13 +164,23 @@ let init ~env dir =
     try
       let proc_mgr = Eio.Stdenv.process_mgr env in
       let@ cmd =
-        List.iter @~
-          [
-            ["git"; "init"; "--quiet"];
-            ["git"; "branch"; "-m"; "main"];
-            ["git"; "submodule"; "add"; default_theme_url; "theme"];
-            ["git"; "-C"; "theme"; "checkout"; theme_version];
-          ]
+        List.iter @~ [
+          ["git"; "init"; "--quiet"];
+          ["git";
+          "branch";
+          "-m";
+          "main"];
+          ["git";
+          "submodule";
+          "add";
+          default_theme_url;
+          "theme"];
+          ["git";
+          "-C";
+          "theme";
+          "checkout";
+          theme_version];
+        ]
       in
       Eio.Process.run ~cwd proc_mgr cmd
     with
@@ -359,35 +369,40 @@ let rust_parser_info ~env _ rust_parser_path test_file =
   Option.iter Rust_parser.set_rust_parser_path rust_parser_path;
   let available = Rust_parser.is_available () in
   Format.printf "Rust parser available: %b\n" available;
-  if available then begin
-    match test_file with
-    | Some path ->
-      let content =
-        let ic = open_in path in
-        let n = in_channel_length ic in
-        let s = really_input_string ic n in
-        close_in ic;
-        s
-      in
-      begin match Rust_parser.parse_to_json content with
-      | Ok json ->
-        Format.printf "Parse successful. JSON output:\n%s\n" json;
-        (* Also test OCaml conversion *)
-        begin match Rust_parser.parse content with
-        | Ok code_t ->
-          Format.printf "\nOCaml Code.t conversion successful!\n";
-          Format.printf "Number of nodes: %d\n" (List.length code_t)
-        | Error errors ->
-          Format.printf "\nOCaml Code.t conversion failed:\n";
-          List.iter (fun (err : Rust_parser.parse_error) ->
-            Format.printf "  - %s\n" err.message;
-            if err.report <> "" then Format.printf "%s\n" err.report
-          ) errors
+  if available then
+    begin
+      match test_file with
+      | Some path ->
+        let content =
+          let ic = open_in path in
+          let n = in_channel_length ic in
+          let s = really_input_string ic n in
+          close_in ic;
+          s
+        in
+        begin
+          match Rust_parser.parse_to_json content with
+          | Ok json ->
+            Format.printf "Parse successful. JSON output:\n%s\n" json;
+            (* Also test OCaml conversion *)
+            begin
+              match Rust_parser.parse content with
+              | Ok code_t ->
+                Format.printf "\nOCaml Code.t conversion successful!\n";
+                Format.printf "Number of nodes: %d\n" (List.length code_t)
+              | Error errors ->
+                Format.printf "\nOCaml Code.t conversion failed:\n";
+                List.iter
+                  (fun (err : Rust_parser.parse_error) ->
+                    Format.printf "  - %s\n" err.message;
+                    if err.report <> "" then Format.printf "%s\n" err.report
+                  )
+                  errors
+            end
+          | Error msg -> Format.printf "Parse error: %s\n" msg
         end
-      | Error msg -> Format.printf "Parse error: %s\n" msg
-      end
-    | None -> ()
-  end
+      | None -> ()
+    end
 
 let rust_parser_cmd ~env =
   let open Cmdliner in

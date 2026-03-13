@@ -1,0 +1,32 @@
+(version 0.1.0)
+
+(build
+ (progn
+  (when
+   %{pkg-self:dev}
+   (run dune subst))
+  (run
+   dune
+   build
+   -p
+   %{pkg-self:name}
+   -j
+   %{jobs}
+   --promote-install-files=false
+   @install)
+  (run
+   dune
+   install
+   -p
+   %{pkg-self:name}
+   --create-install-files
+   %{pkg-self:name})))
+
+(depends ocaml dune base64 optint)
+
+(source
+ (fetch
+  (url
+   https://github.com/patricoferris/ocaml-multibase/releases/download/v0.1.0/multibase-0.1.0.tbz)
+  (checksum
+   sha256=b46509dd92fef15d2b78a4c831fa7c2caeef17e454f621711a2700dd82a15a95)))

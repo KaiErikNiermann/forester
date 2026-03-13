@@ -19,7 +19,9 @@ let pp fmt ~document_class ~document_class_options ~preamble ~body =
   newline ();
 
   (* Engine abstraction and base math packages *)
-  Format.fprintf fmt {|
+  Format.fprintf
+    fmt
+    {|
   \usepackage{iftex}
   \ifPDFTeX
     \usepackage[T1]{fontenc}
@@ -45,6 +47,7 @@ let pp fmt ~document_class ~document_class_options ~preamble ~body =
   newline ()
 
 let to_string ~document_class ~document_class_options ~preamble ~body =
-  Format.asprintf "%a"
+  Format.asprintf
+    "%a"
     (fun fmt _ -> pp ~document_class ~document_class_options ~preamble ~body fmt)
     ()

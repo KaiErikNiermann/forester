@@ -7,3 +7,4 @@
 cc 17b0ed8d27b76b5bc5c42b924e595f102e3c0a64a08f03ea8dfe165cc94d3408 # shrinks to input = "\t"
 cc ff1e37c95a584b12d39bef33f434702f3591d4e7e92630d472b5d7be8a709c32 # shrinks to input = "\\a{\\namespace\\a{\t}}"
 cc 2b82d24e82d71d85e44409883d5db3a125fe31cb51ca4c33fcc87f024db12678 # shrinks to input = "\\get\\a/"
+cc 87aa28e5b8925eb950e458b443c8ff56eddd0c3b1a5b9100f8d566730ffb3b2d # shrinks to input = "(##{\\leta})\\"

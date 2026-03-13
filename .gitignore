@@ -12,6 +12,7 @@ latex
 .serena/
 __pycache__/
 *.py[cod]
+docs/
 
 # screen recordings
 casts

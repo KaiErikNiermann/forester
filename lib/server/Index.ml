@@ -34,12 +34,11 @@ let v ?c () =
               | Some stuff -> stuff
               | None ->
                 article
-                  [
-                    id "tree-container";
-                    Hx.get "/home";
-                    Hx.trigger "load";
-                    Hx.target "this";
-                    Hx.swap "outerHTML";
+                  [id "tree-container";
+                  Hx.get "/home";
+                  Hx.trigger "load";
+                  Hx.target "this";
+                  Hx.swap "outerHTML";
                   ]
                   [];
             ];

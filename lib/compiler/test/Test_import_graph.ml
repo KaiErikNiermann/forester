@@ -31,8 +31,7 @@ index─┤   │   └─7
 *)
 
 let raw_trees = [
-  {
-    path = "index.tree";
+  {path = "index.tree";
     content = {|
     \import{1}
     \import{2}
@@ -40,26 +39,20 @@ let raw_trees = [
     \import{10}
     |}
   };
-  {
-    path = "1.tree";
-    content = {||}
-  };
-  {
-    path = "2.tree";
+  {path = "1.tree";
+    content = {||}};
+  {path = "2.tree";
     content = {|
     \import{3}
     \import{8}
-    |}
-  };
-  {
-    path = "3.tree";
+    |}};
+  {path = "3.tree";
     content = {|
     \import{4}
     \import{5}
     \import{6}
     \import{7}
-    |}
-  };
+    |}};
   {path = "4.tree"; content = {||}};
   {path = "5.tree"; content = {||}};
   {path = "6.tree"; content = {||}};
@@ -68,7 +61,9 @@ let raw_trees = [
   {path = "9.tree"; content = {||}};
   {path = "10.tree"; content = {||}};
   {path = "11.tree"; content = {||}};
-  {path = "12.tree"; content = {||}};
+  {path = "12.tree";
+    content = {||}
+  };
 ]
 
 let test_import_graph ~env () =
@@ -81,15 +76,13 @@ let test_import_graph ~env () =
   in
   Alcotest.(check @@ list action)
     "evaluation succeeded"
-    [
-      Load_all_configured_dirs;
-      Parse_all;
-      Build_import_graph;
-      Expand_all;
-      Eval_all;
-      (Run_jobs []);
-      Done
-    ]
+    [Load_all_configured_dirs;
+    Parse_all;
+    Build_import_graph;
+    Expand_all;
+    Eval_all;
+    (Run_jobs []);
+    Done]
     history;
   (* Alcotest.(check int) *)
   (*   "graph has as many vertices as loaded documents" *)
@@ -123,7 +116,6 @@ let () =
     "Import_graph"
     [
       "creating import graph",
-      [
-        test_case "parsing and creating the import graph" `Quick (test_import_graph ~env);
+      [test_case "parsing and creating the import graph" `Quick (test_import_graph ~env);
       ];
     ]

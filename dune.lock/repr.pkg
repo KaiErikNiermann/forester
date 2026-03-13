@@ -1,0 +1,16 @@
+(version 0.7.0)
+
+(build
+ (progn
+  (when
+   %{pkg-self:dev}
+   (run dune subst))
+  (run dune build -p %{pkg-self:name} -j %{jobs} @install)))
+
+(depends dune ocaml fmt uutf either jsonm base64 optint)
+
+(source
+ (fetch
+  (url https://github.com/mirage/repr/releases/download/0.7.0/repr-0.7.0.tbz)
+  (checksum
+   sha256=8adac9fe85bf8a0e20eeb6810d7216e98e1b7f4d9bd399e61bb1024ace2501ac)))

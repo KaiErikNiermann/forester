@@ -6,7 +6,8 @@
 
 type xmlns_attr = {prefix: string; xmlns: string}
 
-type xml_qname = {prefix: string; uname: string; xmlns: string option}
+type xml_qname =
+  {prefix: string; uname: string; xmlns: string option}
 [@@deriving show, repr]
 
 let split_xml_qname str =
