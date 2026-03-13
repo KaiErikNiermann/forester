@@ -7,6 +7,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_cmd topiary "Install topiary-cli to run formatting checks."
 require_cmd cargo "Install Rust and cargo to run rustfmt checks."
 
+check_tool_version rustc --version 1.94.0 '[0-9]+\.[0-9]+\.[0-9]+'
+
 run_topiary check
 
 (

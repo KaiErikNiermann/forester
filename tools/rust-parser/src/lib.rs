@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: 2024 The Forester Project Contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+// chumsky's `select!` macro generates closures that return large `Result::Err`
+// variants (`Simple<Token>` ≈ 184 bytes). This is inherent to the library's
+// error type and not something we can shrink at the call site.
+#![allow(clippy::result_large_err)]
+
 //! Forester Rust Parser - Alternative parser implementation
 //!
 //! This crate provides a Rust-based parser for the Forester markup language,

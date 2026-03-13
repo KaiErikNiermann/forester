@@ -15,6 +15,30 @@ require_cmd() {
   fi
 }
 
+# Compare two dotted version strings: returns 0 if $1 >= $2.
+version_gte() {
+  printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1 | grep -qx "$2"
+}
+
+# Warn (or fail in CI) when a local tool is older than the CI-pinned minimum.
+# Usage: check_tool_version <tool> <version_flag> <min_version> <extract_regex>
+#   extract_regex is an ERE passed to grep -oE to pull the version number.
+check_tool_version() {
+  local tool="$1" flag="$2" min="$3" regex="$4"
+  local raw actual
+  raw="$("$tool" "$flag" 2>&1 | head -1)" || true
+  actual="$(printf '%s' "$raw" | grep -oE "$regex" | head -1)" || true
+  if [[ -z "$actual" ]]; then
+    printf 'warning: could not detect %s version (got: %s)\n' "$tool" "$raw" >&2
+    return 0
+  fi
+  if ! version_gte "$actual" "$min"; then
+    printf 'error: %s %s is older than CI minimum %s (run rustup update)\n' \
+      "$tool" "$actual" "$min" >&2
+    return 1
+  fi
+}
+
 ensure_parent_dir() {
   local target_path="$1"
   mkdir -p "$(dirname "$target_path")"
