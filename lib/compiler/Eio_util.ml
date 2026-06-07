@@ -122,6 +122,12 @@ let try_create_file ~cwd ?(content = "") fname =
 let copy_to_dir ~env ~cwd ~source ~dest_dir =
   let path = Path.(cwd / dest_dir) in
   Path.mkdirs ~exists_ok: true ~perm: 0o755 path;
+  (* Clear any stale destination entry first so the copy is idempotent: `cp -R`
+     refuses to overwrite an existing directory with a non-directory (and vice
+     versa), so a re-build fails once a copied directory changes shape — e.g. a
+     `node_modules` whose entries became pnpm symlinks where a previous build had
+     left real directories. Removing the target makes re-copies always succeed. *)
+  Path.rmtree ~missing_ok: true Path.(path / Filename.basename source);
   if Sys.unix then
     run_process ~quiet: true ~env ~cwd ["cp"; "-R"; source; dest_dir]
   else
