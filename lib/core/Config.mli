@@ -19,6 +19,12 @@ type latex_settings = {
 }
 [@@deriving show]
 
+(* How `forester build` serves a tree's presentation: [Client_side_xslt] (legacy)
+   emits an <?xml-stylesheet?> PI + index.html redirect shim for browser-side
+   XSLT; [External] emits only the semantic index.xml for downstream tooling. *)
+type presentation = Client_side_xslt | External
+[@@deriving show]
+
 type t = {
   trees: string list;
   assets: string list;
@@ -26,6 +32,7 @@ type t = {
   url: URI.t;
   home: URI.t;
   latex: latex_settings;
+  presentation: presentation;
 }
 [@@deriving show]
 

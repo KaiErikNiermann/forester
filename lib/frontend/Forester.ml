@@ -121,12 +121,19 @@ let outputs_for_article ~(forest : State.t) (article : _ T.article) =
   | None -> []
   | Some uri ->
     let xml_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.xml") uri in
-    let html_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.html") uri in
-    let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
-    let html_content =
-      html_redirect @@ String.concat "/" @@ "" :: Legacy_xml_client.local_path_components forest.config xml_route
-    in
-      [xml_route, xml_content; html_route, html_content]
+    match forest.config.presentation with
+    | Config.External ->
+      (* External presentation: emit only the semantic XML — no <?xml-stylesheet?>
+         PI and no index.html redirect shim. Downstream tooling owns rendering. *)
+      let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ?stylesheet: None) article in
+        [xml_route, xml_content]
+    | Config.Client_side_xslt ->
+      let html_route = URI.with_path_components (URI.append_path_component (URI.path_components uri) "index.html") uri in
+      let xml_content = Format.asprintf "%a" (Legacy_xml_client.pp_xml ~forest ~stylesheet: "default.xsl") article in
+      let html_content =
+        html_redirect @@ String.concat "/" @@ "" :: Legacy_xml_client.local_path_components forest.config xml_route
+      in
+        [xml_route, xml_content; html_route, html_content]
 
 let outputs_for_asset (asset : T.asset) =
   let route = asset.uri in

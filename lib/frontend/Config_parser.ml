@@ -117,6 +117,16 @@ let parse lexbuf filename =
       URI_scheme.named_uri ~base: url @@
         with_default ~value: "index" k (forest |-- key "home" |-- string)
     in
+    let presentation =
+      let k = ["forest"; "presentation"] in
+      match with_default ~value: "client" k (forest |-- key "presentation" |-- string) with
+      | "client" -> Config.Client_side_xslt
+      | "external" -> Config.External
+      | other ->
+        Reporter.fatal
+          Configuration_error
+          ~extra_remarks: [Asai.Diagnostic.loctextf "Unknown `presentation` mode %S (expected \"client\" or \"external\")." other]
+    in
     let latex =
       let latex_table = forest |-- key "latex" |-- table in
       let defaults = default.latex in
@@ -171,7 +181,7 @@ let parse lexbuf filename =
         in
         Reporter.emit (Uninterpreted_config_options keys);
     end;
-    Config.{url; assets; trees; foreign; home; latex}
+    Config.{url; assets; trees; foreign; home; latex; presentation}
 
 let parse_forest_config_string str =
   let lexbuf = Lexing.from_string str in

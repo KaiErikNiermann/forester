@@ -19,6 +19,15 @@ type latex_settings = {
 }
 [@@deriving show, repr]
 
+(* How `forester build` serves a tree's presentation.
+   - [Client_side_xslt] (default, legacy): emit an <?xml-stylesheet?> PI in each
+     index.xml plus an index.html redirect shim, leaving rendering to the
+     browser's XSLT processor against the bundled default.xsl theme.
+   - [External]: emit only the semantic index.xml (no PI, no shim); presentation
+     is owned by external tooling that consumes the XML. *)
+type presentation = Client_side_xslt | External
+[@@deriving show, repr]
+
 type t = {
   trees: string list;
   assets: string list;
@@ -26,6 +35,7 @@ type t = {
   url: URI.t;
   home: URI.t;
   latex: latex_settings;
+  presentation: presentation;
 }
 [@@deriving show, repr]
 
@@ -54,6 +64,7 @@ let default ?(url = default_url) ?(latex = default_latex) () : t = {
   url;
   home = URI_scheme.named_uri ~base: url "index";
   latex;
+  presentation = Client_side_xslt;
 }
 
 let home_uri config = config.home
