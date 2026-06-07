@@ -37,6 +37,7 @@ type t =
   | Unbound_fluid_symbol of Symbol.t
   | Unbound_variable of string
   | Unresolved_identifier of ((Sc.data, R.P.tag) Trie.t [@opaque]) * Trie.path
+  | Structural_command_in_content of string
   | Unresolved_xmlns of string
   | Reference_error of URI.t
   | Unhandled_case
@@ -60,6 +61,7 @@ type t =
 let default_severity : t -> Asai.Diagnostic.severity = function
   | Import_not_found _ -> Error
   | Unresolved_identifier _ -> Warning
+  | Structural_command_in_content _ -> Error
   | Unresolved_xmlns _ -> Error
   | Invalid_URI -> Error
   | Unbound_method _ -> Error
@@ -105,6 +107,7 @@ let short_code : t -> string = function
   | Unbound_variable _ -> "Unbound_variable"
   | Unresolved_xmlns _ -> "unresolved_xmlns"
   | Unresolved_identifier _ -> "unresolved_identifier"
+  | Structural_command_in_content _ -> "structural_command_in_content"
   | Reference_error _ -> "reference_error"
   | Unhandled_case -> "unhandled_case"
   | Transclusion_loop -> "transclusion_loop"
@@ -154,6 +157,10 @@ let default_text : t -> Asai.Diagnostic.text = function
     Asai.Diagnostic.textf "Could not resolve prefix `%s` to XML namespace" prefix
   | Unresolved_identifier (_, p) ->
     Asai.Diagnostic.textf "Unknown binding \\%a. To interpret as a TeX control sequence, explicitly enter TeX mode using #{...}." Trie.pp_path p
+  | Structural_command_in_content cmd ->
+    Asai.Diagnostic.textf
+      "Structural command \\%s only belongs at the top level of a tree. It produces no rendered output and silently mutates this tree's frontmatter when nested inside content, so it is almost certainly a mistake here. Move it out of the surrounding \\p{...} / \\code{...} / argument. To display markup literally, wrap it in \\startverb...\\stopverb."
+      cmd
   | Type_error {got; expected} ->
     begin
       let expected_msg =

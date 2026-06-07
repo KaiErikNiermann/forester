@@ -68,6 +68,35 @@ module Mode_env = Algaeff.Reader.Make(struct
   type t = eval_mode
 end)
 
+(* Tracks whether we are evaluating rendered content (the body of a \p{...},
+   \code{...}, or any popped argument) as opposed to a tree's top-level main
+   tape. Structural/frontmatter commands (\taxon, \title, \meta, ...) are only
+   meaningful on the main tape; nested in content they silently mutate
+   frontmatter and render nothing, so we hard-error on them there. *)
+module Content_ctx = Algaeff.Reader.Make(struct
+  type t = bool
+end)
+
+(* Frontmatter-only commands by their surface name, for diagnostics. *)
+let frontmatter_command_name : Syn.node -> string option = function
+  | Title -> Some "title"
+  | Parent -> Some "parent"
+  | Meta -> Some "meta"
+  | Attribution (Author, _) -> Some "author"
+  | Attribution (Contributor, _) -> Some "contributor"
+  | Tag _ -> Some "tag"
+  | Date -> Some "date"
+  | Number -> Some "number"
+  | Taxon -> Some "taxon"
+  | _ -> None
+
+let guard_frontmatter_context ~loc (node : Syn.node) =
+  if Content_ctx.read () then
+    match frontmatter_command_name node with
+    | Some name ->
+      Reporter.fatal ?loc (Structural_command_in_content name)
+    | None -> ()
+
 let get_current_uri ~loc =
   Transclusion.get_current_uri ~loc (Frontmatter.get ())
 
@@ -97,13 +126,18 @@ let rec process_tape () =
   | Some node -> eval_node node
 
 and eval_tape tape = Tape.run ~tape process_tape
-and eval_pop_arg ~loc = Tape.pop_arg ~loc |> Range.map eval_tape
+and eval_pop_arg ~loc =
+  Tape.pop_arg ~loc
+  |> Range.map (fun tape ->
+    let@ () = Content_ctx.run ~env: true in
+    eval_tape tape)
 and pop_content_arg ~loc = eval_pop_arg ~loc |> extract_content
 and pop_text_arg ~loc = eval_pop_arg ~loc |> extract_text
 and pop_text_arg_loc ~loc = eval_pop_arg ~loc |> extract_text_loc
 
 and eval_node node : Value.t =
   let loc = node.loc in
+  guard_frontmatter_context ~loc node.value;
   match node.value with
   | Var x -> eval_var ~loc x
   | Text str -> emit_content_node ~loc @@ T.Text str
@@ -204,7 +238,20 @@ and eval_node node : Value.t =
         emit_content_node ~loc @@
           T.Text (Format.asprintf "%a%s" pp_tex_cs cs rest)
       | _, _ ->
-        let extra_remarks = Suggestions.create_suggestions ~visible path in
+        let base_remarks = Suggestions.create_suggestions ~visible path in
+        let extra_remarks =
+          match tex_cs_opt with
+          | Some (Symbol _, _) ->
+            (* A bare special char like \\, \#, \{ outside math mode: the most
+               common cause is trying to show markup literally in prose. *)
+            base_remarks
+            @ [
+              Asai.Diagnostic.loctextf
+                "To show a literal backslash or markup verbatim in prose, wrap it in \\startverb...\\stopverb (for example \\code{\\startverb\\taxon{x}\\stopverb}). A bare `\\%a` is parsed as a command name, not literal text."
+                Resolver.Scope.pp_path path;
+            ]
+          | _ -> base_remarks
+        in
         Reporter.emit
           ?loc
           ~extra_remarks
@@ -571,7 +618,10 @@ and eval_tree_inner ?(uri : URI.t option) (syn : Syn.t) : T.content T.article =
       ()
   in
   let@ () = Frontmatter.run ~init: frontmatter in
-  let mainmatter = {value = eval_tape syn; loc = None} |> extract_content in
+  let mainmatter =
+    let@ () = Content_ctx.run ~env: false in
+    {value = eval_tape syn; loc = None} |> extract_content
+  in
   let frontmatter = Frontmatter.get () in
   let backmatter =
     match uri with Some uri -> default_backmatter ~uri | None -> Content []
@@ -599,6 +649,7 @@ let eval_tree
       @@ fun () ->
       let fm = T.default_frontmatter ~uri ?source_path () in
       let@ () = Mode_env.run ~env: Text_mode in
+      let@ () = Content_ctx.run ~env: false in
       let@ () = Frontmatter.run ~init: fm in
       let@ () = Emitted_trees.run ~init: [] in
       let@ () = Jobs.run ~init: [] in
