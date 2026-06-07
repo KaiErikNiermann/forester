@@ -18,6 +18,7 @@ let test_parsing () =
       home = URI.of_string_exn "https://www.forester-notes.org/index/";
       foreign = [{path = "foreign/forest.json"; route_locally = true; include_in_manifest = true}];
       latex = Config.default_latex;
+      presentation = Config.Client_side_xslt;
     }
     begin
       Forester_core.Reporter.easy_run @@ fun () ->
@@ -40,6 +41,7 @@ let test_missing_fields () =
       url = URI.of_string_exn "/";
       home = URI.of_string_exn "/index/";
       latex = Config.default_latex;
+      presentation = Config.Client_side_xslt;
     }
     (
       Forester_core.Reporter.easy_run @@ fun () ->
@@ -67,6 +69,7 @@ let test_custom_latex_settings () =
       url = URI.of_string_exn "/";
       home = URI.of_string_exn "/index/";
       latex = expected_latex;
+      presentation = Config.Client_side_xslt;
     }
     (
       Forester_core.Reporter.easy_run @@ fun () ->
