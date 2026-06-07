@@ -23,7 +23,12 @@ let buffer_lexer lexer =
   in
   loop
 
-let lexer =
+(* Build a fresh buffered lexer per parse. Previously this was a module-global
+   value, so its token buffer (the [buf] ref inside [buffer_lexer]) was shared
+   across every parse — a parse that failed mid-stream could leak buffered
+   tokens (carrying another tree's source positions) into the next parse,
+   aborting the build on an unrelated tree. *)
+let make_lexer () =
   let@ lexbuf = buffer_lexer in
   match Stack.top @@ Lexer.mode_stack with
   | Main -> Lexer.token lexbuf
@@ -70,6 +75,9 @@ let parse
   lexbuf ->
   (Code.t, Reporter.diagnostic) Result.t
 = fun ?(stop_on_err = true) lexbuf ->
+  (* Start from a clean lexer mode stack — a previous parse may have left it
+     dirty by raising mid-lex (see Lexer.reset_mode). *)
+  Lexer.reset_mode ();
   let initial_checkpoint = (Grammar.Incremental.main lexbuf.lex_curr_p) in
   let delim_stack = Stack.create () in
   let rec run
@@ -82,8 +90,19 @@ let parse
       (* If the current token is an opening delimiter, save the
          token and its position on the stack.*)
       let token, _, _ = supplier () in
-      let start_position = lexbuf.lex_start_p in
       let end_position = lexbuf.lex_curr_p in
+      (* Asai's [Range.make] aborts the whole build if the two endpoints
+         disagree on their source. Around some tokens (notably in datalog mode)
+         [lex_start_p] can carry an empty source while [lex_curr_p] carries the
+         tree path; normalise the start source to the end's so a malformed input
+         produces a clean parse-error diagnostic instead of an uncaught
+         [Invalid_argument]. *)
+      let start_position =
+        let sp = lexbuf.lex_start_p in
+        if String.equal sp.Lexing.pos_fname end_position.Lexing.pos_fname
+        then sp
+        else {sp with Lexing.pos_fname = end_position.Lexing.pos_fname}
+      in
       if is_opening_delim token then
         let range = Range.of_lex_range (start_position, end_position) in
         Stack.push (token, range) delim_stack; ;
@@ -142,7 +161,7 @@ let parse
     | I.Rejected ->
       assert false
   in
-  let supplier = I.lexer_lexbuf_to_supplier lexer lexbuf in
+  let supplier = I.lexer_lexbuf_to_supplier (make_lexer ()) lexbuf in
   try
     run initial_checkpoint supplier
   with

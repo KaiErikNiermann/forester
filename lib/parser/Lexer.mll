@@ -14,6 +14,12 @@
   let set_mode mode = drop_mode(); push_mode mode
   let push_verbatim_mode herald = push_mode @@ Verbatim (herald, Buffer.create 2000)
 
+  (* [mode_stack] is module-global mutable state shared across every parse. A
+     parse that raises mid-lex (e.g. a malformed datalog query) leaves it dirty,
+     which corrupts the *next* tree's tokenisation and can abort the whole build
+     on an unrelated tree. Reset to a clean state at the start of each parse. *)
+  let reset_mode () = Stack.clear mode_stack; Stack.push Main mode_stack
+
   exception SyntaxError of string
 
   let raise_err lexbuf = raise @@ SyntaxError (Lexing.lexeme lexbuf)

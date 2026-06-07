@@ -48,3 +48,20 @@ let t : t Repr.t =
 type 'a located = 'a Asai.Range.located =
   {loc: t option; value: 'a}
 [@@deriving repr]
+
+(* Menhir uses [Lexing.dummy_pos] (whose [pos_fname] is "") for empty
+   productions. Locating a node whose span pairs such a dummy endpoint with a
+   real token's position makes [Asai.Range.make] raise [Invalid_argument]
+   ("...source... do not match"), aborting the entire build — e.g. on a
+   malformed datalog query. Unify the two endpoints' source before locating so
+   the parse instead yields a clean diagnostic. Shadows [Asai.Range.locate_lex]. *)
+let locate_lex ((start, stop) : Lexing.position * Lexing.position) (value : 'a) : 'a located =
+  let fname =
+    if String.length start.Lexing.pos_fname > 0 then start.Lexing.pos_fname
+    else stop.Lexing.pos_fname
+  in
+  let fix (p : Lexing.position) =
+    if String.equal p.Lexing.pos_fname fname then p
+    else {p with Lexing.pos_fname = fname}
+  in
+  Asai.Range.locate_lex (fix start, fix stop) value

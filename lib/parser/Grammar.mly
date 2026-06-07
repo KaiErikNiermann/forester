@@ -89,7 +89,7 @@
 %%
 
 let locate(p) ==
-| x = p; { Asai.Range.locate_lex $loc x }
+| x = p; { Range.locate_lex $loc x }
 
 let braces(p) == delimited(LBRACE, p, RBRACE)
 let squares(p) == delimited(LSQUARE, p, RSQUARE)
