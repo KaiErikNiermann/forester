@@ -104,7 +104,24 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
   | Section section -> render_section forest section
   | Transclude transclusion -> render_transclusion forest transclusion
   | Link link -> render_link forest link
-  | Results_of_datalog_query _ -> [] (* TODO: just make a list of links *)
+  | Results_of_datalog_query query ->
+    (* Run the query against the forest's relational graph and render the
+       matching trees as a list of links. *)
+    let results = Forest.run_datalog_query forest.graphs query in
+    let render_result_item (article : T.content T.article) =
+      let@ uri = Option.map @~ article.frontmatter.uri in
+      let content =
+        match article.frontmatter.title with
+        | Some title -> title
+        | None -> T.Content [T.Text (URI.to_string uri)]
+      in
+      P.HTML.li [] (render_link forest ({href = uri; content} : T.content T.link))
+    in
+    let items =
+      Forest_util.get_sorted_articles forest results
+      |> List.filter_map render_result_item
+    in
+    [P.HTML.ul [P.HTML.class_ "datalog-results"] items]
   | Datalog_script _ -> []
 
 and render_link (forest : State.t) (link : T.content T.link) : P.node list = [
