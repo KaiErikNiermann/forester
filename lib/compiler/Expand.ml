@@ -347,7 +347,9 @@ let builtins =
               ["figcaption"], Syn.Prim `Figcaption;
               ["transclude"], Syn.Transclude;
               ["tex"], Syn.Embed_tex;
+              ["footnote"], Syn.Footnote;
               ["ref"], Syn.Ref;
+              ["link"], Syn.Link_command;
               ["title"], Syn.Title;
               ["taxon"], Syn.Taxon;
               ["date"], Syn.Date;

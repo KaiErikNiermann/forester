@@ -15,6 +15,7 @@ and pp_content_node fmt = function
   | Text str -> Format.fprintf fmt "%s" str
   | CDATA str -> Format.fprintf fmt "%s" str
   | KaTeX (_, xs) -> pp_content fmt xs
+  | Footnote xs -> pp_content fmt xs
   | Xml_elt _ | Transclude _ | Contextual_number _ | Section _ | Link _ | Artefact _ | Uri _ | Route_of_uri _ | Datalog_script _ | Results_of_datalog_query _ ->
     Reporter.fatal Internal_error ~extra_remarks: [Asai.Diagnostic.loctextf "Cannot render this kind of content node as TeX-like string"]
 

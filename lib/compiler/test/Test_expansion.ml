@@ -102,6 +102,22 @@ let test_visible ~env () =
     (Some (["greet"]))
     greet
 
+let test_footnote ~env () =
+  let@ () = Reporter.easy_run in
+  let forest = State.make ~env ~config ~dev: false () in
+  let expanded =
+    expand
+      ~forest
+      {|
+\p{Body\footnote{Note body}}
+    |}
+  in
+  let evaluated = render ~forest expanded in
+  Alcotest.(check @@ result string diagnostic)
+    "footnote renders as content"
+    (Ok "BodyNote body")
+    evaluated
+
 let () =
   Logs.set_level (Some Debug);
   Logs.set_reporter (Logs.format_reporter ());
@@ -113,5 +129,6 @@ let () =
       "",
       [test_case "subtree" `Quick (test_subtree ~env);
       test_case "get_visible" `Quick (test_visible ~env);
+      test_case "footnote" `Quick (test_footnote ~env);
       ]
     ]

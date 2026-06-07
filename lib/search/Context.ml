@@ -22,6 +22,7 @@ let show_leaf_node
   | T.Route_of_uri i ->
     Format.asprintf "%a" URI.pp i
   | T.Xml_elt _
+  | T.Footnote _
   | T.Transclude _
   | T.Contextual_number _
   | T.Section _
@@ -133,6 +134,7 @@ and render_context_node
     | T.Text s -> get_nth_word i s
     | T.CDATA _ -> raise @@ Invalid_argument "can't descend into CDATA node"
     | T.Xml_elt elt -> render_context_content path elt.content
+    | T.Footnote content -> render_context_content path' content
     | T.Transclude _ -> assert false
     | T.Contextual_number _ -> assert false
     | T.Section _ -> assert false

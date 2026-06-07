@@ -68,6 +68,8 @@ let rec analyse_content_node graphs (scope : URI.t) (node : 'a T.content_node) :
     analyse_content graphs scope link.content
   | KaTeX (_, content) ->
     analyse_content graphs scope content
+  | Footnote content ->
+    analyse_content graphs scope content
   | Artefact artefact ->
     analyse_artefact graphs scope artefact
   | Datalog_script script ->

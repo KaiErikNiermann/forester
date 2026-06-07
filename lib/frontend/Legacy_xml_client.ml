@@ -230,6 +230,8 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
     in
     let body = Format.asprintf "%a" TeX_like.pp_content content in
       [X.tex [X.display "%s" display] "<![CDATA[%s]]>" body]
+  | Footnote content ->
+    [X.footnote [] @@ render_content forest content]
   | Artefact resource ->
     [render_artefact forest resource]
   | Datalog_script _ -> []

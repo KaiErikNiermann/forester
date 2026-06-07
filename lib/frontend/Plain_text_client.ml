@@ -17,6 +17,7 @@ and pp_content_node ~forest ~(router : URI.t -> URI.t) fmt : 'a T.content_node -
   | Uri uri -> URI.pp fmt uri
   | Route_of_uri uri -> Format.fprintf fmt "%a" URI.pp (router uri)
   | KaTeX (_, content) -> pp_content ~forest ~router fmt content
+  | Footnote content -> pp_content ~forest ~router fmt content
   | Xml_elt elt -> pp_content ~forest ~router fmt elt.content
   | Transclude trn -> pp_transclusion ~forest ~router fmt trn
   | Contextual_number addr -> Format.fprintf fmt "[%a]" URI.pp addr

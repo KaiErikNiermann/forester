@@ -66,6 +66,8 @@ val name : _ string_attr
 val tex : _ text_tag
 val display : _ string_attr
 
+val footnote : std_tag
+
 val ref : void_tag
 val number_ : _ string_attr
 

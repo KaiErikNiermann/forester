@@ -135,6 +135,20 @@ and eval_node node : Value.t =
           ~extra_remarks:
             [Asai.Diagnostic.loctextf "Expected valid URI in ref"]
     end
+  | Link_command ->
+    (* \link{dest}{title} — explicit hyperlink command. Pops the destination
+       URI then the title content, mirroring the markdown link node. *)
+    begin
+      match eval_pop_arg ~loc |> extract_uri with
+      | Ok href ->
+        let content = pop_content_arg ~loc in
+        emit_content_node ~loc @@ Link {href; content}
+      | Error error ->
+        Reporter.fatal
+          ?loc
+          (Type_error {expected = [URI]; got = None})
+          ~extra_remarks: [Asai.Diagnostic.loctext error]
+    end
   | Link {title; dest} ->
     let dest = {node with value = dest} |> Range.map eval_tape in
     let href =
@@ -163,6 +177,9 @@ and eval_node node : Value.t =
       {node with value = eval_tape body} |> extract_content
     in
     emit_content_node ~loc @@ KaTeX (mode, content)
+  | Footnote ->
+    let content = pop_content_arg ~loc in
+    emit_content_node ~loc @@ Footnote content
   | Xml_tag (name, attrs, body) ->
     let rec process : _ list -> _ T.xml_attr list = function
       | [] -> []

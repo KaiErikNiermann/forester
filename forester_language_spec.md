@@ -552,6 +552,7 @@ value =
 | `\em` | `{content}` | Emphasis |
 | `\strong` | `{content}` | Strong emphasis |
 | `\code` | `{content}` | Inline code |
+| `\footnote` | `{content}` | Inline footnote |
 | `\pre` | `{content}` | Preformatted block |
 | `\blockquote` | `{content}` | Block quote |
 | `\ul` | `{items}` | Unordered list |
@@ -946,6 +947,7 @@ dvisvgm_command = ["dvisvgm", "--exact", "--clipjoin",
 | `<fr:link>` | `href`, `type`, `title`, `taxon`, `addr` | Hyperlink |
 | `<fr:ref>` | `href`, `taxon`, `number`, `title` | Cross-reference |
 | `<fr:tex>` | `display` (inline/block) | LaTeX content |
+| `<fr:footnote>` | - | Inline footnote body |
 | `<fr:img>` | `src` | Image |
 | `<fr:embedded-tex>` | - | Embedded TeX artefact |
 | `<fr:embedded-tex-body>` | - | Rendered content |

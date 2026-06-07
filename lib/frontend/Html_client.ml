@@ -95,6 +95,11 @@ and render_content_node (forest : State.t) (node : 'a T.content_node) : P.node l
     end
   | KaTeX (_, content) ->
     [P.HTML.code [] @@ render_content forest content]
+  | Footnote content ->
+    [
+      P.HTML.sup [P.HTML.class_ "footnote-ref"] [P.txt "*"];
+      P.HTML.span [P.HTML.class_ "footnote-preview"] @@ render_content forest content;
+    ]
   | Artefact artefact -> render_content forest @@ artefact.content
   | Section section -> render_section forest section
   | Transclude transclusion -> render_transclusion forest transclusion

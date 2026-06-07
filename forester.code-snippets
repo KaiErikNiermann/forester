@@ -344,6 +344,11 @@
     "body": ["\\code{${1:code}}"],
     "description": "Inline code"
   },
+  "Footnote": {
+    "prefix": ["\\footnote", "footnote", "fn"],
+    "body": ["\\footnote{${1:note}}"],
+    "description": "Inline footnote"
+  },
   "Preformatted Block": {
     "prefix": ["\\pre", "pre"],
     "body": ["\\pre{${1:preformatted text}}"],

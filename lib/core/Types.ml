@@ -156,6 +156,7 @@ type 'content content_node =
   | Contextual_number of URI.t
   | Section of 'content section
   | KaTeX of math_mode * 'content
+  | Footnote of 'content
   | Link of 'content link
   | Artefact of 'content artefact
   | Uri of URI.t

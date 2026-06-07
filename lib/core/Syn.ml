@@ -30,7 +30,9 @@ type node =
   | Results_of_query
   | Transclude
   | Embed_tex
+  | Footnote
   | Ref
+  | Link_command
   | Title
   | Parent
   | Taxon
@@ -89,7 +91,9 @@ let map f node =
   | Results_of_query
   | Transclude
   | Embed_tex
+  | Footnote
   | Ref
+  | Link_command
   | Title
   | Parent
   | Taxon
@@ -137,7 +141,9 @@ let children (node : node Range.located) =
   | Results_of_query
   | Transclude
   | Embed_tex
+  | Footnote
   | Ref
+  | Link_command
   | Title
   | Parent
   | Taxon

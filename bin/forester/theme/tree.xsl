@@ -5,6 +5,7 @@
   xmlns:f="http://www.forester-notes.org">
 
   <xsl:key name="tree-with-uri" match="/f:tree/f:mainmatter//f:tree" use="f:frontmatter/f:uri/text()" />
+  <xsl:key name="footnotes-by-tree" match="f:footnote" use="generate-id(ancestor::f:tree[1])" />
 
   <xsl:template match="/">
     <html xmlns="http://www.w3.org/1999/xhtml" data-base-url="{/f:tree/@base-url}">
@@ -326,6 +327,40 @@
     </xsl:choose>
   </xsl:template>
 
+  <xsl:template match="f:footnote">
+    <xsl:variable name="note-id" select="generate-id(.)" />
+    <span class="footnote">
+      <sup class="footnote-ref" id="fnref-{$note-id}">
+        <a href="#fn-{$note-id}" role="doc-noteref" aria-describedby="fn-preview-{$note-id}">
+          <xsl:number level="any" count="f:footnote" from="f:tree" />
+        </a>
+      </sup>
+      <span class="footnote-preview" id="fn-preview-{$note-id}" role="tooltip">
+        <xsl:apply-templates />
+      </span>
+    </span>
+  </xsl:template>
+
+  <xsl:template name="render-footnotes">
+    <xsl:variable name="footnotes" select="key('footnotes-by-tree', generate-id(.))" />
+    <xsl:if test="$footnotes">
+      <section class="footnotes" role="doc-endnotes" aria-label="Footnotes">
+        <hr />
+        <ol>
+          <xsl:for-each select="$footnotes">
+            <xsl:variable name="note-id" select="generate-id(.)" />
+            <li id="fn-{$note-id}">
+              <xsl:apply-templates />
+              <a class="footnote-backref" href="#fnref-{$note-id}" aria-label="Back to content">
+                <xsl:text>↩</xsl:text>
+              </a>
+            </li>
+          </xsl:for-each>
+        </ol>
+      </section>
+    </xsl:if>
+  </xsl:template>
+
   <xsl:template match="/f:tree[@root='true']/f:backmatter">
   </xsl:template>
 
@@ -376,11 +411,13 @@
               <xsl:apply-templates select="f:frontmatter" />
             </summary>
             <xsl:apply-templates select="f:mainmatter" />
+            <xsl:call-template name="render-footnotes" />
             <xsl:apply-templates select="f:frontmatter/f:meta[@name='bibtex']" />
           </details>
         </xsl:when>
         <xsl:otherwise>
           <xsl:apply-templates select="f:mainmatter" />
+          <xsl:call-template name="render-footnotes" />
         </xsl:otherwise>
       </xsl:choose>
     </section>

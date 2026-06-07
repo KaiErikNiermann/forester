@@ -85,6 +85,8 @@ let name fmt = string_attr "name" fmt
 let tex attrs = f_text_tag ~raw: true "tex" attrs
 let display fmt = string_attr "display" fmt
 
+let footnote = f_std_tag "footnote"
+
 let title_ fmt = string_attr "title" fmt
 
 let ref = f_void_tag "ref"

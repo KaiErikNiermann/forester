@@ -62,7 +62,9 @@ let exports_to_symbols (exports : Tree.exports) =
       | Syn.Results_of_query
       | Syn.Transclude
       | Syn.Embed_tex
+      | Syn.Footnote
       | Syn.Ref
+      | Syn.Link_command
       | Syn.Title
       | Syn.Parent
       | Syn.Taxon

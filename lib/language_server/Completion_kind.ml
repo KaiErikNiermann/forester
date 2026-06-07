@@ -23,6 +23,7 @@ let kind_of_syn_node : Syn.node -> L.CompletionItemKind.t option = function
   | Prim _
   | Transclude
   | Embed_tex
+  | Footnote
   | Title
   | Parent
   | Taxon
@@ -32,6 +33,7 @@ let kind_of_syn_node : Syn.node -> L.CompletionItemKind.t option = function
   | Number ->
     Some Keyword
   | Ref -> Some Reference
+  | Link_command -> Some Reference
   | Group (_, _)
   | Math (_, _)
   | Link _

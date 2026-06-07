@@ -83,6 +83,11 @@ let rec tokenize_content
               (i :: path)
               loc
               content
+          | T.Footnote content ->
+            tokenize_content
+              (i :: path)
+              loc
+              content
           | T.Section {frontmatter; mainmatter; _} ->
             tokenize_frontmatter
               (int_of_field_article `frontmatter :: path)

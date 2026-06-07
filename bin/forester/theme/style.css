@@ -374,6 +374,95 @@ nav#toc li {
   text-decoration: underline;
 }
 
+.footnote {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+.footnote-ref {
+  line-height: 0;
+}
+
+.footnote-ref a {
+  border-radius: 3px;
+  color: #555;
+  padding: 0 0.15em;
+  text-decoration: none;
+}
+
+.footnote-ref a:hover,
+.footnote-ref a:focus {
+  background-color: rgba(0, 100, 255, .1);
+  color: #111;
+  outline: none;
+}
+
+.footnote-preview {
+  background: #fff;
+  border: 1px solid #bbb;
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+  color: #222;
+  display: block;
+  font-size: .92em;
+  box-sizing: border-box;
+  left: 50%;
+  line-height: 1.4;
+  max-width: calc(100vw - 2rem);
+  min-width: 18em;
+  opacity: 0;
+  overflow-wrap: break-word;
+  padding: .55em .7em;
+  pointer-events: none;
+  position: absolute;
+  top: 1.5em;
+  transform: translate(-50%, -.2em);
+  transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+  visibility: hidden;
+  white-space: normal;
+  width: min(32em, calc(100vw - 2rem));
+  z-index: 30;
+}
+
+.footnote:hover .footnote-preview,
+.footnote:focus-within .footnote-preview {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
+
+.footnote-preview p {
+  margin-bottom: 0;
+}
+
+.footnotes {
+  color: #444;
+  font-size: .92em;
+  margin-top: 1em;
+}
+
+.footnotes hr {
+  margin-bottom: .75em;
+  margin-top: 1em;
+  width: 35%;
+}
+
+.footnotes ol {
+  padding-bottom: 0;
+  padding-left: 1.4em;
+}
+
+.footnotes li {
+  padding-left: .15em;
+}
+
+.footnote-backref {
+  color: #666;
+  margin-left: .35em;
+  text-decoration: none;
+}
+
 a.link.local,
 .link.local a,
 a.slug {

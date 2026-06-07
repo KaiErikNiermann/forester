@@ -158,6 +158,15 @@ and render_content_node
       | Inline -> [span [class_ "math"] [txt ~raw: true "%s" body]]
       | Display -> [div [class_ "math"] [txt ~raw: true "%s" body]]
     end
+  | Footnote content ->
+    [
+      span
+        [class_ "footnote"]
+        [
+          sup [class_ "footnote-ref"] [txt "*"];
+          span [class_ "footnote-preview"] (render_content ~callbacks forest content);
+        ];
+    ]
   | Results_of_datalog_query q ->
     [
       span

@@ -40,6 +40,7 @@ let content =
       transclude "foo-001";
       contextual_number "chapter-3";
       katex Inline [txt "a = b"];
+      footnote [txt "A note"];
       link "https://git.sr.ht/~jonsterling/ocaml-forester" [txt "Forester"];
       artefact [txt "res"];
     ]
@@ -93,6 +94,7 @@ let test () =
             Transclude {href = URI.of_string_exn "foo-001"; target = Mainmatter};
             Contextual_number (URI.of_string_exn "chapter-3");
             KaTeX (Inline, Content [Text "a = b"]);
+            Footnote (Content [Text "A note"]);
             Link {href = URI.of_string_exn "https://git.sr.ht/~jonsterling/ocaml-forester"; content = Content [Text "Forester"]};
             Artefact {hash = ""; content = (Content [Text "res"]); sources = []}
           ]
