@@ -10,6 +10,7 @@ output
 latex
 .direnv
 .serena/
+.claude/
 __pycache__/
 *.py[cod]
 docs/
