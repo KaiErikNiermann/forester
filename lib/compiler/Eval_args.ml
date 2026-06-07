@@ -90,7 +90,11 @@ let resolve_uri ~(base : URI.t) str =
   | uri ->
     (
       match (URI.scheme uri, URI.host uri, URI.path_components uri) with
-      | None, None, ([] | [_]) ->
+      | None, None, ([] | [_]) when not (String.starts_with ~prefix: "#" str) ->
+        (* A bare fragment ("#foo") parses as scheme=None/host=None/path=[] and
+           would otherwise be mangled by named_uri into a relative tree route.
+           Skip resolution so on-page anchors (e.g. "#artifact:drafts/p1.png")
+           survive verbatim into the emitted href. *)
         let uri = URI_scheme.named_uri ~base str in
         Result.ok uri
       | _ -> Ok uri
