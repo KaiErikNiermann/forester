@@ -75,7 +75,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           cid="$(docker create ${{ env.IMAGE }}:${{ steps.version.outputs.value }})"
-          docker cp "$cid:/usr/local/bin/forester" ./forester
+          docker cp "$cid:/opt/forester/bin/forester" ./forester
           docker rm "$cid"
           tar -czf "forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz" forester
           sha256sum "forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz" \
