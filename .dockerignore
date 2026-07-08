@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Keep the docker build context lean — exclude local build/VCS/env artifacts.
 # (docker/Dockerfile.ci builds the OCaml `forester` package only.)
 .git
