@@ -4,7 +4,10 @@ SPDX-FileCopyrightText: 2024 The Forester Project Contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-[![builds.sr.ht status](https://builds.sr.ht/~jonsterling/ocaml-forester.svg)](https://builds.sr.ht/~jonsterling/ocaml-forester?)
+# forester
+
+[![CI](https://github.com/KaiErikNiermann/forester/actions/workflows/ci.yml/badge.svg)](https://github.com/KaiErikNiermann/forester/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/KaiErikNiermann/forester?label=release&sort=semver)](https://github.com/KaiErikNiermann/forester/releases)
 
 This is the source repository for the
 [forester](https://sr.ht/~jonsterling/forester/) tool, which is implemented in
