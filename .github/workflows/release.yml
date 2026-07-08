@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: Release
+
+# Cut a release by pushing a semver tag, e.g.:
+#   git tag v0.1.0 && git push origin v0.1.0
+# This builds the forester-ci image (forester binary + LaTeX toolchain), pushes
+# it to GHCR as :<version> and :latest, and attaches the raw binary tarball to
+# the GitHub Release for local `install.sh` use.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (e.g. v0.1.0). Image only; no Release."
+        required: true
+        default: "dev"
+
+permissions:
+  contents: write # attach the binary tarball to the Release
+  packages: write # push to GHCR
+
+# GHCR requires a lowercase namespace; the repo owner is mixed-case, so pin it.
+env:
+  IMAGE: ghcr.io/kaierikniermann/forester-ci
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Push :<version> and :latest. `load` also imports the image into the local
+      # daemon (single-platform build, cache-shared with the push) so the next
+      # step can extract the binary without rebuilding.
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.ci
+          platforms: linux/amd64
+          push: true
+          load: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.value }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract forester binary
+        if: github.event_name == 'push'
+        run: |
+          cid="$(docker create ${{ env.IMAGE }}:${{ steps.version.outputs.value }})"
+          docker cp "$cid:/usr/local/bin/forester" ./forester
+          docker rm "$cid"
+          tar -czf "forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz" forester
+          sha256sum "forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz" \
+            > "forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz.sha256"
+
+      - name: Attach binary to the Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz
+            forester-${{ steps.version.outputs.value }}-linux-amd64.tar.gz.sha256
+          body: |
+            Container image: `${{ env.IMAGE }}:${{ steps.version.outputs.value }}`
+
+            ```sh
+            docker pull ${{ env.IMAGE }}:${{ steps.version.outputs.value }}
+            ```

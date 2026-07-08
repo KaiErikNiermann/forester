@@ -1,0 +1,120 @@
+# SPDX-FileCopyrightText: 2026 The Forester Project Contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# =============================================================================
+# forester-ci — the self-contained build environment for publishing a forest in
+# CI: the `forester` binary + the LaTeX toolchain (latex + dvisvgm) its
+# `[forest.latex]` pipeline shells out to. Downstream forests run their build in
+# `container: ghcr.io/kaierikniermann/forester-ci:<tag>` and need nothing native
+# installed on the runner.
+#
+# Only the OCaml binary is built — the Rust parser and Haskell pandoc bridge are
+# markdown-import tools that native `.tree` forests never invoke.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: build the OCaml binary and dune-install it into a relocatable prefix.
+# ---------------------------------------------------------------------------
+FROM ocaml/opam:ubuntu-24.04-ocaml-5.3 AS builder
+
+# System libraries forester's opam deps compile/link against (gmp, libev for
+# eio, ssl/ffi for cohttp-eio, zlib). bubblewrap is unavailable under `docker
+# build`, so opam sandboxing is disabled below instead.
+USER root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    m4 pkg-config libgmp-dev libev-dev libssl-dev libffi-dev zlib1g-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# The ocaml/opam base owns /home/opam as the `opam` user. The workdir lives under
+# it (not /src) because Docker creates WORKDIR as root, and dune must be able to
+# create _build/ here as the `opam` user.
+USER opam
+WORKDIR /home/opam/src
+
+# Copy only what the dependency solve needs first, so the (slow) `opam install`
+# layer is cached across forester source changes.
+COPY --chown=opam:opam forester.opam dune-project ./
+RUN opam update \
+  && opam install ./forester.opam --deps-only --yes
+
+# Build + install the binary AND its dune-site `share/theme` into a fixed prefix.
+# dune-site bakes this prefix as an ABSOLUTE path, so the runtime stage must copy
+# it to the identical location (/opt/forester) or the theme-share lookup breaks —
+# copying main.exe alone, or to a different prefix, would fail at runtime.
+COPY --chown=opam:opam . .
+# Docker creates WORKDIR root-owned even under opam's home, so `dune` (running as
+# opam) can't create _build/ here until we take the dir. /opt/forester is a
+# root-owned location, hence sudo.
+RUN sudo chown opam:opam /home/opam/src \
+  && sudo mkdir -p /opt/forester && sudo chown opam:opam /opt/forester \
+  && opam exec -- dune build @install \
+  && opam exec -- dune install forester --prefix=/opt/forester
+
+# ---------------------------------------------------------------------------
+# Stage 2: lean runtime — TeX Live + dvisvgm + the binary's shared libs.
+# ---------------------------------------------------------------------------
+FROM ubuntu:24.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# TeX Live packages backing trees/erct-latex-preamble.tree:
+#   tikz / tikz-cd / pgf / spath3 ... pictures + latex-extra
+#   eulervm, libertine, inconsolata ... fonts-extra
+#   mathtools, mathpartir, centernot, mathalpha, simplebnf, standalone(+preview)
+#   amssymb / stmaryrd ... science
+# dvisvgm converts the DVI to SVG (forest.toml compile_command = latex);
+# ghostscript covers dvisvgm's raster/colour fallbacks.
+# The `--font-format=woff` in forest.toml needs dvisvgm built with WOFF support,
+# which the Ubuntu package provides.
+#
+# libev4t64 / libssl3t64 carry Ubuntu 24.04's time_t transition suffix; the
+# runtime shared-lib set is validated in the release smoke test (see A3) and
+# widened here if `ldd` reports anything missing.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    texlive-latex-base \
+    texlive-latex-recommended \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-fonts-extra \
+    texlive-science \
+    texlive-pictures \
+    dvisvgm \
+    ghostscript \
+    libgmp10 \
+    libev4t64 \
+    libffi8 \
+    libssl3t64 \
+    zlib1g \
+    ca-certificates \
+    curl \
+    xz-utils \
+    git \
+  && rm -rf /var/lib/apt/lists/*
+
+# Node + pnpm — the forest build pipeline (tsx/esbuild) is Node-driven and shells
+# out to forester. Baking them in makes this image a complete "build a forest"
+# environment, so downstream CI is just: checkout -> pnpm install -> pnpm build.
+# corepack resolves the exact pnpm from each forest's package.json `packageManager`.
+ARG NODE_VERSION=22.11.0
+RUN curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+  && tar -xJf "node-v${NODE_VERSION}-linux-x64.tar.xz" -C /usr/local --strip-components=1 \
+  && rm "node-v${NODE_VERSION}-linux-x64.tar.xz" \
+  && corepack enable
+
+# The dune-installed prefix (bin/forester + share/forester theme site), at the
+# identical path it was installed to in the builder so dune-site resolves.
+COPY --from=builder /opt/forester /opt/forester
+ENV PATH="/opt/forester/bin:${PATH}"
+
+# Let latex pick up a forest-local simplebnf.sty (or any forest .sty) from the
+# working directory even if the packaged one is absent.
+ENV TEXINPUTS=".:"
+
+# Prime the TeX filename database so newly-copied fonts/packages are found.
+RUN mktexlsr || true
+
+ENTRYPOINT ["forester"]
+CMD ["--help"]

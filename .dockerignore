@@ -1,0 +1,17 @@
+# Keep the docker build context lean — exclude local build/VCS/env artifacts.
+# (docker/Dockerfile.ci builds the OCaml `forester` package only.)
+.git
+.direnv
+.envrc
+_build
+_opam
+dune.lock
+_out
+_site
+**/.lake
+**/_out
+# tool build outputs (the CI image doesn't build the rust/haskell tools)
+tools/**/target
+tools/**/dist-newstyle
+node_modules
+**/node_modules
